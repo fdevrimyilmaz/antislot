@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * This script is used to reset the project to a blank state.
- * It deletes or moves the /app, /components, /hooks, /scripts, and /constants directories to /app-example based on user input and creates a new /app directory with an index.tsx and _layout.tsx file.
- * You can remove the `reset-project` script from package.json and safely delete this file after running it.
+ * Bu betik projeyi boş bir duruma sıfırlamak için kullanılır.
+ * Kullanıcı girdisine göre /app, /components, /hooks, /scripts ve /constants dizinlerini /app-example dizinine taşır veya siler ve yeni bir /app dizininde index.tsx ve _layout.tsx dosyaları oluşturur.
+ * Çalıştırdıktan sonra package.json içinden `reset-project` betiğini kaldırabilir ve bu dosyayı güvenle silebilirsiniz.
  */
 
 const fs = require("fs");
@@ -27,7 +27,7 @@ export default function Index() {
         alignItems: "center",
       }}
     >
-      <Text>Edit app/index.tsx to edit this screen.</Text>
+      <Text>Bu ekranı düzenlemek için app/index.tsx dosyasını düzenleyin.</Text>
     </View>
   );
 }
@@ -48,64 +48,67 @@ const rl = readline.createInterface({
 const moveDirectories = async (userInput) => {
   try {
     if (userInput === "y") {
-      // Create the app-example directory
+      // app-example dizinini oluştur
       await fs.promises.mkdir(exampleDirPath, { recursive: true });
-      console.log(`📁 /${exampleDir} directory created.`);
+      console.log(`📁 /${exampleDir} dizini oluşturuldu.`);
     }
 
-    // Move old directories to new app-example directory or delete them
+    // Eski dizinleri yeni app-example dizinine taşı veya sil
     for (const dir of oldDirs) {
       const oldDirPath = path.join(root, dir);
-      if (fs.existsSync(oldDirPath)) {
+      try {
+        await fs.promises.access(oldDirPath);
+        // Dizin mevcut
         if (userInput === "y") {
           const newDirPath = path.join(root, exampleDir, dir);
           await fs.promises.rename(oldDirPath, newDirPath);
-          console.log(`➡️ /${dir} moved to /${exampleDir}/${dir}.`);
+          console.log(`➡️ /${dir} dizini /${exampleDir}/${dir} konumuna taşındı.`);
         } else {
           await fs.promises.rm(oldDirPath, { recursive: true, force: true });
-          console.log(`❌ /${dir} deleted.`);
+          console.log(`❌ /${dir} silindi.`);
         }
-      } else {
-        console.log(`➡️ /${dir} does not exist, skipping.`);
+      } catch {
+        // Dizin mevcut değil
+        console.log(`➡️ /${dir} yok, atlanıyor.`);
       }
     }
 
-    // Create new /app directory
+    // Yeni /app dizinini oluştur
     const newAppDirPath = path.join(root, newAppDir);
     await fs.promises.mkdir(newAppDirPath, { recursive: true });
-    console.log("\n📁 New /app directory created.");
+    console.log("\n📁 Yeni /app dizini oluşturuldu.");
 
-    // Create index.tsx
+    // index.tsx oluştur
     const indexPath = path.join(newAppDirPath, "index.tsx");
     await fs.promises.writeFile(indexPath, indexContent);
-    console.log("📄 app/index.tsx created.");
+    console.log("📄 app/index.tsx oluşturuldu.");
 
-    // Create _layout.tsx
+    // _layout.tsx oluştur
     const layoutPath = path.join(newAppDirPath, "_layout.tsx");
     await fs.promises.writeFile(layoutPath, layoutContent);
-    console.log("📄 app/_layout.tsx created.");
+    console.log("📄 app/_layout.tsx oluşturuldu.");
 
-    console.log("\n✅ Project reset complete. Next steps:");
+    console.log("\n✅ Proje sıfırlama tamamlandı. Sonraki adımlar:");
     console.log(
-      `1. Run \`npx expo start\` to start a development server.\n2. Edit app/index.tsx to edit the main screen.${
+      `1. Geliştirme sunucusunu başlatmak için \`npx expo start\` çalıştırın.\n2. Ana ekranı düzenlemek için app/index.tsx dosyasını düzenleyin.${
         userInput === "y"
-          ? `\n3. Delete the /${exampleDir} directory when you're done referencing it.`
+          ? `\n3. Referans için işiniz bittiğinde /${exampleDir} dizinini silin.`
           : ""
       }`
     );
   } catch (error) {
-    console.error(`❌ Error during script execution: ${error.message}`);
+    console.error(`❌ Betik çalıştırılırken hata: ${error.message}`);
   }
 };
 
 rl.question(
-  "Do you want to move existing files to /app-example instead of deleting them? (Y/n): ",
+  "Mevcut dosyaları silmek yerine /app-example dizinine taşımak ister misiniz? (Y/n): ",
   (answer) => {
     const userInput = answer.trim().toLowerCase() || "y";
     if (userInput === "y" || userInput === "n") {
       moveDirectories(userInput).finally(() => rl.close());
     } else {
-      console.log("❌ Invalid input. Please enter 'Y' or 'N'.");
+      console.log("❌ Geçersiz giriş. Lütfen 'Y' veya 'N' girin.");
       rl.close();
     }
   }
