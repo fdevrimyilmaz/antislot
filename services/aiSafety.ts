@@ -10,6 +10,7 @@ export type SafetyFlags = {
 
 type SafetyContext = {
   locale: "tr";
+  signal?: AbortSignal;
 };
 
 const SELF_HARM_KEYWORDS = [
@@ -157,10 +158,13 @@ export async function safeAiReply(
     return { text: copy.refusal, flags };
   }
 
-  const reply = await postChat([
-    { role: "system", content: copy.systemPrompt },
-    { role: "user", content: trimmed },
-  ]);
+  const reply = await postChat(
+    [
+      { role: "system", content: copy.systemPrompt },
+      { role: "user", content: trimmed },
+    ],
+    { signal: context?.signal }
+  );
   const replyNormalized = normalizeText(reply);
   const safeText = isUnsafeReply(replyNormalized) ? copy.refusal : reply;
   return { text: safeText, flags };

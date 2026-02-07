@@ -9,6 +9,7 @@ const DATA_POINTS = [
   "Kişisel bilgi toplanmaz",
   "Cihaz tanımlayıcıları toplanmaz",
   "Analitik veya izleme yoktur",
+  "Çökme ve hata raporları (anonim, kararlılık için isteğe bağlı) Sentry ile toplanabilir; izleme/analitik yoktur",
 ];
 
 const LOCAL_STORAGE = [
