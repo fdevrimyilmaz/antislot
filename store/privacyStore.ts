@@ -10,11 +10,17 @@ import { storage, STORAGE_KEYS } from '@/lib/storage';
 export interface PrivacyPreferences {
   shareDiagnostics: boolean;
   crashReporting: boolean;
+  telemetryEnabled: boolean;
+  dataMinimization: boolean;
+  retentionDays: 7 | 30 | 90;
 }
 
 const DEFAULT_PREFERENCES: PrivacyPreferences = {
   shareDiagnostics: false,
   crashReporting: false,
+  telemetryEnabled: false,
+  dataMinimization: true,
+  retentionDays: 30,
 };
 
 interface PrivacyStoreState {
@@ -37,10 +43,11 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
         STORAGE_KEYS.PRIVACY_PREFERENCES,
         { type: 'standard' }
       );
-      set({
-        preferences: stored ?? DEFAULT_PREFERENCES,
-        hydrated: true,
-      });
+      const merged = {
+        ...DEFAULT_PREFERENCES,
+        ...(stored ?? {}),
+      };
+      set({ preferences: merged, hydrated: true });
     } catch (error) {
       console.error('[PrivacyStore] Hydration error:', error);
       set({
@@ -52,8 +59,21 @@ export const usePrivacyStore = create<PrivacyStoreState>((set, get) => ({
 
   updatePreferences: async (partial) => {
     const state = get();
-    const updated = { ...state.preferences, ...partial };
+    const draft = { ...state.preferences, ...partial };
+    const updated = draft.telemetryEnabled
+      ? draft
+      : {
+          ...draft,
+          shareDiagnostics: false,
+          crashReporting: false,
+        };
     set({ preferences: updated });
+    if (!updated.telemetryEnabled) {
+      try {
+        const { clearBufferedAnalyticsEvents } = await import("@/services/analytics");
+        clearBufferedAnalyticsEvents();
+      } catch {}
+    }
     try {
       await storage.set(STORAGE_KEYS.PRIVACY_PREFERENCES, updated, {
         type: 'standard',
