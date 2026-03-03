@@ -1,44 +1,46 @@
 {
   "expo": {
-    "name": "antislot",
+    "name": "Antislot",
     "slug": "antislot",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "antislot",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "primaryColor": "#1D4C72",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.antislot.app",
+      "buildNumber": "1",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.antislot.app"
-        ],
-        "com.apple.developer.networking.networkextension": [
-          "dns-proxy"
-        ],
-        "com.apple.developer.message-filter": true
+        ]
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "ENABLE_IOS_NE": false
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.antislot.app",
+      "versionCode": 1,
       "permissions": [
-        "android.permission.RECEIVE_SMS",
-        "android.permission.READ_SMS",
-        "android.permission.SEND_SMS",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundImage": "./assets/images/icon.png",
-        "monochromeImage": "./assets/images/icon.png"
+        "backgroundColor": "#1D4C72",
+        "foregroundImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "output": "static",
@@ -49,21 +51,34 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
+          "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#F8FAFC",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0F172A"
           }
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5abd5fc8-dfbd-4672-a33e-74ea0bbb55fd"
+      },
+      "privacyPolicyUrl": "https://antislot-legal.vercel.app/privacy",
+      "termsUrl": "https://antislot-legal.vercel.app/terms",
+      "supportEmail": "support@antislot.app",
+      "supportUrl": "https://antislot-legal.vercel.app/support"
+    },
+    "owner": "512ferhat512",
+    "description": "Kumar durtulerini yonetmek icin destek araclari. Kriz destegi, ilerleme takibi ve guvenli veri saklama."
   }
 }
