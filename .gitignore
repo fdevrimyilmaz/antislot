@@ -29,6 +29,7 @@ yarn-error.*
 
 # test output
 coverage/
+reports/
 
 # macOS
 .DS_Store
@@ -37,6 +38,9 @@ coverage/
 # local env files
 .env*.local
 .env
+.env.production
+backend/.env.production
+server/.env.production
 server/.env
 
 # typescript
