@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-03-09T22:25:34.373Z",
+  "workspaces": {
+    "app": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "backend": {
+      "info": 0,
+      "low": 8,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 8
+    },
+    "server": {
+      "info": 0,
+      "low": 8,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 8
+    }
+  }
+}
