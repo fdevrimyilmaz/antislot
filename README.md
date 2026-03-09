@@ -83,13 +83,17 @@ curl -i http://localhost:3001/v1/blocklist
 - Release preflight (CI-equivalent strict): `RELEASE_PREFLIGHT_STRICT=true npm run preflight:release`
 - Store assets check: `npm run preflight:store`
 - Final prod checks (IAP/telemetry/policy): `npm run preflight:prod-final`
+- Full go-live gate (quality + strict preflight + prod-final): `npm run go-live:gate`
 - Security regression gate: `npm run security:gate`
 - Update vulnerability baseline intentionally: `npm run security:baseline:update`
 - API load smoke: `npm run load:smoke:server`
 - Backup/restore drill: `npm run backup:drill:server`
 - Real device validation runbook: `docs/REAL_DEVICE_RELEASE_VALIDATION.md`
+- Secret matrix and strict requirements: `docs/RELEASE_SECRET_MATRIX.md`
+- Go-live gate details: `docs/GO_LIVE_GATE.md`
 
 ## Quality Gates
 - Merge conflict marker check: `npm run check:conflicts`
 - TypeScript typecheck: `npm run typecheck`
-- Full local quality pipeline (app + backend + server): `npm run quality`
+- Coverage-gated test pipeline (app + backend + server): `npm run quality`
+- CI Maestro critical flows: enable repository variable `MAESTRO_CI_ENABLED=true` to run `npm run e2e:maestro:critical`

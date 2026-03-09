@@ -27,6 +27,30 @@ jobs:
       - name: Install app dependencies
         run: npm ci
 
+      - name: Release preflight (strict, main branch)
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        run: npm run preflight:release
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CORS_ALLOWLIST: ${{ secrets.CORS_ALLOWLIST }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IAP_WEBHOOK_SECRET: ${{ secrets.IAP_WEBHOOK_SECRET }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          IAP_VALIDATOR_URL: ${{ secrets.IAP_VALIDATOR_URL }}
+          IAP_IOS_SHARED_SECRET: ${{ secrets.IAP_IOS_SHARED_SECRET }}
+          IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          ADMIN_PROXY_AUTH_REQUIRED: ${{ secrets.ADMIN_PROXY_AUTH_REQUIRED }}
+          ADMIN_PROXY_SHARED_SECRET: ${{ secrets.ADMIN_PROXY_SHARED_SECRET }}
+          ADMIN_PROXY_ALLOWED_USERS: ${{ secrets.ADMIN_PROXY_ALLOWED_USERS }}
+          ADMIN_PROXY_ALLOWED_GROUPS: ${{ secrets.ADMIN_PROXY_ALLOWED_GROUPS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_WEBHOOK_BEARER_TOKEN: ${{ secrets.ALERT_WEBHOOK_BEARER_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
       - name: Check merge conflict markers
         run: npm run check:conflicts
 
@@ -46,8 +70,8 @@ jobs:
           path: reports/i18n-coverage.json
           if-no-files-found: error
 
-      - name: Test app
-        run: npm test -- --ci --passWithNoTests
+      - name: Test app (coverage gate)
+        run: npm run test:coverage -- --ci --runInBand --passWithNoTests
 
       - name: Install backend dependencies
         run: npm ci
@@ -57,8 +81,8 @@ jobs:
         run: npm run typecheck
         working-directory: backend
 
-      - name: Test backend
-        run: npm test
+      - name: Test backend (coverage gate)
+        run: npm run test:coverage -- --runInBand
         working-directory: backend
 
       - name: Build backend
@@ -73,8 +97,8 @@ jobs:
         run: npm run typecheck
         working-directory: server
 
-      - name: Test server
-        run: npm test
+      - name: Test server (coverage gate)
+        run: npm test -- --coverage --runInBand
         working-directory: server
 
       - name: Build server
@@ -215,3 +239,29 @@ jobs:
           LOAD_SMOKE_API_AUTH_TOKEN: ${{ secrets.LOAD_SMOKE_API_AUTH_TOKEN }}
           LOAD_SMOKE_DURATION_SEC: ${{ secrets.LOAD_SMOKE_DURATION_SEC }}
           LOAD_SMOKE_CONCURRENCY: ${{ secrets.LOAD_SMOKE_CONCURRENCY }}
+
+  maestro-critical:
+    runs-on: ubuntu-latest
+    needs: lint-test-build
+    if: ${{ vars.MAESTRO_CI_ENABLED == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install Maestro CLI
+        run: curl -Ls "https://get.maestro.mobile.dev" | bash
+
+      - name: Run Maestro critical flows
+        run: |
+          export PATH="$PATH:$HOME/.maestro/bin"
+          npm run e2e:maestro:critical

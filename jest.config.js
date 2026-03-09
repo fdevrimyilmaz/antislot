@@ -16,5 +16,13 @@ module.exports = {
     '!**/*.d.ts'
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'html']
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 15,
+      branches: 12,
+      functions: 13,
+      lines: 15
+    }
+  }
 };

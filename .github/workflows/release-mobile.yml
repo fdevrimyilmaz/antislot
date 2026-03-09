@@ -1,0 +1,137 @@
+# Mobile release: EAS Build (iOS + Android) with reproducible image,
+# version from repo (bump-version before release), artifact metadata and checksums.
+# Requires: EXPO_TOKEN secret, EAS credentials configured (see EAS_HEADLESS_SETUP.md).
+
+name: Release Mobile
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform (all | android | ios)"
+        required: true
+        default: "all"
+        type: choice
+        options: [all, android, ios]
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+jobs:
+  build:
+    name: EAS Build (${{ github.event.inputs.platform || 'all' }})
+    runs-on: ubuntu-latest
+    if: ${{ env.EXPO_TOKEN != '' }}
+    outputs:
+      build_metadata: ${{ steps.meta.outputs.build_metadata }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release preflight (mobile)
+        run: npm run preflight:release:mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+
+      - name: Release preflight (full strict gate)
+        run: npm run preflight:release
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CORS_ALLOWLIST: ${{ secrets.CORS_ALLOWLIST }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IAP_WEBHOOK_SECRET: ${{ secrets.IAP_WEBHOOK_SECRET }}
+          API_AUTH_TOKEN: ${{ secrets.API_AUTH_TOKEN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          IAP_VALIDATOR_URL: ${{ secrets.IAP_VALIDATOR_URL }}
+          IAP_IOS_SHARED_SECRET: ${{ secrets.IAP_IOS_SHARED_SECRET }}
+          IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+          ADMIN_PROXY_AUTH_REQUIRED: ${{ secrets.ADMIN_PROXY_AUTH_REQUIRED }}
+          ADMIN_PROXY_SHARED_SECRET: ${{ secrets.ADMIN_PROXY_SHARED_SECRET }}
+          ADMIN_PROXY_ALLOWED_USERS: ${{ secrets.ADMIN_PROXY_ALLOWED_USERS }}
+          ADMIN_PROXY_ALLOWED_GROUPS: ${{ secrets.ADMIN_PROXY_ALLOWED_GROUPS }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_WEBHOOK_BEARER_TOKEN: ${{ secrets.ALERT_WEBHOOK_BEARER_TOKEN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Store metadata and production final checks
+        run: |
+          npm run preflight:store
+          npm run preflight:prod-final
+
+      - name: Sync version from release tag (if release)
+        if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')
+        run: |
+          node -e "
+            const fs=require('fs');
+            const raw=process.env.RELEASE_VERSION || '';
+            const v=raw.startsWith('v') ? raw.slice(1) : raw;
+            const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+            const a=JSON.parse(fs.readFileSync('app.json','utf8'));
+            if (!a.expo) a.expo = {};
+            if (v) { p.version = v; a.expo.version = v; }
+            fs.writeFileSync('package.json', JSON.stringify(p,null,2));
+            fs.writeFileSync('app.json', JSON.stringify(a,null,2));
+          "
+        env:
+          RELEASE_VERSION: ${{ github.event.release.tag_name }}
+
+      - name: Set version env for metadata
+        id: ver
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "android_version_code=$(node -p "require('./app.json').expo.android?.versionCode ?? 0")" >> $GITHUB_OUTPUT
+          echo "ios_build_number=$(node -p "require('./app.json').expo.ios?.buildNumber ?? '0')" >> $GITHUB_OUTPUT
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: EAS Build (reproducible, freeze credentials)
+        id: build
+        run: |
+          PLATFORM="${{ github.event.inputs.platform }}"
+          if [ -z "$PLATFORM" ]; then PLATFORM=all; fi
+          eas build --platform "$PLATFORM" --profile production --non-interactive --freeze-credentials
+          # Parse build URLs from last run (optional: eas build --json and jq)
+          echo "Build submitted. Check EAS dashboard for artifact URLs." >> $GITHUB_STEP_SUMMARY
+
+      - name: Export build metadata for artifact signing / release
+        id: meta
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          AVC="${{ steps.ver.outputs.android_version_code }}"
+          IBN="${{ steps.ver.outputs.ios_build_number }}"
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo 'build_metadata<<EOF' >> $GITHUB_OUTPUT
+          echo "{\"version\":\"$V\",\"android\":{\"versionCode\":$AVC},\"ios\":{\"buildNumber\":\"$IBN\"},\"buildRunUrl\":\"https://expo.dev/accounts/512ferhat512/projects/antislot/builds\"}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  checksums:
+    name: Build artifact checksums (when artifacts available)
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && needs.build.result == 'success'
+    steps:
+      - name: Summary
+        run: |
+          echo "## Mobile release build" >> $GITHUB_STEP_SUMMARY
+          echo "Version and build numbers are in build job outputs. Attach EAS build URLs to the GitHub Release manually or via EAS Submit." >> $GITHUB_STEP_SUMMARY
+          echo "For artifact signing: download .ipa/.aab from EAS dashboard, then \`sha256sum <file> > <file>.sha256\` and attach to release." >> $GITHUB_STEP_SUMMARY

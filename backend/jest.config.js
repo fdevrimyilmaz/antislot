@@ -10,6 +10,14 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 30,
+      branches: 25,
+      functions: 30,
+      lines: 30
+    }
+  },
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
     '^.+\\.ts$': 'ts-jest'
