@@ -1,7 +1,14 @@
+import { Fonts, Radius, Spacing } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { OFFLINE_CRISIS_FALLBACK } from "@/services/crisisProtocol";
+import { openExternalUrlWithFallback } from "@/services/safeLinking";
+import { useAccessibilityStore } from "@/store/accessibilityStore";
+import { addContact, getContacts, removeContact } from "@/store/sosStore";
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocalizedCopy } from "@/hooks/useLocalizedCopy";
 import {
-  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -11,51 +18,150 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addContact, getContacts, removeContact } from "@/store/sosStore";
-// SOS screen focuses on gambling support.
 
-const HELPLINES = [
-  {
-    title: "112 Acil Çağrı Merkezi",
-    phone: "112",
-    label: "Hayati tehlike veya acil durum",
-  },
-  {
-    title: "Yeşilay Danışmanlık Merkezi (YEDAM)",
-    phone: "115",
-    label: "Bağımlılık desteği ve danışmanlık",
-  },
-  {
-    title: "Alo 183 Sosyal Destek Hattı",
-    phone: "183",
-    sms: "183",
-    label: "7/24 ücretsiz destek • SMS: Ad Soyad, TCKN, talep",
-  },
-];
-
-const COPING_STEPS = [
-  "60 saniye durup nefes alın.",
-  "Dürtüyü yüksek sesle adlandırın ve 1-10 arasında puanlayın.",
-  "Güvenli bir yere geçin veya oda değiştirin.",
-  "Güvendiğiniz birini arayın veya mesaj atın.",
-  "Günlüğünüzü açın ve bir paragraf yazın.",
-  "5 dakikalık dikkat dağıtıcı bir etkinlik yapın.",
-];
-
-const GROUNDING_STEPS = [
-  "Gördüğünüz 5 şey",
-  "Dokunabildiğiniz 4 şey",
-  "Duyabildiğiniz 3 şey",
-  "Koklayabildiğiniz 2 şey",
-  "Tadabildiğiniz 1 şey",
-];
-
-const SOS_FOCUS_COPY = {
-  title: "Kumar için SOS",
-  description: "Kumar dürtüsü yükseldiğinde hızlıca destek ve topraklama adımlarını kullanın.",
+type Helpline = {
+  title: string;
+  phone: string;
+  sms?: string;
+  label: string;
 };
 
+const SOS_COPY = {
+  tr: {
+    focusTitle: "Kumar icin SOS",
+    focusDescription:
+      "Durtu yukselince hizli destek adimlariyla guvenli bir aralik ac.",
+    introTitle: "Yalniz degilsin",
+    dangerHint: "Hayati tehlike varsa 112'yi hemen ara.",
+    emergencyHelp: "Acil Yardim",
+    breathingTitle: "Nefes Sifirlama",
+    breathingSubtitle: "4 saniye al, 4 saniye tut, 6 saniye ver. Sure bitene kadar tekrar et.",
+    breathingStart: "60 sn Nefes Baslat",
+    stop: "Durdur",
+    delayTitle: "Durtuyu Ertele",
+    delaySubtitle: "Yogunlugu dusurmek icin 10 dakikalik mola ver.",
+    delayStart: "10 dk Ertelemeyi Baslat",
+    groundingTitle: "Topraklama: 5-4-3-2-1",
+    quickPlanTitle: "Hizli Bas Etme Plani",
+    trustedContacts: "Guvenilir Kisiler",
+    namePlaceholder: "Isim",
+    phonePlaceholder: "Telefon",
+    addContact: "Kisi Ekle",
+    noContacts: "Kayitli kisi yok",
+    call: "Ara",
+    message: "Mesaj",
+    remove: "Kaldir",
+    ready: "Hazirim",
+    modalBodySuffix:
+      "Bir yardim hattini ara, nefes egzersizi baslat veya guvendigin birine ulas.",
+    helplines: [
+      {
+        title: "112 Acil Cagri Merkezi",
+        phone: "112",
+        label: "Hayati risk veya acil durum",
+      },
+      {
+        title: "Yesilay Danismanlik Merkezi (YEDAM)",
+        phone: "115",
+        label: "Bagimlilik destegi ve danismanlik",
+      },
+      {
+        title: "Alo 183 Sosyal Destek Hatti",
+        phone: "183",
+        sms: "183",
+        label: "7/24 ucretsiz destek - SMS: ad, soyad, talep",
+      },
+    ] as Helpline[],
+    copingSteps: [
+      "60 saniye durup nefese odaklan.",
+      "Durtuyu adlandir ve 1-10 arasi puanla.",
+      "Guvenli bir alana gec veya ortam degistir.",
+      "Guvendigin birini ara ya da mesaj at.",
+      "Gunluge kisa bir not yaz.",
+      "5 dakikalik dikkat dagitici bir aktivite yap.",
+    ],
+    groundingSteps: [
+      "Gordugun 5 sey",
+      "Dokundugun 4 sey",
+      "Duydugun 3 sey",
+      "Kokladigin 2 sey",
+      "Tadabildigin 1 sey",
+    ],
+  },
+  en: {
+    focusTitle: "SOS for Gambling Urges",
+    focusDescription:
+      "When urges rise, create a safe pause with fast support actions.",
+    introTitle: "You are not alone",
+    dangerHint: "Call 112 immediately for life-threatening danger.",
+    emergencyHelp: "Emergency Help",
+    breathingTitle: "Breathing Reset",
+    breathingSubtitle:
+      "Inhale for 4 seconds, hold for 4 seconds, exhale for 6 seconds. Repeat until time ends.",
+    breathingStart: "Start 60s Breathing",
+    stop: "Stop",
+    delayTitle: "Delay the Urge",
+    delaySubtitle: "Take a 10-minute break to reduce urge intensity.",
+    delayStart: "Start 10-min Delay",
+    groundingTitle: "Grounding: 5-4-3-2-1",
+    quickPlanTitle: "Quick Coping Plan",
+    trustedContacts: "Trusted Contacts",
+    namePlaceholder: "Name",
+    phonePlaceholder: "Phone",
+    addContact: "Add Contact",
+    noContacts: "No saved contacts",
+    call: "Call",
+    message: "Message",
+    remove: "Remove",
+    ready: "I'm Ready",
+    modalBodySuffix:
+      "Call a helpline, start breathing, or contact someone you trust.",
+    helplines: [
+      {
+        title: "112 Emergency Call Center",
+        phone: "112",
+        label: "Life-threatening risk or urgent emergency",
+      },
+      {
+        title: "Yesilay Counseling Center (YEDAM)",
+        phone: "115",
+        label: "Addiction support and counseling",
+      },
+      {
+        title: "Alo 183 Social Support Line",
+        phone: "183",
+        sms: "183",
+        label: "24/7 free support - SMS your name and request",
+      },
+    ] as Helpline[],
+    copingSteps: [
+      "Pause for 60 seconds and focus on breathing.",
+      "Name the urge and rate it from 1 to 10.",
+      "Move to a safer place or change environment.",
+      "Call or message someone you trust.",
+      "Write a short journal note.",
+      "Do a 5-minute distraction activity.",
+    ],
+    groundingSteps: [
+      "5 things you can see",
+      "4 things you can touch",
+      "3 things you can hear",
+      "2 things you can smell",
+      "1 thing you can taste",
+    ],
+  },
+} as const;
+
 export default function SOS() {
+  const { preferences } = useAccessibilityStore();
+  const { t, language } = useLanguage();
+  const { colors } = useTheme();
+  const copy = useLocalizedCopy(SOS_COPY);
+
+  const fontScale = preferences.fontScale;
+  const crisisMode = preferences.crisisMode;
+  const headingScale = Math.min(fontScale, 1.2);
+
   const [showIntro, setShowIntro] = useState(true);
   const [contacts, setContacts] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [newName, setNewName] = useState("");
@@ -76,7 +182,9 @@ export default function SOS() {
       setBreathingSeconds(null);
       return;
     }
-    const timer = setTimeout(() => setBreathingSeconds((prev) => (prev ? prev - 1 : null)), 1000);
+    const timer = setTimeout(() => {
+      setBreathingSeconds((prev) => (prev ? prev - 1 : null));
+    }, 1000);
     return () => clearTimeout(timer);
   }, [breathingSeconds]);
 
@@ -86,22 +194,24 @@ export default function SOS() {
       setDelaySeconds(null);
       return;
     }
-    const timer = setTimeout(() => setDelaySeconds((prev) => (prev ? prev - 1 : null)), 1000);
+    const timer = setTimeout(() => {
+      setDelaySeconds((prev) => (prev ? prev - 1 : null));
+    }, 1000);
     return () => clearTimeout(timer);
   }, [delaySeconds]);
 
-  const handleAddContact = async () => {
+  async function handleAddContact() {
     if (!newName.trim() || !newPhone.trim()) return;
-    const updated = await addContact(newName, newPhone);
+    const updated = await addContact(newName.trim(), newPhone.trim());
     setContacts(updated);
     setNewName("");
     setNewPhone("");
-  };
+  }
 
-  const handleRemoveContact = async (id: string) => {
+  async function handleRemoveContact(id: string) {
     const updated = await removeContact(id);
     setContacts(updated);
-  };
+  }
 
   const formattedBreathing = useMemo(() => {
     if (breathingSeconds === null) return "";
@@ -117,148 +227,193 @@ export default function SOS() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, [delaySeconds]);
 
-  const focusCopy = SOS_FOCUS_COPY;
+  async function openDial(phone: string) {
+    await openExternalUrlWithFallback({
+      url: `tel:${phone}`,
+      fallbackTitle: OFFLINE_CRISIS_FALLBACK.title,
+      fallbackMessage: `${OFFLINE_CRISIS_FALLBACK.description}\n\nManual call: ${phone}`,
+    });
+  }
+
+  async function openSms(phone: string) {
+    await openExternalUrlWithFallback({
+      url: `sms:${phone}`,
+      fallbackTitle: OFFLINE_CRISIS_FALLBACK.title,
+      fallbackMessage: `${OFFLINE_CRISIS_FALLBACK.description}\n\nManual SMS: ${phone}`,
+    });
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} testID="sos-screen">
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} testID="sos-back">
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>{`<- ${t.back}`}</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.title}>{focusCopy.title}</Text>
+        <Text style={[styles.title, { fontSize: 28 * headingScale, color: colors.text }]}>{copy.focusTitle}</Text>
 
-        <View style={styles.card}>
-          <View style={styles.iconWrapper}>
-            <Text style={styles.icon}>🆘</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]} testID="sos-intro-card">
+          <View style={[styles.iconWrapper, { backgroundColor: `${colors.warning ?? "#D97706"}1A` }]}> 
+            <Text style={[styles.icon, { color: colors.warning ?? "#D97706" }]}>SOS</Text>
           </View>
-          <Text style={styles.cardTitle}>Yalnız değilsiniz</Text>
-          <Text style={styles.cardText}>
-          {focusCopy.description} Hayati tehlike varsa 112&apos;yi arayın.
+          <Text style={[styles.cardTitle, { color: colors.text }]}>{copy.introTitle}</Text>
+          <Text style={[styles.cardText, { color: colors.textSecondary }]}>
+            {copy.focusDescription} {copy.dangerHint}
           </Text>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Acil Yardım</Text>
-          {HELPLINES.map((line) => (
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]} testID="sos-helplines">
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.emergencyHelp}</Text>
+          {copy.helplines.map((line) => (
             <View key={line.title} style={styles.actionRow}>
               <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>{line.title}</Text>
-                <Text style={styles.actionSub}>{line.label}</Text>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>{line.title}</Text>
+                <Text style={[styles.actionSub, { color: colors.textSecondary }]}>{line.label}</Text>
               </View>
-              {line.phone && (
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => Linking.openURL(`tel:${line.phone}`)}
-                >
-                  <Text style={styles.primaryButtonText}>Ara</Text>
-                </TouchableOpacity>
-              )}
-              {line.sms && (
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => Linking.openURL(`sms:${line.sms}`)}
-                >
-                  <Text style={styles.secondaryButtonText}>Mesaj</Text>
-                </TouchableOpacity>
-              )}
+              <View style={styles.actionButtons}>
+                {line.phone ? (
+                  <TouchableOpacity
+                    style={[styles.primaryButton, { backgroundColor: colors.warning ?? "#D97706" }]}
+                    onPress={() => void openDial(line.phone)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${line.title} - ${copy.call}`}
+                  >
+                    <Text style={styles.primaryButtonText}>{copy.call}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {line.sms ? (
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => void openSms(line.sms!)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${line.title} - ${copy.message}`}
+                  >
+                    <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>{copy.message}</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
             </View>
           ))}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nefes Sıfırlama</Text>
-          <Text style={styles.sectionSub}>
-            4 saniye nefes al, 4 saniye tut, 6 saniye ver. Süre bitene kadar tekrar edin.
-          </Text>
-          {breathingSeconds === null ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setBreathingSeconds(60)}>
-              <Text style={styles.primaryButtonText}>60 sn Nefes Başlat</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.timerRow}>
-              <Text style={styles.timerText}>{formattedBreathing}</Text>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setBreathingSeconds(null)}>
-                <Text style={styles.secondaryButtonText}>Durdur</Text>
+        {!crisisMode ? (
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.breathingTitle}</Text>
+            <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>{copy.breathingSubtitle}</Text>
+            {breathingSeconds === null ? (
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                onPress={() => setBreathingSeconds(60)}
+                testID="sos-breathing-start"
+              >
+                <Text style={styles.primaryButtonText}>{copy.breathingStart}</Text>
               </TouchableOpacity>
-            </View>
-          )}
-        </View>
+            ) : (
+              <View style={styles.timerRow}>
+                <Text style={[styles.timerText, { color: colors.primary }]}>{formattedBreathing}</Text>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => setBreathingSeconds(null)}
+                >
+                  <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{copy.stop}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dürtüyü Ertele</Text>
-          <Text style={styles.sectionSub}>Dürtü yoğunluğunu azaltmak için 10 dakikalık bir ara verin.</Text>
-          {delaySeconds === null ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setDelaySeconds(600)}>
-              <Text style={styles.primaryButtonText}>10 dk Ertelemeyi Başlat</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.timerRow}>
-              <Text style={styles.timerText}>{formattedDelay}</Text>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setDelaySeconds(null)}>
-                <Text style={styles.secondaryButtonText}>Durdur</Text>
+        {!crisisMode ? (
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.delayTitle}</Text>
+            <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>{copy.delaySubtitle}</Text>
+            {delaySeconds === null ? (
+              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => setDelaySeconds(600)}>
+                <Text style={styles.primaryButtonText}>{copy.delayStart}</Text>
               </TouchableOpacity>
-            </View>
-          )}
-        </View>
+            ) : (
+              <View style={styles.timerRow}>
+                <Text style={[styles.timerText, { color: colors.primary }]}>{formattedDelay}</Text>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => setDelaySeconds(null)}
+                >
+                  <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{copy.stop}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Topraklama: 5-4-3-2-1</Text>
-          {GROUNDING_STEPS.map((step) => (
-            <Text key={step} style={styles.listItem}>• {step}</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.groundingTitle}</Text>
+          {copy.groundingSteps.map((step) => (
+            <Text key={step} style={[styles.listItem, { color: colors.textSecondary }]}> 
+              {`- ${step}`}
+            </Text>
           ))}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hızlı Baş Etme Planı</Text>
-          {COPING_STEPS.map((step) => (
-            <Text key={step} style={styles.listItem}>• {step}</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.quickPlanTitle}</Text>
+          {(crisisMode ? copy.copingSteps.slice(0, 3) : copy.copingSteps).map((step) => (
+            <Text key={step} style={[styles.listItem, { color: colors.textSecondary }]}> 
+              {`- ${step}`}
+            </Text>
           ))}
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Güvenilir Kişiler</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{copy.trustedContacts}</Text>
           <View style={styles.inputRow}>
             <TextInput
-              style={styles.input}
-              placeholder="İsim"
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+              placeholder={copy.namePlaceholder}
+              placeholderTextColor={colors.textSecondary}
               value={newName}
               onChangeText={setNewName}
             />
             <TextInput
-              style={styles.input}
-              placeholder="Telefon"
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+              placeholder={copy.phonePlaceholder}
+              placeholderTextColor={colors.textSecondary}
               value={newPhone}
               onChangeText={setNewPhone}
               keyboardType="phone-pad"
             />
           </View>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleAddContact}>
-            <Text style={styles.secondaryButtonText}>Kişi Ekle</Text>
+
+          <TouchableOpacity
+            style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+            onPress={() => void handleAddContact()}
+          >
+            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>{copy.addContact}</Text>
           </TouchableOpacity>
+
           {contacts.length === 0 ? (
-            <Text style={styles.emptyText}>Kayıtlı kişi yok</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{copy.noContacts}</Text>
           ) : (
             contacts.map((contact) => (
-              <View key={contact.id} style={styles.contactRow}>
-                <View>
-                  <Text style={styles.contactName}>{contact.name}</Text>
-                  <Text style={styles.contactPhone}>{contact.phone}</Text>
+              <View key={contact.id} style={[styles.contactRow, { borderBottomColor: colors.border }]}> 
+                <View style={styles.contactInfo}>
+                  <Text style={[styles.contactName, { color: colors.text }]}>{contact.name}</Text>
+                  <Text style={[styles.contactPhone, { color: colors.textSecondary }]}>{contact.phone}</Text>
                 </View>
                 <View style={styles.contactActions}>
                   <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+                    style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                    onPress={() => void openDial(contact.phone)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${contact.name} - ${copy.call}`}
                   >
-                    <Text style={styles.primaryButtonText}>Ara</Text>
+                    <Text style={styles.primaryButtonText}>{copy.call}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.secondaryButton}
-                    onPress={() => handleRemoveContact(contact.id)}
+                    style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => void handleRemoveContact(contact.id)}
                   >
-                    <Text style={styles.secondaryButtonText}>Kaldır</Text>
+                    <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{copy.remove}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -269,28 +424,27 @@ export default function SOS() {
 
       <Modal
         visible={showIntro}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setShowIntro(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}> 
             <TouchableOpacity style={styles.closeBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.closeText}>✕</Text>
+              <Text style={[styles.closeText, { color: colors.textSecondary }]}>x</Text>
             </TouchableOpacity>
 
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>🆘</Text>
+            <View style={[styles.modalIcon, { backgroundColor: `${colors.warning ?? "#D97706"}1A` }]}> 
+              <Text style={[styles.modalIconLabel, { color: colors.warning ?? "#D97706" }]}>SOS</Text>
             </View>
 
-            <Text style={styles.modalTitle}>{focusCopy.title}</Text>
-            <Text style={styles.modalSubtitle}>
-              {focusCopy.description} Hayati tehlike varsa 112&apos;yi arayın; bir yardım hattını arayın,
-              nefes egzersizi başlatın veya güvendiğiniz birine ulaşın.
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{copy.focusTitle}</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              {copy.focusDescription} {copy.dangerHint} {copy.modalBodySuffix}
             </Text>
 
-            <TouchableOpacity style={styles.modalNextBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.modalNextText}>Hazırım</Text>
+            <TouchableOpacity style={[styles.modalNextBtn, { backgroundColor: colors.primary }]} onPress={() => setShowIntro(false)}>
+              <Text style={styles.modalNextText}>{copy.ready}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -300,129 +454,245 @@ export default function SOS() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  header: { marginBottom: 20 },
-  backBtn: { alignSelf: "flex-start" },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", marginBottom: 16, color: "#222" },
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxxl,
+  },
+  header: {
+    marginBottom: Spacing.base,
+  },
+  backBtn: {
+    alignSelf: "flex-start",
+  },
+  backText: {
+    fontSize: 16,
+    fontFamily: Fonts.bodyMedium,
+  },
+  title: {
+    fontFamily: Fonts.display,
+    marginBottom: Spacing.base,
+  },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: Radius.xl,
     padding: 24,
-    marginBottom: 16,
+    marginBottom: Spacing.base,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    borderWidth: 1,
   },
   iconWrapper: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#FFEBEE",
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
   },
-  icon: { fontSize: 46 },
-  cardTitle: { fontSize: 20, fontWeight: "800", marginBottom: 8, color: "#222" },
-  cardText: { fontSize: 15, color: "#555", textAlign: "center", lineHeight: 22 },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+  icon: {
+    fontSize: 28,
+    fontFamily: Fonts.displayMedium,
   },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: "#1D4C72", marginBottom: 12 },
-  sectionSub: { fontSize: 13, color: "#666", marginBottom: 10, lineHeight: 18 },
-  actionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  actionInfo: { flex: 1, marginRight: 12 },
-  actionTitle: { fontSize: 14, fontWeight: "700", color: "#222" },
-  actionSub: { fontSize: 12, color: "#666" },
-  primaryButton: {
-    backgroundColor: "#D06B5C",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    alignItems: "center",
+  cardTitle: {
+    fontSize: 20,
+    fontFamily: Fonts.bodySemiBold,
+    marginBottom: 8,
   },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-  secondaryButton: {
-    backgroundColor: "#E8F0F8",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  secondaryButtonText: { color: "#1D4C72", fontWeight: "700" },
-  listItem: { fontSize: 14, color: "#444", marginBottom: 6 },
-  inputRow: { gap: 10 },
-  input: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  cardText: {
     fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    fontFamily: Fonts.body,
+  },
+  section: {
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.base,
+    borderWidth: 1,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.bodySemiBold,
     marginBottom: 10,
   },
-  emptyText: { fontSize: 13, color: "#999", fontStyle: "italic" },
+  sectionSub: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 10,
+    fontFamily: Fonts.body,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 12,
+    gap: 8,
+  },
+  actionInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    justifyContent: "flex-end",
+  },
+  actionTitle: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
+    lineHeight: 19,
+    flexShrink: 1,
+  },
+  actionSub: {
+    fontSize: 12,
+    marginTop: 2,
+    fontFamily: Fonts.body,
+    lineHeight: 17,
+    flexShrink: 1,
+  },
+  primaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  secondaryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  listItem: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 6,
+    fontFamily: Fonts.body,
+  },
+  inputRow: {
+    gap: 10,
+    marginBottom: 10,
+  },
+  input: {
+    borderRadius: Radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 14,
+    borderWidth: 1,
+    fontFamily: Fonts.body,
+  },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    fontStyle: "italic",
+  },
   contactRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
   },
-  contactName: { fontSize: 14, fontWeight: "700", color: "#222" },
-  contactPhone: { fontSize: 13, color: "#666" },
-  contactActions: { flexDirection: "row", gap: 8 },
-  timerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  timerText: { fontSize: 22, fontWeight: "800", color: "#1D4C72" },
+  contactInfo: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  contactName: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  contactPhone: {
+    fontSize: 13,
+    marginTop: 2,
+    fontFamily: Fonts.body,
+  },
+  contactActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  timerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  timerText: {
+    fontSize: 22,
+    fontFamily: Fonts.displayMedium,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
+    borderRadius: Radius.xl,
+    padding: 24,
     width: "100%",
     maxWidth: 400,
     alignItems: "center",
+    borderWidth: 1,
   },
-  closeBtn: { position: "absolute", top: 16, right: 16 },
-  closeText: { fontSize: 24, color: "#999", fontWeight: "300" },
+  closeBtn: {
+    position: "absolute",
+    top: 14,
+    right: 14,
+    padding: 4,
+  },
+  closeText: {
+    fontSize: 20,
+    fontFamily: Fonts.bodySemiBold,
+  },
   modalIcon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#FFEBEE",
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  modalIconEmoji: { fontSize: 54 },
-  modalTitle: { fontSize: 24, fontWeight: "900", color: "#D06B5C", marginBottom: 8 },
-  modalSubtitle: { fontSize: 14, color: "#555", textAlign: "center", marginBottom: 16 },
+  modalIconLabel: {
+    fontSize: 28,
+    fontFamily: Fonts.displayMedium,
+  },
+  modalTitle: {
+    fontSize: 23,
+    fontFamily: Fonts.display,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    textAlign: "center",
+    marginBottom: 16,
+    fontFamily: Fonts.body,
+  },
   modalNextBtn: {
-    backgroundColor: "#1D4C72",
     paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
+    paddingHorizontal: 24,
+    borderRadius: Radius.md,
     width: "100%",
     alignItems: "center",
   },
-  modalNextText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  modalNextText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: Fonts.bodySemiBold,
+  },
 });

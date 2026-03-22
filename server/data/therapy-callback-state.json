@@ -1,0 +1,14 @@
+{
+  "requests": [
+    {
+      "requestId": "tcb_1774050741871_88c9c8d9",
+      "userId": "integration-admin-user",
+      "phone": "+14155550199",
+      "adminNote": "Resolved in integration test",
+      "locale": "en",
+      "status": "closed",
+      "createdAt": 1774050741871,
+      "updatedAt": 1774050741931
+    }
+  ]
+}

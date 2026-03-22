@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/secureStoreCompat";
 
 export interface UserProfile {
   username: string;
@@ -12,6 +12,11 @@ export interface UserProfile {
 }
 
 const PROFILE_KEY = "antislot_user_profile";
+export const USERNAME_MAX_LENGTH = 32;
+
+export function normalizeUsername(value: string): string {
+  return value.trim().replace(/\s+/g, " ").slice(0, USERNAME_MAX_LENGTH);
+}
 
 export async function getProfile(): Promise<UserProfile | null> {
   try {
@@ -19,19 +24,39 @@ export async function getProfile(): Promise<UserProfile | null> {
     if (!stored) return null;
     return JSON.parse(stored) as UserProfile;
   } catch (error) {
-    console.error("Profil yüklenirken hata:", error);
+    console.error("Profil yuklenirken hata:", error);
     return null;
   }
 }
 
-export async function saveProfile(profile: Omit<UserProfile, "createdAt" | "updatedAt">): Promise<UserProfile> {
+export async function getStoredUsername(): Promise<string | null> {
+  const profile = await getProfile();
+  const normalized = normalizeUsername(profile?.username ?? "");
+  return normalized.length > 0 ? normalized : null;
+}
+
+export async function saveProfile(
+  profile: Omit<UserProfile, "createdAt" | "updatedAt">
+): Promise<UserProfile> {
+  const normalizedUsername = normalizeUsername(profile.username);
+  if (!normalizedUsername) {
+    throw new Error("username-required");
+  }
+
   const now = Date.now();
   const existing = await getProfile();
   const payload: UserProfile = {
     ...profile,
+    username: normalizedUsername,
+    age: profile.age.trim(),
+    gender: profile.gender.trim(),
+    ethnicity: profile.ethnicity.trim(),
+    countryState: profile.countryState.trim(),
+    referral: profile.referral.trim(),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
+
   try {
     await SecureStore.setItemAsync(PROFILE_KEY, JSON.stringify(payload));
     return payload;

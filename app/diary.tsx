@@ -1,6 +1,22 @@
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Fonts, Radius, Spacing } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { ScreenHero } from "@/components/ui/screen-hero";
+import { SectionLead } from "@/components/ui/section-lead";
+import { useLocalizedCopy } from "@/hooks/useLocalizedCopy";
 import {
+  syncDiaryWithServer,
+  DiaryEntry,
+  deleteDiaryEntry,
+  getDiaryEntries,
+  getLocalDateKey,
+  getTodayEntry,
+  saveDiaryEntry,
+} from "@/store/diaryStore";
+import { router } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
   Alert,
   Modal,
   ScrollView,
@@ -12,196 +28,370 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  saveDiaryEntry,
-  getTodayEntry,
-  DiaryEntry,
-  getDiaryEntries,
-  deleteDiaryEntry,
-} from "@/store/diaryStore";
+
+const DIARY_COPY = {
+  tr: {
+    title: "Gunluk",
+    subtitle: "Kisisel kayitlarin",
+    description:
+      "Gunluk kayitlar, tetikleyicileri ve duygusal donguleri fark etmeni kolaylastirir.",
+    tip: "Kisa notlar bile ilerlemeyi gorunur hale getirir.",
+    entryNew: "Bugun icin ilk notun",
+    entryEditing: "Kayit duzenleniyor",
+    entryDatePrefix: "Tarih",
+    inputPlaceholder:
+      "Dusunceler, hisler ve bugunku deneyiminle ilgili notlarini yaz...",
+    share: "Paylas",
+    save: "Kaydet",
+    newEntry: "Yeni",
+    historyTitle: "Son Kayitlar",
+    emptyHistory: "Henuz kayit yok.",
+    delete: "Sil",
+    deleteTitle: "Kaydi Sil",
+    deleteBody: "Bu kaydi silmek istedigine emin misin?",
+    cancel: "Iptal",
+    alertLoadErrorTitle: "Hata",
+    alertLoadErrorBody: "Gunluk kayitlari yuklenemedi.",
+    alertEmptyTitle: "Bos Kayit",
+    alertEmptyBody: "Kaydetmeden once bir sey yazmalisin.",
+    alertSavedTitle: "Kaydedildi",
+    alertSavedBody: "Kaydin basariyla guncellendi.",
+    alertSaveErrorTitle: "Hata",
+    alertSaveErrorBody: "Kayit kaydedilemedi.",
+    alertShareEmptyBody: "Paylasilacak bir metin yok.",
+    alertShareErrorBody: "Kayit paylasilamadi.",
+    introTitle: "Gunluk Aliskanligi",
+    introSubtitle: "Her gun kisa bir kontrol yap",
+    introBody:
+      "Durtu ve duygu degisimlerini not almak, hangi durumlarda zorlandigini gormene yardimci olur.",
+    introTipLabel: "Odak",
+    introTipBody: "3-4 cumlelik kayitlar bile guclu bir farkindalik olusturur.",
+    introPrimary: "Yazmaya Basla",
+    introSecondary: "Sonra",
+    shareHeader: "Antislot Gunluk Notu",
+  },
+  en: {
+    title: "Diary",
+    subtitle: "Your personal log",
+    description:
+      "Daily entries help you identify triggers and emotional patterns earlier.",
+    tip: "Even short notes make progress more visible.",
+    entryNew: "Your first note for today",
+    entryEditing: "Editing entry",
+    entryDatePrefix: "Date",
+    inputPlaceholder:
+      "Write your thoughts, feelings, and what happened today...",
+    share: "Share",
+    save: "Save",
+    newEntry: "New",
+    historyTitle: "Recent Entries",
+    emptyHistory: "No entries yet.",
+    delete: "Delete",
+    deleteTitle: "Delete Entry",
+    deleteBody: "Are you sure you want to delete this entry?",
+    cancel: "Cancel",
+    alertLoadErrorTitle: "Error",
+    alertLoadErrorBody: "Unable to load diary entries.",
+    alertEmptyTitle: "Empty Entry",
+    alertEmptyBody: "Write something before saving.",
+    alertSavedTitle: "Saved",
+    alertSavedBody: "Your entry was saved successfully.",
+    alertSaveErrorTitle: "Error",
+    alertSaveErrorBody: "Failed to save entry.",
+    alertShareEmptyBody: "There is nothing to share.",
+    alertShareErrorBody: "Unable to share this entry.",
+    introTitle: "Diary Habit",
+    introSubtitle: "Do a short daily check-in",
+    introBody:
+      "Tracking urges and feelings helps you see where risk increases and what helps.",
+    introTipLabel: "Focus",
+    introTipBody: "3-4 sentence entries are enough to build awareness.",
+    introPrimary: "Start Writing",
+    introSecondary: "Later",
+    shareHeader: "Antislot Diary Note",
+  },
+} as const;
+
+function formatEntryDate(date: string, locale: string) {
+  try {
+    return new Date(`${date}T00:00:00`).toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return date;
+  }
+}
 
 export default function Diary() {
+  const { language, locale, t } = useLanguage();
+  const { colors } = useTheme();
+  const copy = useLocalizedCopy(DIARY_COPY);
+
   const [showIntro, setShowIntro] = useState(true);
   const [diaryEntry, setDiaryEntry] = useState("");
   const [entryId, setEntryId] = useState<string | null>(null);
   const [entryDate, setEntryDate] = useState<string | null>(null);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadTodayEntry();
-  }, []);
+  const isBusy = loading || saving;
+  const hasContent = diaryEntry.trim().length > 0;
 
-  const loadTodayEntry = async () => {
+  const loadEntries = useCallback(async () => {
+    setLoading(true);
     try {
-      const today = await getTodayEntry();
-      if (today) {
-        setDiaryEntry(today.content);
-        setEntryId(today.id);
-        setEntryDate(today.date);
-      }
-      const allEntries = await getDiaryEntries();
+      const [todayEntry, allEntries] = await Promise.all([getTodayEntry(), getDiaryEntries()]);
       setEntries(allEntries);
+
+      if (todayEntry) {
+        setDiaryEntry(todayEntry.content);
+        setEntryId(todayEntry.id);
+        setEntryDate(todayEntry.date);
+      } else {
+        setDiaryEntry("");
+        setEntryId(null);
+        setEntryDate(null);
+      }
     } catch (error) {
-      console.error("Günlük kaydı yüklenirken hata:", error);
+      console.error("Diary load error:", error);
+      Alert.alert(copy.alertLoadErrorTitle, copy.alertLoadErrorBody);
     } finally {
       setLoading(false);
     }
-  };
+  }, [copy.alertLoadErrorBody, copy.alertLoadErrorTitle]);
 
-  const handleSave = async () => {
-    if (!diaryEntry.trim()) {
-      Alert.alert("Boş Kayıt", "Kaydetmeden önce bir şeyler yazın.");
+  useEffect(() => {
+    void loadEntries();
+  }, [loadEntries]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await syncDiaryWithServer();
+        await loadEntries();
+      } catch (error) {
+        console.warn("Diary cloud sync error:", error);
+      }
+    })();
+  }, [loadEntries]);
+
+  const currentEntryDate = useMemo(() => {
+    if (!entryDate) return null;
+    return formatEntryDate(entryDate, locale);
+  }, [entryDate, locale]);
+
+  async function handleSave() {
+    if (!hasContent) {
+      Alert.alert(copy.alertEmptyTitle, copy.alertEmptyBody);
       return;
     }
 
+    setSaving(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const entry: DiaryEntry = {
-        id: entryId || `entry_${Date.now()}`,
-        date: entryDate || today,
+      const today = getLocalDateKey();
+      const previous = entries.find((item) => item.id === entryId);
+      const nextEntry: DiaryEntry = {
+        id: entryId ?? `entry_${Date.now()}`,
+        date: entryDate ?? today,
         content: diaryEntry.trim(),
-        createdAt: entryId ? Date.now() : Date.now(),
+        createdAt: previous?.createdAt ?? Date.now(),
       };
 
-      await saveDiaryEntry(entry);
-      setEntryId(entry.id);
-      setEntryDate(entry.date);
-      const allEntries = await getDiaryEntries();
-      setEntries(allEntries);
-      Alert.alert("Kaydedildi", "Günlük kaydınız kaydedildi.");
+      await saveDiaryEntry(nextEntry);
+      setEntryId(nextEntry.id);
+      setEntryDate(nextEntry.date);
+      await loadEntries();
+      void syncDiaryWithServer()
+        .then(() => loadEntries())
+        .catch((error) => console.warn("Diary cloud sync error:", error));
+      Alert.alert(copy.alertSavedTitle, copy.alertSavedBody);
     } catch (error) {
-      Alert.alert("Hata", "Günlük kaydı kaydedilemedi.");
-      console.error(error);
+      console.error("Diary save error:", error);
+      Alert.alert(copy.alertSaveErrorTitle, copy.alertSaveErrorBody);
+    } finally {
+      setSaving(false);
     }
-  };
+  }
 
-  const handleShare = async () => {
-    if (!diaryEntry.trim()) {
-      Alert.alert("Boş Kayıt", "Paylaşılacak bir şey yok.");
+  async function handleShare() {
+    if (!hasContent) {
+      Alert.alert(copy.alertEmptyTitle, copy.alertShareEmptyBody);
       return;
     }
-    try {
-      await Share.share({
-        message: diaryEntry.trim(),
-      });
-    } catch {
-      Alert.alert("Hata", "Kayıt paylaşılamadı.");
-    }
-  };
 
-  const handleNewEntry = () => {
+    try {
+      const sharedDate = entryDate ?? getLocalDateKey();
+      await Share.share({
+        message: `${copy.shareHeader}\n${sharedDate}\n\n${diaryEntry.trim()}`,
+      });
+    } catch (error) {
+      console.error("Diary share error:", error);
+      Alert.alert(copy.alertSaveErrorTitle, copy.alertShareErrorBody);
+    }
+  }
+
+  function handleNewEntry() {
     setDiaryEntry("");
     setEntryId(null);
     setEntryDate(null);
-  };
+  }
 
-  const handleSelectEntry = (entry: DiaryEntry) => {
-    setDiaryEntry(entry.content);
-    setEntryId(entry.id);
-    setEntryDate(entry.date);
-  };
+  function handleSelectEntry(selectedEntry: DiaryEntry) {
+    setDiaryEntry(selectedEntry.content);
+    setEntryId(selectedEntry.id);
+    setEntryDate(selectedEntry.date);
+  }
 
-  const handleDeleteEntry = async (id: string) => {
-    Alert.alert("Kaydı Sil", "Bu kaydı silmek istediğinize emin misiniz?", [
-      { text: "İptal", style: "cancel" },
+  function handleDeleteEntry(id: string) {
+    Alert.alert(copy.deleteTitle, copy.deleteBody, [
+      { text: copy.cancel, style: "cancel" },
       {
-        text: "Sil",
+        text: copy.delete,
         style: "destructive",
         onPress: async () => {
-          await deleteDiaryEntry(id);
-          const allEntries = await getDiaryEntries();
-          setEntries(allEntries);
-          if (entryId === id) {
-            handleNewEntry();
+          try {
+            await deleteDiaryEntry(id);
+            if (entryId === id) {
+              handleNewEntry();
+            }
+            await loadEntries();
+            void syncDiaryWithServer()
+              .then(() => loadEntries())
+              .catch((error) => console.warn("Diary cloud sync error:", error));
+          } catch (error) {
+            console.error("Diary delete error:", error);
+            Alert.alert(copy.alertSaveErrorTitle, copy.alertSaveErrorBody);
           }
         },
       },
     ]);
-  };
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} testID="diary-screen">
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
+            <Text style={[styles.backText, { color: colors.textSecondary }]}>{`<- ${t.back}`}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.iconWrapper}>
-          <Text style={styles.icon}>📅</Text>
-        </View>
+        <ScreenHero
+          icon="book-outline"
+          title={copy.title}
+          subtitle={copy.subtitle}
+          description={`${copy.description} ${copy.tip}`}
+          badge={copy.historyTitle}
+          gradient={["#30435A", "#4A6788"]}
+          style={styles.heroCard}
+        />
 
-        <Text style={styles.title}>Günlük</Text>
-        <Text style={styles.subtitle}>Özel Günlüğünüz</Text>
+        <SectionLead
+          icon="create-outline"
+          title={entryId ? copy.entryEditing : copy.entryNew}
+          subtitle={copy.inputPlaceholder}
+          tone="primary"
+          style={styles.sectionLead}
+        />
 
-        <Text style={styles.description}>
-          Her gün kontrol ederek kumar davranışlarınızı, dürtülerinizi ve isteklerinizi gözden
-          geçirin. Günlük kayıtlarınız duygusal kalıpları ve tetikleyicileri takip etmenize
-          yardımcı olur ve ilerlemenize dair içgörüler sunar.
-        </Text>
-
-        <Text style={styles.reminder}>
-          Günlüğünüzü ne kadar çok kullanırsanız, süreçteki içgörüler o kadar artar.
-        </Text>
-
-        <View style={styles.entryContainer}>
-          <Text style={styles.entryLabel}>
-            {entryId ? "Kayıt Düzenleniyor" : "İlk kaydınıza yukarıdan başlayın!"}
+        <View style={[styles.entrySection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.entryLabel, { color: colors.text }]}>
+            {entryId ? copy.entryEditing : copy.entryNew}
           </Text>
+          {currentEntryDate ? (
+            <Text style={[styles.entryDate, { color: colors.textSecondary }]}> 
+              {`${copy.entryDatePrefix}: ${currentEntryDate}`}
+            </Text>
+          ) : null}
+
           <TextInput
-            style={styles.entryInput}
-            placeholder="Düşünceleriniz, duygularınız ve deneyimleriniz hakkında yazın..."
-            placeholderTextColor="#999"
+            style={[
+              styles.entryInput,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                color: colors.text,
+              },
+            ]}
+            placeholder={copy.inputPlaceholder}
+            placeholderTextColor={colors.textSecondary}
             multiline
-            numberOfLines={8}
+            numberOfLines={10}
             value={diaryEntry}
             onChangeText={setDiaryEntry}
             textAlignVertical="top"
-            editable={!loading}
+            editable={!isBusy}
+            testID="diary-input"
           />
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }, isBusy && styles.buttonDisabled]}
+              onPress={handleShare}
+              disabled={isBusy}
+              activeOpacity={0.9}
+              testID="diary-share-btn"
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{copy.share}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.primary }, isBusy && styles.buttonDisabled]}
+              onPress={handleSave}
+              disabled={isBusy}
+              activeOpacity={0.9}
+              testID="diary-save-btn"
+            >
+              <Text style={styles.primaryButtonText}>{copy.save}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.background }, isBusy && styles.buttonDisabled]}
+              onPress={handleNewEntry}
+              disabled={isBusy}
+              activeOpacity={0.9}
+              testID="diary-new-btn"
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>{copy.newEntry}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.buttonGroup}>
-          <TouchableOpacity 
-            style={styles.shareBtn}
-            onPress={handleShare}
-            disabled={loading}
-          >
-            <Text style={styles.shareText}>Paylaş</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.editBtn}
-            onPress={handleSave}
-            disabled={loading}
-          >
-            <Text style={styles.editText}>Kaydet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.newBtn}
-            onPress={handleNewEntry}
-            disabled={loading}
-          >
-            <Text style={styles.newText}>Yeni</Text>
-          </TouchableOpacity>
-        </View>
+        <SectionLead
+          icon="time-outline"
+          title={copy.historyTitle}
+          subtitle={copy.emptyHistory}
+          tone="neutral"
+          style={styles.sectionLead}
+        />
 
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Son Kayıtlar</Text>
-          {entries.length === 0 ? (
-            <Text style={styles.emptyText}>Henüz kayıt yok.</Text>
+        <View style={[styles.historySection, { backgroundColor: colors.card, borderColor: colors.border }]} testID="diary-history">
+          <Text style={[styles.historyTitle, { color: colors.text }]}>{copy.historyTitle}</Text>
+          {loading ? (
+            <View style={styles.loaderRow}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : entries.length === 0 ? (
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{copy.emptyHistory}</Text>
           ) : (
             entries.map((entry) => (
-              <View key={entry.id} style={styles.historyCard}>
-                <TouchableOpacity onPress={() => handleSelectEntry(entry)}>
-                  <Text style={styles.historyDate}>{entry.date}</Text>
-                  <Text style={styles.historyPreview} numberOfLines={2}>
+              <View key={entry.id} style={[styles.historyCard, { backgroundColor: colors.background, borderColor: colors.border }]} testID={`diary-entry-${entry.id}`}>
+                <TouchableOpacity style={styles.historyContent} onPress={() => handleSelectEntry(entry)} activeOpacity={0.85} testID={`diary-entry-select-${entry.id}`}>
+                  <Text style={[styles.historyDate, { color: colors.textSecondary }]}>
+                    {formatEntryDate(entry.date, locale)}
+                  </Text>
+                  <Text style={[styles.historyPreview, { color: colors.text }]} numberOfLines={3}>
                     {entry.content}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDeleteEntry(entry.id)} style={styles.deleteBtn}>
-                  <Text style={styles.deleteText}>Sil</Text>
+                <TouchableOpacity
+                  style={[styles.deleteButton, { backgroundColor: colors.warning ?? "#B45309" }]}
+                  onPress={() => handleDeleteEntry(entry.id)}
+                  activeOpacity={0.9}
+                  testID={`diary-entry-delete-${entry.id}`}
+                >
+                  <Text style={styles.deleteButtonText}>{copy.delete}</Text>
                 </TouchableOpacity>
               </View>
             ))
@@ -209,50 +399,39 @@ export default function Diary() {
         </View>
       </ScrollView>
 
-      {/* Giriş Modali */}
       <Modal
         visible={showIntro}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setShowIntro(false)}
+        testID="diary-intro-modal"
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>📅</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{copy.introTitle}</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>{copy.introSubtitle}</Text>
+            <Text style={[styles.modalBody, { color: colors.textSecondary }]}>{copy.introBody}</Text>
+            <View style={[styles.modalTip, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.modalTipLabel, { color: colors.text }]}>{copy.introTipLabel}</Text>
+              <Text style={[styles.modalTipText, { color: colors.textSecondary }]}>{copy.introTipBody}</Text>
             </View>
 
-            <Text style={styles.modalTitle}>Günlük</Text>
-            <Text style={styles.modalSubtitle}>
-              Özel Günlüğünüz
-            </Text>
-
-            <Text style={styles.modalDescription}>
-              Her gün kontrol ederek kumar davranışlarınızı, dürtülerinizi ve isteklerinizi gözden
-              geçirin. Günlük kayıtlarınız duygusal kalıpları ve tetikleyicileri takip etmenize
-              yardımcı olur ve ilerlemenize dair içgörüler sunar.
-            </Text>
-
-            <Text style={styles.modalReminder}>
-              Günlüğünüzü ne kadar çok kullanırsanız, süreçteki içgörüler o kadar artar.
-            </Text>
-
-            <Text style={styles.modalCTA}>
-              İlk kaydınıza yukarıdan başlayın!
-            </Text>
-
-            <View style={styles.modalButtonGroup}>
+            <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalShareBtn}
+                style={[styles.modalSecondaryButton, { borderColor: colors.border, backgroundColor: colors.background }]}
                 onPress={() => setShowIntro(false)}
+                activeOpacity={0.9}
+                testID="diary-intro-secondary"
               >
-                <Text style={styles.modalShareText}>Paylaş</Text>
+                <Text style={[styles.modalSecondaryText, { color: colors.text }]}>{copy.introSecondary}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalEditBtn}
+                style={[styles.modalPrimaryButton, { backgroundColor: colors.primary }]}
                 onPress={() => setShowIntro(false)}
+                activeOpacity={0.9}
+                testID="diary-intro-primary"
               >
-                <Text style={styles.modalEditText}>Düzenle</Text>
+                <Text style={styles.modalPrimaryText}>{copy.introPrimary}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -265,269 +444,245 @@ export default function Diary() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F9FF",
   },
   content: {
-    padding: 24,
-    paddingBottom: 40,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxxl,
+    gap: Spacing.base,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 4,
   },
   backBtn: {
     alignSelf: "flex-start",
+    paddingVertical: 4,
   },
   backText: {
     fontSize: 16,
-    color: "#1D4C72",
+    fontFamily: Fonts.bodyMedium,
   },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
+  heroCard: {
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: 24,
     alignItems: "center",
-    marginBottom: 16,
-    alignSelf: "center",
   },
-  icon: {
-    fontSize: 40,
+  sectionLead: {
+    marginTop: 2,
+  },
+  heroIcon: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  heroIconText: {
+    fontSize: 26,
+    fontFamily: Fonts.displayMedium,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1E7A55",
-    marginBottom: 8,
+    fontSize: 30,
+    fontFamily: Fonts.display,
     textAlign: "center",
+    marginBottom: 6,
   },
   subtitle: {
-    fontSize: 20,
-    color: "#666",
-    marginBottom: 24,
+    fontSize: 16,
+    fontFamily: Fonts.bodySemiBold,
+    marginBottom: 14,
     textAlign: "center",
   },
   description: {
-    fontSize: 16,
-    color: "#555",
-    lineHeight: 24,
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  reminder: {
     fontSize: 15,
-    color: "#666",
-    fontStyle: "italic",
-    marginBottom: 24,
+    lineHeight: 22,
     textAlign: "center",
+    fontFamily: Fonts.body,
+    marginBottom: 10,
   },
-  entryContainer: {
-    marginBottom: 24,
+  tip: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: "center",
+    fontFamily: Fonts.body,
+  },
+  entrySection: {
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    padding: 18,
   },
   entryLabel: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#1E7A55",
-    marginBottom: 12,
+    fontFamily: Fonts.bodySemiBold,
+    marginBottom: 4,
+  },
+  entryDate: {
+    fontSize: 12,
+    fontFamily: Fonts.body,
+    marginBottom: 10,
   },
   entryInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    minHeight: 200,
-    fontSize: 16,
-    color: "#222",
+    minHeight: 190,
+    borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    padding: 14,
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: Fonts.body,
+    marginBottom: 14,
   },
-  buttonGroup: {
+  buttonRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
+    gap: 10,
   },
-  shareBtn: {
+  primaryButton: {
     flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: Radius.md,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  shareText: {
+  primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
   },
-  editBtn: {
+  secondaryButton: {
     flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  editText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
+  secondaryButtonText: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
   },
-  newBtn: {
-    flex: 1,
-    backgroundColor: "#1D4C72",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  newText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
+  buttonDisabled: {
+    opacity: 0.5,
   },
   historySection: {
-    marginTop: 8,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    padding: 18,
   },
   historyTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#1E7A55",
+    fontSize: 16,
+    fontFamily: Fonts.bodySemiBold,
     marginBottom: 12,
   },
-  historyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  historyDate: {
-    fontSize: 12,
-    color: "#666",
-    marginBottom: 6,
-    fontWeight: "600",
-  },
-  historyPreview: {
-    fontSize: 14,
-    color: "#333",
-    marginBottom: 10,
-  },
-  deleteBtn: {
-    alignSelf: "flex-start",
-    backgroundColor: "#D06B5C",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  deleteText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
+  loaderRow: {
+    paddingVertical: 10,
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 14,
-    color: "#999",
+    fontFamily: Fonts.body,
     fontStyle: "italic",
   },
-  // Modal stilleri
+  historyCard: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+  },
+  historyContent: {
+    marginBottom: 10,
+  },
+  historyDate: {
+    fontSize: 12,
+    fontFamily: Fonts.bodyMedium,
+    marginBottom: 6,
+  },
+  historyPreview: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Fonts.body,
+  },
+  deleteButton: {
+    alignSelf: "flex-start",
+    borderRadius: Radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  deleteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
   modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
     width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  modalIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalIconEmoji: {
-    fontSize: 50,
+    maxWidth: 420,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    padding: 24,
   },
   modalTitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1E7A55",
-    marginBottom: 8,
+    fontSize: 24,
+    fontFamily: Fonts.display,
     textAlign: "center",
+    marginBottom: 6,
   },
   modalSubtitle: {
-    fontSize: 20,
-    color: "#666",
-    marginBottom: 16,
+    fontSize: 15,
+    fontFamily: Fonts.bodySemiBold,
     textAlign: "center",
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    lineHeight: 24,
     marginBottom: 12,
   },
-  modalReminder: {
-    fontSize: 15,
-    color: "#666",
-    fontStyle: "italic",
+  modalBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: Fonts.body,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  modalCTA: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E7A55",
-    marginBottom: 24,
-    textAlign: "center",
+  modalTip: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 18,
   },
-  modalButtonGroup: {
+  modalTipLabel: {
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+    marginBottom: 4,
+  },
+  modalTipText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: Fonts.body,
+  },
+  modalButtons: {
     flexDirection: "row",
-    gap: 12,
-    width: "100%",
+    gap: 10,
   },
-  modalShareBtn: {
+  modalPrimaryButton: {
     flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Radius.md,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  modalShareText: {
+  modalPrimaryText: {
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
   },
-  modalEditBtn: {
+  modalSecondaryButton: {
     flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    paddingVertical: 13,
     alignItems: "center",
   },
-  modalEditText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
+  modalSecondaryText: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
   },
 });

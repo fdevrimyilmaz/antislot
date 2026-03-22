@@ -1,0 +1,21 @@
+# SOS ekranı — offline/fallback; acil yardım ve nefes görünür
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 20000
+- tapOn:
+    id: "sos-quick-access"
+- assertVisible:
+    id: "sos-screen"
+- assertVisible:
+    id: "sos-helplines"
+- assertVisible:
+    id: "sos-breathing-start"
+- tapOn:
+    id: "sos-back"
+- assertVisible:
+    id: "home-screen"

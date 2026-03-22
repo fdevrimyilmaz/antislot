@@ -44,8 +44,28 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadTranslationsModule(filePath) {
-  const source = fs.readFileSync(filePath, "utf8");
+function resolveModulePath(baseFilePath, request) {
+  const baseDir = path.dirname(baseFilePath);
+  const candidate = path.resolve(baseDir, request);
+  const extensions = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
+
+  for (const extension of extensions) {
+    const fullPath = `${candidate}${extension}`;
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      return fullPath;
+    }
+  }
+
+  throw new Error(`Unable to resolve local module "${request}" from ${baseFilePath}`);
+}
+
+function loadTranslationsModule(filePath, moduleCache = new Map()) {
+  const resolvedFilePath = path.resolve(filePath);
+  if (moduleCache.has(resolvedFilePath)) {
+    return moduleCache.get(resolvedFilePath).exports;
+  }
+
+  const source = fs.readFileSync(resolvedFilePath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -54,19 +74,25 @@ function loadTranslationsModule(filePath) {
   });
 
   const moduleRef = { exports: {} };
+  moduleCache.set(resolvedFilePath, moduleRef);
   const sandbox = {
     module: moduleRef,
     exports: moduleRef.exports,
     require: (id) => {
-      throw new Error(`Unexpected import in ${filePath}: ${id}`);
+      if (id.startsWith("./") || id.startsWith("../")) {
+        const nextModulePath = resolveModulePath(resolvedFilePath, id);
+        return loadTranslationsModule(nextModulePath, moduleCache);
+      }
+
+      throw new Error(`Unexpected import in ${resolvedFilePath}: ${id}`);
     },
-    __filename: filePath,
-    __dirname: path.dirname(filePath),
+    __filename: resolvedFilePath,
+    __dirname: path.dirname(resolvedFilePath),
     process,
     console,
   };
 
-  vm.runInNewContext(transpiled.outputText, sandbox, { filename: filePath });
+  vm.runInNewContext(transpiled.outputText, sandbox, { filename: resolvedFilePath });
   return moduleRef.exports;
 }
 

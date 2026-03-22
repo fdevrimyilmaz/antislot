@@ -1,12 +1,17 @@
 // Optional Sentry import
-import Sentry from "@sentry/react-native";
+import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { canSendCrashReports, canSendTelemetry, markTelemetryEventSent } from "@/services/privacy";
 
-let routingInstrumentation: any = new Sentry.ReactNavigationInstrumentation();
+const routingIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+});
 
 let initialized = false;
+type NavigationContainerRefLike = Parameters<
+  typeof routingIntegration.registerNavigationContainer
+>[0];
 
 const parseSampleRate = (value: string | undefined, fallback: number): number => {
   if (!value) return fallback;
@@ -51,12 +56,10 @@ export const initMonitoring = (): void => {
       0.0
     ),
     integrations: [
-      new Sentry.ReactNativeTracing({
-        routingInstrumentation,
-        enableNativeFramesTracking: true,
-      }),
+      Sentry.reactNativeTracingIntegration(),
+      routingIntegration,
     ],
-    beforeSend(event: any, hint: any) {
+    beforeSend(event, _hint) {
       // Check crash reporting preference before sending
       if (!canSendCrashReports()) {
         // Don't send crash reports if user has disabled crash reporting
@@ -71,10 +74,10 @@ export const initMonitoring = (): void => {
 };
 
 export const registerNavigationContainer = (
-  navigationRef: any
+  navigationRef: NavigationContainerRefLike
 ): void => {
-  if (routingInstrumentation && navigationRef) {
-    routingInstrumentation.registerNavigationContainer(navigationRef);
+  if (navigationRef) {
+    routingIntegration.registerNavigationContainer(navigationRef);
   }
 };
 

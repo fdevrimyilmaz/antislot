@@ -1,67 +1,100 @@
-import { Link } from "expo-router";
-import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Fonts, Radius, Spacing } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { setAnswer } from "@/store/onboardingStore";
-
-const OPTIONS = ["1", "2", "3", "4", "5"];
+import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { OnboardingShell } from "@/components/onboarding/components";
+import { ONBOARDING_CONTENT, localize } from "@/data/onboardingContent";
 
 export default function OnboardingQ7() {
+  const router = useRouter();
+  const { language } = useLanguage();
+  const { colors } = useTheme();
+  const common = ONBOARDING_CONTENT.common;
+  const q7 = ONBOARDING_CONTENT.q7;
+
   const [value, setValue] = useState<string | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+
   const canGoNext = useMemo(() => value !== null, [value]);
 
   async function onNext() {
-    if (value) {
+    if (!value || isBusy) return;
+
+    setIsBusy(true);
+    try {
       await setAnswer("q7", value);
+      router.push("/onboarding/q8");
+    } catch (error) {
+      console.error("Onboarding q7 save error:", error);
+      Alert.alert(localize(language, common.saveErrorTitle), localize(language, common.saveErrorBody));
+    } finally {
+      setIsBusy(false);
     }
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topRow}>
-        <Link href="/onboarding/q6" style={styles.back}>← Geri</Link>
-        <Text style={styles.step}>7 / 10</Text>
-      </View>
-
-      <Text style={styles.title}>Kumar oynama dürtüleriniz ne kadar güçlü?</Text>
-      <Text style={styles.subtitle}>1 = düşük, 5 = çok güçlü</Text>
-
-      <View style={styles.row}>
-        {OPTIONS.map((opt) => {
-          const selected = value === opt;
+    <OnboardingShell
+      step={7}
+      title={localize(language, q7.title)}
+      subtitle={localize(language, q7.subtitle)}
+      backLabel={localize(language, common.back)}
+      nextLabel={localize(language, common.next)}
+      canGoNext={canGoNext}
+      isBusy={isBusy}
+      onBack={() => router.back()}
+      onNext={onNext}
+    >
+      <View style={styles.scaleRow}>
+        {q7.options.map((option) => {
+          const selected = value === option;
           return (
-            <TouchableOpacity key={opt} style={[styles.pill, selected && styles.pillSelected]} onPress={() => setValue(opt)}>
-              <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{opt}</Text>
+            <TouchableOpacity
+              key={option}
+              style={[
+                styles.scalePill,
+                {
+                  backgroundColor: selected ? colors.primary : colors.card,
+                  borderColor: selected ? colors.primary : colors.border,
+                },
+              ]}
+              onPress={() => setValue(option)}
+              activeOpacity={0.86}
+            >
+              <Text
+                style={[
+                  styles.scalePillText,
+                  { color: selected ? "#FFFFFF" : colors.text },
+                ]}
+              >
+                {option}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
-
-      <Link href="/onboarding/q8" asChild>
-        <TouchableOpacity 
-          style={[styles.nextBtn, !canGoNext && styles.disabled]} 
-          disabled={!canGoNext}
-          onPress={onNext}
-        >
-          <Text style={styles.nextText}>İleri</Text>
-        </TouchableOpacity>
-      </Link>
-    </View>
+    </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF", padding: 24 },
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, marginTop: 8 },
-  back: { color: "#1D4C72", fontSize: 16 },
-  step: { color: "#777", fontSize: 14, fontWeight: "600" },
-  title: { fontSize: 26, fontWeight: "800", marginBottom: 6 },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 18 },
-  row: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginTop: 10 },
-  pill: { flex: 1, backgroundColor: "white", paddingVertical: 14, borderRadius: 14, alignItems: "center", elevation: 2 },
-  pillSelected: { backgroundColor: "#1D4C72" },
-  pillText: { fontSize: 18, fontWeight: "800", color: "#1D4C72" },
-  pillTextSelected: { color: "white" },
-  nextBtn: { marginTop: "auto", backgroundColor: "#1D4C72", paddingVertical: 16, borderRadius: 16, alignItems: "center" },
-  disabled: { opacity: 0.5 },
-  nextText: { color: "white", fontSize: 18, fontWeight: "800" },
+  scaleRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  scalePill: {
+    flex: 1,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    minHeight: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scalePillText: {
+    fontSize: 18,
+    fontFamily: Fonts.bodySemiBold,
+  },
 });

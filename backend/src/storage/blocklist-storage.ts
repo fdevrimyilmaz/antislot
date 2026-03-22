@@ -234,17 +234,18 @@ export class BlocklistStorage {
   /**
    * Engel listesi veri yapısını doğrula
    */
-  private validateBlocklistData(data: any): asserts data is BlocklistData {
+  private validateBlocklistData(data: unknown): asserts data is BlocklistData {
     if (!data || typeof data !== 'object') {
       throw new Error('Geçersiz engel listesi verisi: nesne olmalıdır');
     }
-    if (typeof data.version !== 'number') {
+    const candidate = data as Partial<BlocklistData>;
+    if (typeof candidate.version !== 'number') {
       throw new Error('Geçersiz engel listesi verisi: version sayı olmalıdır');
     }
-    if (typeof data.updatedAt !== 'number') {
+    if (typeof candidate.updatedAt !== 'number') {
       throw new Error('Geçersiz engel listesi verisi: updatedAt sayı olmalıdır');
     }
-    if (!Array.isArray(data.entries)) {
+    if (!Array.isArray(candidate.entries)) {
       throw new Error('Geçersiz engel listesi verisi: entries bir dizi olmalıdır');
     }
   }

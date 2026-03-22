@@ -1,43 +1,90 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
+import { getApiBaseUrl } from "@/services/apiBase";
+import { getClientIdentity } from "@/services/clientIdentity";
+import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
   content: string;
 };
 
+export type ChatRiskLevel = "low" | "medium" | "high" | "critical";
+
+export type ChatCoachingContext = {
+  locale?: "tr" | "en";
+  riskLevel?: ChatRiskLevel;
+  suggestedIntensity?: number;
+  trigger?: string;
+  focus?: string;
+  actionPlan?: string[];
+};
+
 type ChatResponse = {
+  ok?: boolean;
   reply: string;
 };
 
-const DEV_HOST_FALLBACK = Platform.OS === "android" ? "10.0.2.2" : "localhost";
-
-const getDevHost = (): string => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const sanitized = hostUri.replace(/^[a-z]+:\/\//i, "").split("/")[0];
-    const host = sanitized.split(":")[0];
-    if (host) return host;
-  }
-  return DEV_HOST_FALLBACK;
+type PostChatOptions = {
+  signal?: AbortSignal;
 };
 
-const DEV_BASE_URL = `http://${getDevHost()}:3001`;
+async function buildHeaders(): Promise<HeadersInit> {
+  const userId = await getClientIdentity();
+  const idToken = await getFirebaseAuthBearerToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    "X-Request-Id": `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    "X-User-Id": userId,
+  };
 
-const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL
-  ? process.env.EXPO_PUBLIC_API_URL
-  : __DEV__
-    ? DEV_BASE_URL
-    : "https://api.antislot.app";
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
 
-const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
+  return headers;
+}
 
-export async function postChat(messages: ChatMessage[]): Promise<string> {
-  const baseUrl = normalizeBaseUrl(DEFAULT_API_URL);
-  const response = await fetch(`${baseUrl}/chat`, {
+export async function postChat(messages: ChatMessage[], options?: PostChatOptions): Promise<string> {
+  const baseUrl = getApiBaseUrl();
+  const bodyPayload = {
+    messages,
+  };
+
+  const response = await fetch(`${baseUrl}/v1/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    headers: await buildHeaders(),
+    body: JSON.stringify(bodyPayload),
+    signal: options?.signal,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Chat request failed (${response.status}) ${errorText}`);
+  }
+
+  const data = (await response.json()) as ChatResponse;
+  if (!data?.reply) {
+    throw new Error("Chat reply missing");
+  }
+  return data.reply;
+}
+
+export async function postChatWithContext(
+  messages: ChatMessage[],
+  coachingContext: ChatCoachingContext,
+  options?: PostChatOptions
+): Promise<string> {
+  const baseUrl = getApiBaseUrl();
+  const bodyPayload = {
+    messages,
+    locale: coachingContext.locale,
+    coachingContext,
+  };
+
+  const response = await fetch(`${baseUrl}/v1/chat`, {
+    method: "POST",
+    headers: await buildHeaders(),
+    body: JSON.stringify(bodyPayload),
+    signal: options?.signal,
   });
 
   if (!response.ok) {

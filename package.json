@@ -12,14 +12,23 @@
     "reset-project": "node ./scripts/reset-project.js",
     "clean": "node ./scripts/clean-cache.js",
     "clean:all": "node ./scripts/clean-cache.js --all",
+    "check:firebase-env": "node ./scripts/check-firebase-env.js",
+    "check:firebase-env:prod": "node ./scripts/check-firebase-env.js --production",
     "bump-version": "node ./scripts/bump-version.js",
     "check:conflicts": "node ./scripts/check-merge-conflicts.js",
     "i18n:report": "node ./scripts/i18n-coverage-report.js",
     "i18n:report:json": "node ./scripts/i18n-coverage-report.js --json",
     "i18n:report:strict": "node ./scripts/i18n-coverage-report.js --strict",
     "i18n:report:strict:json:file": "node ./scripts/i18n-coverage-report.js --strict --json --output reports/i18n-coverage.json",
+    "i18n:generate-full": "node ./scripts/generate-full-translation-overrides.mjs",
     "quality": "npm run check:conflicts && npm run i18n:report:strict && npm run lint && npm run typecheck && npm run test:coverage -- --runInBand --passWithNoTests && npm run test:coverage --prefix backend -- --runInBand && npm run build --prefix backend && npm test --prefix server -- --coverage --runInBand && npm run build --prefix server",
     "go-live:gate": "npm run quality && npm run preflight:release && npm run preflight:prod-final",
+    "release:build:android": "npx eas-cli build -p android --profile production --non-interactive --freeze-credentials",
+    "release:build:ios": "npx eas-cli build -p ios --profile production --non-interactive --freeze-credentials",
+    "release:prepare:play-key": "node ./scripts/prepare-play-submit-key.js",
+    "release:submit:android": "npx eas-cli submit -p android --profile production --latest --non-interactive --wait",
+    "release:submit:android:with-key": "npm run release:prepare:play-key && npm run release:submit:android",
+    "release:submit:ios": "npx eas-cli submit -p ios --profile production --latest --non-interactive --wait",
     "preflight:release": "node ./scripts/release-preflight.js --target=full",
     "preflight:release:mobile": "node ./scripts/release-preflight.js --target=mobile",
     "preflight:release:backend": "node ./scripts/release-preflight.js --target=backend",
@@ -115,6 +124,10 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": "eslint --fix --max-warnings=0 --cache"
+  },
+  "overrides": {
+    "tar": "7.5.11",
+    "undici": "6.24.0"
   },
   "private": true
 }

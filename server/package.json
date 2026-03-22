@@ -6,18 +6,49 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "jest --runInBand",
+    "smoke:iap": "node scripts/iap-validate-smoke.mjs",
+    "smoke:auth": "node scripts/auth-validate-smoke.mjs",
+    "smoke:admin-proxy": "node scripts/admin-proxy-smoke.mjs",
+    "smoke:webhook": "node scripts/webhook-smoke.mjs",
+    "load:smoke": "node scripts/load-smoke.mjs",
+    "backup:drill": "node scripts/backup-restore-drill.mjs",
+    "migrate:premium": "node scripts/migrate-premium-file-to-postgres.mjs",
+    "migrate:premium:tables": "node scripts/run-premium-migrations.mjs",
+    "migrate:money-protection:tables": "node scripts/run-money-protection-migrations.mjs",
+    "verify:money-protection:tables": "node scripts/verify-money-protection-migrations.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/node": "^10.39.0",
+    "async-mutex": "^0.5.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "openai": "^6.16.0"
+    "firebase-admin": "^13.6.1",
+    "google-auth-library": "^9.15.1",
+    "openai": "^6.16.0",
+    "pg": "^8.11.3",
+    "proper-lockfile": "^4.1.2",
+    "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.6.0"
+  },
+  "overrides": {
+    "fast-xml-parser": "^5.5.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.10",
+    "@types/pg": "^8.10.9",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
   }

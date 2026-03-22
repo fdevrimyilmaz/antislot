@@ -1,0 +1,58 @@
+{
+  "cli": {
+    "version": ">= 16.28.0",
+    "appVersionSource": "local",
+    "requireCommit": true
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_SENTRY_ENV": "development" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.antislot.app",
+        "EXPO_PUBLIC_SENTRY_ENV": "staging",
+        "EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW": "false"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.antislot.app",
+        "EXPO_PUBLIC_SENTRY_ENV": "production",
+        "EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW": "false",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "ios": {
+        "image": "latest",
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote"
+      },
+      "android": {
+        "image": "latest",
+        "buildType": "app-bundle",
+        "credentialsSource": "remote"
+      }
+    },
+    "prod-final": {
+      "extends": "production"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    },
+    "android-remote": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    }
+  }
+}

@@ -30,6 +30,7 @@ yarn-error.*
 # test output
 coverage/
 reports/
+dist-smoke/
 
 # macOS
 .DS_Store
@@ -46,8 +47,15 @@ server/.env
 # typescript
 *.tsbuildinfo
 
+# temporary local artifacts
+.tmp-*.txt
+.tmp_*.txt
+
 app-example
 
 # generated native folders
 /ios
 /android
+
+# local store submit credentials
+/credentials/

@@ -2,6 +2,7 @@
 
 ## Env Setup
 - Copy `.env.example` to `.env.local` for mobile dev (file is git-ignored).
+- Validate Firebase keys with `npm run check:firebase-env` (dev) or `npm run check:firebase-env:prod` (prod template).
 - Copy `server/.env.example` to `server/.env` for backend dev.
 - Use `.env.production.example` and `server/.env.production.example` as production templates.
 - Dev (local):

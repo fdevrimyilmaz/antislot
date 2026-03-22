@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/secureStoreCompat";
 
 const STORAGE_KEY = "antislot_onboarding_answers";
 

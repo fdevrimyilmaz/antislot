@@ -1,0 +1,12 @@
+# Auth / app init — uygulama açılır; onboarding yoksa ana ekran, varsa karşılama
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "onboarding-continue"
+- assertVisible:
+    id: "continue-screen"
+# Not: Ana sayfaya geçiş uygulama akışına bağlı (continue sonrası onboarding veya home)

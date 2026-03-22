@@ -1,10 +1,11 @@
+import { SMSClassifier } from './classifier';
+import { SMSMessage, SpamDetectionResult } from './types';
+
 export { SMSClassifier } from './classifier';
 export { SpamCategory, type SpamDetectionResult, type SMSMessage, type FilterSettings } from './types';
 export { GAMBLING_KEYWORDS, SCAM_KEYWORDS, ADVERTISEMENT_KEYWORDS, getAllKeywords } from './keywords';
 export { SPAM_PATTERNS, analyzeSenderPattern } from './patterns';
-
-import { SMSClassifier } from './classifier';
-import { SMSMessage, SpamDetectionResult } from './types';
+export { normalizeSmsKeyword, normalizeSmsText, toCompactSmsText, dedupeSmsKeywords } from './normalize';
 
 export class SMSFilterService {
   private classifier: SMSClassifier;

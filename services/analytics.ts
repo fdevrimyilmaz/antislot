@@ -12,7 +12,8 @@ type EventName =
   | "blocklist_sync_started"
   | "blocklist_sync_succeeded"
   | "blocklist_sync_failed"
-  | "blocklist_rollback_applied";
+  | "blocklist_rollback_applied"
+  | "community_send_guard_triggered";
 
 type EventPayloadMap = {
   crisis_screen_viewed: { protocolVersion: string };
@@ -40,6 +41,11 @@ type EventPayloadMap = {
     blocklistVersion: number | null;
     patternsVersion: number | null;
   };
+  community_send_guard_triggered: {
+    reason: "message_blocked" | "rate_limited" | "duplicate";
+    channel: "room" | "direct_support";
+    roomId: "kriz" | "kumar" | "finans" | "motivasyon" | "gunluk" | "dinleme";
+  };
 };
 
 type AnalyticsEvent<T extends EventName = EventName> = {
@@ -50,7 +56,7 @@ type AnalyticsEvent<T extends EventName = EventName> = {
   sessionId: string;
 };
 
-let Sentry: any = null;
+let Sentry: typeof import("@sentry/react-native") | null = null;
 void import("@sentry/react-native")
   .then((mod) => {
     Sentry = mod;

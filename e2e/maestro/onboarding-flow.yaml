@@ -1,0 +1,10 @@
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "welcome-screen"
+- tapOn:
+    id: "onboarding-continue"
+- assertVisible:
+    id: "continue-screen"

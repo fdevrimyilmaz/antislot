@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Antislot Therapy Queue Admin</title>
+  <meta name="description" content="Internal admin panel for Antislot therapy callback queue management.">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero glass">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <div class="brand-pill">
+            <img class="brand-mark" src="./assets/brand-mark.svg" alt="Antislot logo">
+            <p class="eyebrow">Internal Admin</p>
+          </div>
+          <h1>Therapy Callback Queue</h1>
+          <p class="lead">Review incoming requests and move them to <strong>contacted</strong> or <strong>closed</strong>.</p>
+        </div>
+        <figure class="hero-media">
+          <img src="./assets/hero-support.svg" alt="Queue administration illustration">
+        </figure>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card glass wide">
+        <h2 class="card-title">Connection</h2>
+        <div class="admin-control-grid">
+          <label class="admin-label" for="apiBase">API Base URL</label>
+          <input id="apiBase" class="admin-input" type="url" value="https://admin.antislot.app/api" autocomplete="off" spellcheck="false">
+
+          <label class="admin-label" for="apiToken">Internal API Token (optional)</label>
+          <input id="apiToken" class="admin-input" type="password" placeholder="Use only if proxy auth is not enabled" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="admin-filter-row" id="statusFilters">
+          <button type="button" class="admin-chip is-active" data-status="queued">Queued</button>
+          <button type="button" class="admin-chip" data-status="contacted">Contacted</button>
+          <button type="button" class="admin-chip" data-status="closed">Closed</button>
+          <button type="button" class="admin-chip" data-status="all">All</button>
+        </div>
+
+        <div class="admin-actions-row">
+          <button type="button" class="admin-primary-btn" id="loadQueueBtn">Load Queue</button>
+          <p class="admin-meta" id="queueMeta">Total queued: -</p>
+        </div>
+        <p class="admin-meta">If reverse-proxy auth is enabled, leave token blank.</p>
+        <p class="admin-status" id="statusMessage"></p>
+      </article>
+
+      <article class="card glass wide">
+        <h2 class="card-title">Requests</h2>
+        <div id="queueList" class="admin-list"></div>
+      </article>
+
+      <article class="card glass wide">
+        <h2 class="card-title">Security Notes</h2>
+        <ul>
+          <li>Keep this page behind your org authentication layer (VPN / SSO / reverse proxy auth).</li>
+          <li>Enable proxy auth on backend and inject admin identity headers only at proxy layer.</li>
+          <li>Use `API_AUTH_TOKEN` only as fallback and restrict it with `INTERNAL_API_IP_ALLOWLIST`.</li>
+          <li>Do not persist API tokens in browser storage.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+
+  <script src="./admin.js" defer></script>
+</body>
+</html>

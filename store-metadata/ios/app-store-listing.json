@@ -1,0 +1,20 @@
+{
+  "name": "Antislot",
+  "subtitle": "Kumar durtusu destegi",
+  "keywords": [
+    "recovery",
+    "gambling",
+    "urge",
+    "support",
+    "wellbeing"
+  ],
+  "promotionalText": "Kriz aninda hizli destek, gunluk takip ve guvenli premium dogrulama.",
+  "description": "Antislot, kumar durtulerini yonetmek icin tasarlanmis bir destek uygulamasidir. Uygulama kriz aninda offline yardim adimlari, nefes egzersizleri, surec takibi ve server dogrulamali premium ozellikler sunar. Bu uygulama tibbi tani veya tedavi sunmaz.",
+  "privacyPolicyUrl": "https://antislot-legal.vercel.app/privacy",
+  "supportUrl": "https://antislot-legal.vercel.app/support",
+  "marketingUrl": "https://antislot-legal.vercel.app",
+  "primaryCategory": "HEALTH_AND_FITNESS",
+  "secondaryCategory": "LIFESTYLE",
+  "contentRatingNotes": "Uygulama kumar oynamayi tesvik etmez; bagimlilik destek aracidir.",
+  "reviewNotes": "Core flows: onboarding, sos, premium, blocker. IAP server-authoritative validation endpoint is /v1/premium/activate."
+}

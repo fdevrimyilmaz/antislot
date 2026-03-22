@@ -3,7 +3,7 @@
  */
 
 import { fastify, blocklistStorage, patternsStorage } from '../server';
-import { verifySignature } from '../utils/signature';
+import { generateSignature, verifySignature } from '../utils/signature';
 
 describe('API Sunucusu', () => {
   beforeAll(async () => {
@@ -38,10 +38,14 @@ describe('API Sunucusu', () => {
       expect(body).toHaveProperty('blocklistCount');
       expect(body).toHaveProperty('patternsVersion');
       expect(body).toHaveProperty('patternsCount');
+      expect(body).toHaveProperty('uptimeSec');
+      expect(body).toHaveProperty('observability');
       
       expect(typeof body.timestamp).toBe('number');
       expect(typeof body.blocklistVersion).toBe('number');
       expect(typeof body.blocklistCount).toBe('number');
+      expect(typeof body.uptimeSec).toBe('number');
+      expect(typeof body.observability.sentryEnabled).toBe('boolean');
     });
   });
 
@@ -162,6 +166,48 @@ describe('API Sunucusu', () => {
       });
 
       expect(response.headers['etag']).toBeDefined();
+    });
+  });
+
+  describe('POST /v1/verify-signature', () => {
+    it('geçerli imza için ok=true dönmeli', async () => {
+      const payload = {
+        version: 99,
+        updatedAt: Date.now(),
+        domains: ['verified-domain.test'],
+      };
+      const signature = generateSignature(payload);
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/verify-signature',
+        payload: { payload, signature },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ ok: true });
+    });
+
+    it('geçersiz imza için ok=false dönmeli', async () => {
+      const payload = {
+        version: 99,
+        updatedAt: Date.now(),
+        domains: ['verified-domain.test'],
+      };
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/verify-signature',
+        payload: {
+          payload,
+          signature: 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ ok: false });
     });
   });
 });

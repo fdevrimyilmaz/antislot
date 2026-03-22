@@ -1,0 +1,21 @@
+<svg width="640" height="420" viewBox="0 0 640 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="640" height="420" rx="24" fill="url(#paint0_linear)"/>
+  <g opacity="0.55">
+    <circle cx="508" cy="84" r="88" fill="#5AA9FF"/>
+    <circle cx="116" cy="340" r="96" fill="#4FD1C5"/>
+  </g>
+  <rect x="116" y="76" width="408" height="272" rx="20" fill="#09172B" stroke="#2B4F7F" stroke-width="2"/>
+  <rect x="150" y="126" width="340" height="30" rx="10" fill="#102742"/>
+  <rect x="150" y="174" width="236" height="18" rx="9" fill="#1B385B"/>
+  <rect x="150" y="206" width="320" height="18" rx="9" fill="#1B385B"/>
+  <rect x="150" y="238" width="282" height="18" rx="9" fill="#1B385B"/>
+  <path d="M432 299C456.301 299 476 279.301 476 255V210C476 197.85 466.15 188 454 188H410C397.85 188 388 197.85 388 210V255C388 279.301 407.699 299 432 299Z" fill="#15385E"/>
+  <path d="M432 264C438.627 264 444 258.627 444 252C444 245.373 438.627 240 432 240C425.373 240 420 245.373 420 252C420 258.627 425.373 264 432 264Z" fill="#4FD1C5"/>
+  <path d="M408 210V194C408 180.745 418.745 170 432 170C445.255 170 456 180.745 456 194V210" stroke="#4FD1C5" stroke-width="8" stroke-linecap="round"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="34" y1="16" x2="600" y2="382" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#132C4E"/>
+      <stop offset="1" stop-color="#0A172A"/>
+    </linearGradient>
+  </defs>
+</svg>

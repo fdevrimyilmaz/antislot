@@ -215,17 +215,18 @@ export class PatternsStorage {
   /**
    * Kalıp veri yapısını doğrula
    */
-  private validatePatternData(data: any): asserts data is PatternData {
+  private validatePatternData(data: unknown): asserts data is PatternData {
     if (!data || typeof data !== 'object') {
       throw new Error('Geçersiz kalıp verisi: nesne olmalıdır');
     }
-    if (typeof data.version !== 'number') {
+    const candidate = data as Partial<PatternData>;
+    if (typeof candidate.version !== 'number') {
       throw new Error('Geçersiz kalıp verisi: version sayı olmalıdır');
     }
-    if (typeof data.updatedAt !== 'number') {
+    if (typeof candidate.updatedAt !== 'number') {
       throw new Error('Geçersiz kalıp verisi: updatedAt sayı olmalıdır');
     }
-    if (!Array.isArray(data.patterns)) {
+    if (!Array.isArray(candidate.patterns)) {
       throw new Error('Geçersiz kalıp verisi: patterns bir dizi olmalıdır');
     }
   }

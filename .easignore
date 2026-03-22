@@ -1,0 +1,36 @@
+# Keep EAS archive focused on mobile app sources.
+.git
+.github
+.husky
+.vscode
+.expo
+node_modules
+
+# Non-mobile services and docs
+backend
+server
+website
+docs
+e2e
+supabase
+store-metadata
+
+# Local/auxiliary files
+*.md
+docker-compose*.yml
+debug-extension-warning.ps1
+fix-expo.bat
+fix-expo.ps1
+android/local.properties
+android/gradle_info.log
+android/autolink_*.json
+android/.gradle
+android/.kotlin
+android/build
+android/app/build
+android/app/.cxx
+.gradle
+.kotlin
+.tmp-eas-log-*.txt
+dist-smoke
+.tmp_*.txt

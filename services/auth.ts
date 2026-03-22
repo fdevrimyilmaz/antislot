@@ -3,7 +3,7 @@ import { signInAnonymously } from "firebase/auth";
 
 export const anonymousLogin = async (): Promise<string> => {
   if (!auth) {
-    throw new Error("Firebase yapılandırması eksik.");
+    throw new Error("Firebase yapilandirmasi eksik.");
   }
   if (auth.currentUser?.uid) {
     return auth.currentUser.uid;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { Theme, getTheme, setTheme } from "@/store/themeStore";
 
 interface ThemeContextType {
@@ -8,36 +8,52 @@ interface ThemeContextType {
     background: string;
     backgroundGradient: string[];
     text: string;
+    textSecondary: string;
     card: string;
     primary: string;
     secondary: string;
+    border: string;
+    disabled: string;
+    warning?: string;
   };
 }
 
 const themeColors = {
   "twitter-blue": {
-    background: "#1DA1F2",
-    backgroundGradient: ["#1DA1F2", "#0d8bd9", "#0099FF"],
-    text: "#FFFFFF",
-    card: "#FFFFFF",
-    primary: "#1DA1F2",
-    secondary: "#0d8bd9",
+    background: "#0B1E2A",
+    backgroundGradient: ["#0B1E2A", "#0F2E40", "#0F5B7A"],
+    text: "#F8FAFC",
+    textSecondary: "rgba(248, 250, 252, 0.72)",
+    card: "#112739",
+    primary: "#59B2D9",
+    secondary: "#1F7EA8",
+    border: "rgba(248, 250, 252, 0.12)",
+    disabled: "rgba(248, 250, 252, 0.28)",
+    warning: "#F59E0B",
   },
   "black": {
-    background: "#000000",
-    backgroundGradient: ["#000000", "#1a1a1a", "#2d2d2d"],
-    text: "#FFFFFF",
-    card: "#1a1a1a",
-    primary: "#333333",
-    secondary: "#4a4a4a",
+    background: "#0B0D12",
+    backgroundGradient: ["#0B0D12", "#121826", "#1B2434"],
+    text: "#F8FAFC",
+    textSecondary: "rgba(248, 250, 252, 0.72)",
+    card: "#111827",
+    primary: "#7AA2C6",
+    secondary: "#4B6A88",
+    border: "rgba(248, 250, 252, 0.1)",
+    disabled: "rgba(248, 250, 252, 0.24)",
+    warning: "#F97316",
   },
   "white": {
-    background: "#FFFFFF",
-    backgroundGradient: ["#F4F9FF", "#E8F4FF", "#D6E9FF"],
-    text: "#1D4C72",
+    background: "#F6F7FB",
+    backgroundGradient: ["#F6F7FB", "#EEF3F8", "#E8F0F5"],
+    text: "#0F172A",
+    textSecondary: "#64748B",
     card: "#FFFFFF",
-    primary: "#1D4C72",
-    secondary: "#2A5F8F",
+    primary: "#0F5B7A",
+    secondary: "#2F80B5",
+    border: "#E2E8F0",
+    disabled: "#CBD5E1",
+    warning: "#D97706",
   },
 };
 
@@ -53,19 +69,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const handleSetTheme = async (newTheme: Theme) => {
+  const handleSetTheme = useCallback(async (newTheme: Theme) => {
     await setTheme(newTheme);
     setThemeState(newTheme);
-  };
+  }, []);
+
+  const colors = useMemo(() => themeColors[theme], [theme]);
+  const value = useMemo(
+    () => ({
+      theme,
+      setTheme: handleSetTheme,
+      colors,
+    }),
+    [theme, handleSetTheme, colors]
+  );
 
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        setTheme: handleSetTheme,
-        colors: themeColors[theme],
-      }}
-    >
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

@@ -1,0 +1,21 @@
+# Premium ekranı — restore butonu ve plan kartları
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 20000
+- tapOn:
+    text: "Premium"
+- assertVisible:
+    id: "premium-screen"
+- assertVisible:
+    id: "premium-restore-btn"
+- assertVisible:
+    id: "premium-plan-monthly"
+- tapOn:
+    id: "premium-back"
+- assertVisible:
+    id: "home-screen"

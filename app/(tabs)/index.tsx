@@ -1,9 +1,22 @@
-import { router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { SOSQuickAccess } from "@/components/sos-quick-access";
+import { AntiSlotEmblem } from "@/components/ui/anti-slot-emblem";
+import { ENABLE_SMS_ROLE } from "@/constants/featureFlags";
+import { Fonts, Radius } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useAutoTranslatedValue, useLocalizedCopy } from "@/hooks/useLocalizedCopy";
+import { SUPPORTED_LANGUAGE_OPTIONS, type SupportedLanguage } from "@/i18n/translations";
+import { hasWelcomeBeenShown, isOnboardingDone, setWelcomeShown } from "@/store/onboardingFlag";
+import { useProgressStore } from "@/store/progressStore";
+import { useUserAddictionsStore } from "@/store/userAddictionsStore";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, type Href } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
-  ImageBackground,
+  Animated,
+  Easing,
   Modal,
   ScrollView,
   StyleSheet,
@@ -12,50 +25,120 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { isOnboardingDone, hasWelcomeBeenShown, setWelcomeShown } from "@/store/onboardingFlag";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useTheme } from "@/contexts/ThemeContext";
-import { useProgressStore } from "@/store/progressStore";
-import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 
 // Home screen renders core navigation cards.
 
-const IMAGE_SOURCES = {
-  hero: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1400&q=80",
-  therapy: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80",
-  mindfulness: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=900&q=80",
-  sos: "https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?auto=format&fit=crop&w=900&q=80",
-  progress: "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=900&q=80",
-  support: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80",
-  diary: "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=900&q=80",
-  facts: "https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=900&q=80",
+type CardVisual = {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  gradient: [string, string, ...string[]];
+  accent: string;
 };
+
+const CARD_VISUALS: Record<string, CardVisual> = {
+  urge: { icon: "pulse-outline", gradient: ["#7A1D1D", "#B33A1B"], accent: "#F97316" },
+  "money-protection": { icon: "shield-checkmark-outline", gradient: ["#0B5B67", "#117C8B"], accent: "#2DD4BF" },
+  therapy: { icon: "medkit-outline", gradient: ["#0E3E6E", "#2C5F9B"], accent: "#60A5FA" },
+  mindfulness: { icon: "leaf-outline", gradient: ["#0D6B55", "#0D8A6E"], accent: "#34D399" },
+  progress: { icon: "stats-chart-outline", gradient: ["#17407A", "#2763B8"], accent: "#93C5FD" },
+  "sms-filter": { icon: "mail-unread-outline", gradient: ["#505E75", "#69778F"], accent: "#CBD5E1" },
+  facts: { icon: "eye-outline", gradient: ["#6E4918", "#A8711F"], accent: "#FBBF24" },
+  diary: { icon: "book-outline", gradient: ["#30435A", "#4A6788"], accent: "#A5B4FC" },
+};
+
+const DEFAULT_CARD_VISUAL: CardVisual = {
+  icon: "grid-outline",
+  gradient: ["#334155", "#475569"],
+  accent: "#CBD5E1",
+};
+
+const HOME_LANGUAGE_COPY = {
+  tr: {
+    title: "Uygulama Dili",
+    subtitle: "Istedigin dili sec. Yeni dillerde temel metinler cevrildi; kalan bolumler Ingilizce fallback kullanir.",
+    active: "Secili",
+  },
+  en: {
+    title: "App Language",
+    subtitle: "Choose your language. Core labels are localized; remaining text currently falls back to English.",
+    active: "Selected",
+  },
+} as const;
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [done, setDone] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const { t } = useLanguage();
+  const [showLanguageOptions, setShowLanguageOptions] = useState(false);
+  const { t, language, selectedLanguage, setLanguage } = useLanguage();
   const { theme, setTheme, colors } = useTheme();
   const [showThemePicker, setShowThemePicker] = useState(false);
   const { hydrated } = useUserAddictionsStore();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const progressHydrated = useProgressStore((state) => state.hydrated);
+  const heroAnim = useRef(new Animated.Value(0)).current;
+  const gridAnim = useRef(new Animated.Value(0)).current;
+  const isEnglish = language === "en";
+  const languageCopy = useLocalizedCopy(HOME_LANGUAGE_COPY);
+  const selectedLanguageOption = useMemo(
+    () => SUPPORTED_LANGUAGE_OPTIONS.find((option) => option.code === selectedLanguage),
+    [selectedLanguage]
+  );
+
+  const uiCopyBase = useMemo(
+    () => ({
+      monthLabels: isEnglish
+        ? ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        : ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"],
+      smsTitle: t.homeSmsTitle,
+      smsSubtitle: t.homeSmsSubtitle,
+      factsTitle: t.homeFactsTitle,
+      factsSubtitle: t.homeFactsSubtitle,
+      themeTwitterBlue: isEnglish ? "Twitter Blue" : "Twitter Mavisi",
+      themeBlack: isEnglish ? "Black" : "Siyah",
+      themeWhite: isEnglish ? "White" : "Beyaz",
+    }),
+    [isEnglish, t.homeFactsSubtitle, t.homeFactsTitle, t.homeSmsSubtitle, t.homeSmsTitle]
+  );
+  const uiCopy = useAutoTranslatedValue(uiCopyBase);
 
   const heroMeta = useMemo(() => {
-    const days = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
-    const date = new Date();
-    if (days > 0) {
-      date.setDate(date.getDate() - days);
+  const days = Number.isFinite(gamblingFreeDays)
+    ? gamblingFreeDays
+    : 0;
+
+  const date = new Date();
+  if (days > 0) {
+    date.setDate(date.getDate() - days);
+  }
+
+  const label =
+    days <= 0 ? t.homeStartTitle : t.days;
+
+  const subLabel =
+    days <= 0 ? t.homeStartSubtitle : t.gambleFree;
+
+  return {
+    value: days,
+    label,
+    subLabel,
+    date,
+  };
+}, [
+  gamblingFreeDays,
+  t.days,
+  t.gambleFree,
+  t.homeStartTitle,
+  t.homeStartSubtitle,
+]);
+
+  const handleLanguageChange = (nextLanguage: SupportedLanguage) => {
+    if (nextLanguage === selectedLanguage) {
+      setShowLanguageOptions(false);
+      return;
     }
-    return {
-      value: days,
-      label: t.days,
-      subLabel: t.gambleFree,
-      date,
-    };
-  }, [gamblingFreeDays, t.days, t.gambleFree]);
+    void setLanguage(nextLanguage);
+    setShowLanguageOptions(false);
+  };
 
   useEffect(() => {
     (async () => {
@@ -72,80 +155,152 @@ export default function HomeScreen() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (loading || !done) return;
+    heroAnim.setValue(0);
+    gridAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(heroAnim, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(gridAnim, {
+        toValue: 1,
+        duration: 520,
+        delay: 140,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [done, gridAnim, heroAnim, loading]);
+
   const homePalette = {
-    background: "#F4F9FF",
-    title: "#111827",
-    subtitle: "#7D8790",
+    background: colors.background,
+    title: colors.text,
+    subtitle: colors.textSecondary,
+    border: colors.border,
+    card: colors.card,
+    primary: colors.primary,
   };
 
-  const monthLabels = ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"];
   const calendarDate = heroMeta.date ?? new Date();
-  const calendarMonth = monthLabels[calendarDate.getMonth()] ?? monthLabels[0];
+  const calendarMonth = uiCopy.monthLabels[calendarDate.getMonth()] ?? uiCopy.monthLabels[0];
   const calendarDay = calendarDate.getDate();
 
-  const cards = useMemo(
-    () => [
-      {
-        key: "therapy",
-        title: t.therapy,
-        subtitle: t.therapySubtitle,
-        route: "/therapy",
-        image: IMAGE_SOURCES.therapy,
-      },
-      {
-        key: "mindfulness",
-        title: t.mindfulness,
-        subtitle: t.mindfulnessSubtitle,
-        route: "/mindfulness",
-        image: IMAGE_SOURCES.mindfulness,
-      },
-      {
-        key: "sos",
-        title: t.sos,
-        subtitle: t.sosSubtitle,
-        route: "/sos",
-        image: IMAGE_SOURCES.sos,
-      },
-      {
-        key: "progress",
-        title: t.progress,
-        subtitle: t.progressSubtitle,
-        route: "/progress",
-        image: IMAGE_SOURCES.progress,
-      },
-      {
-        key: "support",
-        title: t.support,
-        route: "/support",
-        image: IMAGE_SOURCES.support,
-      },
-      {
-        key: "facts",
-        title: "Gerçekler",
-        subtitle: "Online kumarın gerçek yüzü",
-        route: "/facts",
-        image: IMAGE_SOURCES.facts,
-      },
-      {
-        key: "diary",
-        title: t.diary,
-        route: "/diary",
-        image: IMAGE_SOURCES.diary,
-      },
-    ],
+  const cards = useMemo<{ key: string; title: string; subtitle?: string; route: Href; visual: CardVisual }[]>(
+    () => {
+      const resolveVisual = (key: string): CardVisual => CARD_VISUALS[key] ?? DEFAULT_CARD_VISUAL;
+
+      const items: { key: string; title: string; subtitle?: string; route: Href; visual: CardVisual }[] = [
+        {
+          key: "urge",
+          title: t.urgeSupport,
+          subtitle: t.urgeSupportSubtitle,
+          route: "/urge/detect",
+          visual: resolveVisual("urge"),
+        },
+        {
+          key: "money-protection",
+          title: t.moneyProtectionCardTitle,
+          subtitle: t.moneyProtectionCardSubtitle,
+          route: "/money-protection",
+          visual: resolveVisual("money-protection"),
+        },
+        {
+          key: "therapy",
+          title: t.therapy,
+          subtitle: t.therapySubtitle,
+          route: "/therapy",
+          visual: resolveVisual("therapy"),
+        },
+        {
+          key: "mindfulness",
+          title: t.mindfulness,
+          subtitle: t.mindfulnessSubtitle,
+          route: "/mindfulness",
+          visual: resolveVisual("mindfulness"),
+        },
+        {
+          key: "progress",
+          title: t.progress,
+          subtitle: t.progressSubtitle,
+          route: "/progress",
+          visual: resolveVisual("progress"),
+        },
+      ];
+
+      if (ENABLE_SMS_ROLE) {
+        items.push({
+          key: "sms-filter",
+          title: uiCopy.smsTitle,
+          subtitle: uiCopy.smsSubtitle,
+          route: "/sms-filter",
+          visual: resolveVisual("sms-filter"),
+        });
+      }
+
+      items.push(
+        {
+          key: "facts",
+          title: uiCopy.factsTitle,
+          subtitle: uiCopy.factsSubtitle,
+          route: "/facts",
+          visual: resolveVisual("facts"),
+        },
+        {
+          key: "diary",
+          title: t.diary,
+          route: "/diary",
+          visual: resolveVisual("diary"),
+        }
+      );
+
+      return items;
+    },
     [
       t.diary,
       t.mindfulness,
       t.mindfulnessSubtitle,
       t.progress,
       t.progressSubtitle,
-      t.sos,
-      t.sosSubtitle,
-      t.support,
       t.therapy,
       t.therapySubtitle,
+      t.urgeSupport,
+      t.urgeSupportSubtitle,
+      t.moneyProtectionCardTitle,
+      t.moneyProtectionCardSubtitle,
+      uiCopy.factsSubtitle,
+      uiCopy.factsTitle,
+      uiCopy.smsSubtitle,
+      uiCopy.smsTitle,
     ]
   );
+
+  const heroStyle = {
+    opacity: heroAnim,
+    transform: [
+      {
+        translateY: heroAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [16, 0],
+        }),
+      },
+    ],
+  };
+
+  const gridStyle = {
+    opacity: gridAnim,
+    transform: [
+      {
+        translateY: gridAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+        }),
+      },
+    ],
+  };
 
   if (loading || !hydrated || !progressHydrated) {
     return (
@@ -159,12 +314,12 @@ export default function HomeScreen() {
   if (!done) {
     return (
       <LinearGradient
-        colors={colors.backgroundGradient}
+        colors={colors.backgroundGradient as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} testID="welcome-screen">
           <View style={styles.logoWrapper}>
             <LinearGradient
               colors={["#FFB366", "#FF9933"]}
@@ -184,12 +339,7 @@ export default function HomeScreen() {
           </View>
 
         <View style={styles.appNameRow}>
-          <Image
-            source={require("../../assets/images/icon.png")}
-            style={styles.appNameIcon}
-            resizeMode="contain"
-            accessibilityLabel="Antislot icon"
-          />
+          <AntiSlotEmblem size={32} style={styles.appNameIcon} accessibilityLabel="Antislot emblem" />
           <Text style={[styles.appName, { color: colors.text }]}>ANTISLOT</Text>
         </View>
 
@@ -208,7 +358,12 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.themeText, { color: colors.text }]}>
-                {theme === "twitter-blue" ? "🔵 Twitter Mavisi" : theme === "black" ? "⚫ Siyah" : "⚪ Beyaz"} ▾
+                {theme === "twitter-blue"
+                  ? `🔵 ${uiCopy.themeTwitterBlue}`
+                  : theme === "black"
+                    ? `⚫ ${uiCopy.themeBlack}`
+                    : `⚪ ${uiCopy.themeWhite}`}{" "}
+                ▾
               </Text>
             </TouchableOpacity>
             
@@ -225,7 +380,7 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text style={[styles.themeOptionText, { color: colors.text }, theme === "twitter-blue" && { color: "#1DA1F2", fontWeight: "600" }]}>
-                    🔵 Twitter Mavisi
+                    🔵 {uiCopy.themeTwitterBlue}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -239,7 +394,7 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text style={[styles.themeOptionText, { color: colors.text }, theme === "black" && { color: "#000000", fontWeight: "600" }]}>
-                    ⚫ Siyah
+                    ⚫ {uiCopy.themeBlack}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -253,7 +408,7 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text style={[styles.themeOptionText, { color: colors.text }, theme === "white" && { color: colors.primary, fontWeight: "600" }]}>
-                    ⚪ Beyaz
+                    ⚪ {uiCopy.themeWhite}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -265,6 +420,7 @@ export default function HomeScreen() {
             style={styles.button}
             onPress={() => router.push("/continue")}
             activeOpacity={0.85}
+            testID="onboarding-continue"
           >
             <LinearGradient
               colors={["#1D4C72", "#2A5F8F", "#3B75B8"]}
@@ -283,12 +439,12 @@ export default function HomeScreen() {
   // Onboarding bittiyse: gerçek ana menü (ızgara)
   return (
     <LinearGradient
-      colors={[homePalette.background, homePalette.background]}
+      colors={colors.backgroundGradient as [string, string, ...string[]]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.homeContainer}
+      style={[styles.homeContainer, { backgroundColor: homePalette.background }]}
     >
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: homePalette.background }]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: homePalette.background }]} testID="home-screen">
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.contentWrapper}
@@ -296,18 +452,13 @@ export default function HomeScreen() {
       >
         <View style={styles.titleSection}>
           <LinearGradient
-            colors={["#0F172A", "#1D4C72", "#2A5F8F"]}
+            colors={[colors.primary, colors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.homeTitleBadge}
           >
             <View style={styles.homeTitleRow}>
-              <Image
-                source={require("../../assets/images/icon.png")}
-                style={styles.homeTitleIcon}
-                resizeMode="contain"
-                accessibilityLabel="Antislot icon"
-              />
+              <AntiSlotEmblem size={36} style={styles.homeTitleIcon} accessibilityLabel="Antislot emblem" />
               <Text style={styles.homeTitleText}>
                 ANTİ-<Text style={styles.homeTitleAccent}>SLOT</Text>
               </Text>
@@ -315,15 +466,75 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
-        <View style={styles.gambleFreeCard}>
-          <ImageBackground
-            source={{ uri: IMAGE_SOURCES.hero }}
-            style={styles.gambleFreeImage}
-            imageStyle={styles.gambleFreeImageRadius}
-            resizeMode="cover"
-            blurRadius={1}
+        <View style={[styles.languageSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.languageTrigger, { borderColor: colors.border, backgroundColor: colors.background }]}
+            onPress={() => setShowLanguageOptions((prev) => !prev)}
+            activeOpacity={0.9}
           >
-            <View style={styles.imageTintHero} />
+            <View style={styles.languageTriggerLeft}>
+              <View style={[styles.languageTriggerIconWrap, { backgroundColor: `${colors.primary}18` }]}>
+                <Ionicons name="language-outline" size={16} color={colors.primary} />
+              </View>
+              <View style={styles.languageTriggerTextWrap}>
+                <Text style={[styles.languageSectionTitle, { color: colors.text }]}>{languageCopy.title}</Text>
+                <Text style={[styles.languageCurrentValue, { color: colors.textSecondary }]}>
+                  {selectedLanguageOption?.nativeName ?? selectedLanguage}
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name={showLanguageOptions ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {showLanguageOptions ? (
+            <View style={[styles.languageDropdown, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              {SUPPORTED_LANGUAGE_OPTIONS.map((option, index) => {
+                const isActive = selectedLanguage === option.code;
+                const isLast = index === SUPPORTED_LANGUAGE_OPTIONS.length - 1;
+                return (
+                  <TouchableOpacity
+                    key={option.code}
+                    style={[
+                      styles.languageOptionRow,
+                      {
+                        borderColor: colors.border,
+                        borderBottomWidth: isLast ? 0 : 1,
+                        backgroundColor: isActive ? `${colors.primary}12` : "transparent",
+                      },
+                    ]}
+                    onPress={() => handleLanguageChange(option.code)}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.languageOptionLabelWrap}>
+                      <Text style={[styles.languageNative, { color: colors.text }]}>{option.nativeName}</Text>
+                      <Text style={[styles.languageEnglish, { color: colors.textSecondary }]}>{option.englishName}</Text>
+                    </View>
+                    {isActive ? (
+                      <View style={[styles.languageActivePill, { backgroundColor: `${colors.primary}1A` }]}>
+                        <Text style={[styles.languageActiveText, { color: colors.primary }]}>{languageCopy.active}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+
+        <Animated.View style={[styles.gambleFreeCard, heroStyle]}>
+          <LinearGradient
+            colors={["#0F2E57", "#1D4C72", "#2D6EA2"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.gambleFreeImage}
+          >
+            <View style={styles.heroGlowTop} />
+            <View style={styles.heroGlowBottom} />
+            <View style={styles.heroRing} />
             <LinearGradient
               colors={["rgba(0, 0, 0, 0.18)", "rgba(0, 0, 0, 0.32)"]}
               start={{ x: 0, y: 0 }}
@@ -331,11 +542,18 @@ export default function HomeScreen() {
               style={styles.gambleFreeOverlay}
             >
               <View style={styles.gambleFreeLeft}>
+                <View style={styles.heroSignalRow}>
+                  <Ionicons name="sparkles-outline" size={13} color="rgba(226, 232, 240, 0.92)" />
+                  <View style={styles.heroSignalDot} />
+                </View>
                 <Text style={styles.gambleFreeNumber}>{heroMeta.value}</Text>
                 <Text style={styles.gambleFreeLabel}>{heroMeta.label}</Text>
                 <Text style={styles.gambleFreeSubLabel}>{heroMeta.subLabel}</Text>
               </View>
               <View style={styles.gambleFreeRight}>
+                <View style={styles.heroStatusBadge}>
+                  <Ionicons name="shield-checkmark-outline" size={16} color="#F8FAFC" />
+                </View>
                 <View style={styles.calendarCard}>
                   <View style={styles.calendarHeader}>
                     <Text style={styles.calendarHeaderText}>{calendarMonth}</Text>
@@ -346,43 +564,54 @@ export default function HomeScreen() {
                 </View>
               </View>
             </LinearGradient>
-          </ImageBackground>
-        </View>
+          </LinearGradient>
+        </Animated.View>
 
-        <View style={styles.grid}>
+        <Animated.View style={[styles.grid, gridStyle]}>
           {cards.map((card) => (
             <TouchableOpacity
               key={card.key}
               style={styles.card}
               activeOpacity={0.85}
               onPress={() => router.push(card.route)}
+              testID={`home-card-${card.key}`}
             >
-              <ImageBackground
-                source={{ uri: card.image }}
-                style={styles.cardImage}
-                imageStyle={styles.cardImageRadius}
-                resizeMode="cover"
-                blurRadius={2}
+              <LinearGradient
+                colors={card.visual.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardGradient}
               >
-                <View style={styles.imageTint} />
-                <LinearGradient
-                  colors={["rgba(0, 0, 0, 0.12)", "rgba(0, 0, 0, 0.35)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={styles.cardOverlay}
-                >
+                <View style={[styles.cardAccentStrip, { backgroundColor: card.visual.accent }]} />
+                <View style={styles.cardGlowLarge} />
+                <View style={styles.cardGlowSmall} />
+
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardIconBadge}>
+                    <Ionicons name={card.visual.icon} size={20} color="#F8FAFC" />
+                  </View>
+                  <View style={[styles.cardArrowBadge, { borderColor: `${card.visual.accent}70` }]}>
+                    <Ionicons name="arrow-forward" size={14} color="#F8FAFC" />
+                  </View>
+                </View>
+
+                <Ionicons name={card.visual.icon} size={70} color={`${card.visual.accent}44`} style={styles.cardWatermarkIcon} />
+
+                <View style={styles.cardTextBlock}>
                   <Text style={styles.cardTitle}>{card.title}</Text>
                   {card.subtitle ? (
-                    <Text style={styles.cardSub} numberOfLines={2}>
+                    <Text style={styles.cardSub} numberOfLines={3}>
                       {card.subtitle}
                     </Text>
                   ) : null}
-                </LinearGradient>
-              </ImageBackground>
+                </View>
+                <View style={[styles.cardBottomAccent, { backgroundColor: card.visual.accent }]} />
+              </LinearGradient>
             </TouchableOpacity>
           ))}
-        </View>
+        </Animated.View>
       </ScrollView>
+      <SOSQuickAccess variant="floating" />
       </SafeAreaView>
 
       {/* Hoş Geldiniz Modali */}
@@ -397,12 +626,12 @@ export default function HomeScreen() {
             colors={["rgba(255, 255, 255, 0.98)", "#FFFFFF"]}
             style={styles.modalContent}
           >
-            <LinearGradient
-              colors={["#FFF3E0", "#FFE0B2", "#FFCC80"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.modalIcon}
-            >
+          <LinearGradient
+            colors={["#FEF3C7", "#FDE68A", "#FCD34D"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.modalIcon}
+          >
               <Text style={styles.modalIconEmoji}>🎉</Text>
             </LinearGradient>
 
@@ -439,7 +668,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4F9FF",
+    backgroundColor: "#F8FAFC",
   },
 
   // Onboarding açılış ekranı (eski)
@@ -497,31 +726,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   appNameIcon: {
-    width: 32,
-    height: 32,
     marginRight: 10,
   },
   appName: {
-    fontSize: 36,
-    fontWeight: "900",
-    letterSpacing: 4,
-    color: "#1D4C72",
-    textShadowColor: "rgba(29, 76, 114, 0.2)",
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 8,
+    fontSize: 32,
+    fontFamily: Fonts.display,
+    letterSpacing: 3,
+    color: "#0F5B7A",
   },
   tagline: {
-    fontSize: 16,
-    color: "#1D4C72",
+    fontSize: 15,
+    color: "#0F172A",
     textAlign: "center",
     marginBottom: 40,
-    fontWeight: "600",
+    fontFamily: Fonts.bodyMedium,
     lineHeight: 24,
   },
   taglineHighlight: { 
-    color: "#FF6B6B", 
-    fontWeight: "900",
-    fontSize: 18,
+    color: "#D97706", 
+    fontFamily: Fonts.display,
+    fontSize: 17,
   },
   settingsContainer: {
     width: "100%",
@@ -534,7 +758,7 @@ const styles = StyleSheet.create({
   },
   themeBox: {
     width: "100%",
-    borderRadius: 20,
+    borderRadius: Radius.lg,
     paddingVertical: 14,
     paddingHorizontal: 16,
     elevation: 5,
@@ -546,6 +770,7 @@ const styles = StyleSheet.create({
   },
   themeText: {
     fontSize: 14,
+    fontFamily: Fonts.bodyMedium,
     textAlign: "center",
   },
   themeDropdown: {
@@ -553,7 +778,7 @@ const styles = StyleSheet.create({
     top: "100%",
     left: 0,
     right: 0,
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     marginTop: 8,
     elevation: 8,
     shadowColor: "#000",
@@ -571,11 +796,12 @@ const styles = StyleSheet.create({
   },
   themeOptionText: {
     fontSize: 15,
+    fontFamily: Fonts.bodyMedium,
   },
 
   button: {
     width: "100%",
-    borderRadius: 28,
+    borderRadius: Radius.xl,
     marginTop: 12,
     overflow: "hidden",
     shadowColor: "#1D4C72",
@@ -585,25 +811,22 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   buttonGradient: {
-    paddingVertical: 18,
+    paddingVertical: 16,
     paddingHorizontal: 32,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: { 
     color: "white", 
-    fontSize: 20, 
-    fontWeight: "700",
-    letterSpacing: 1,
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    fontSize: 18, 
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 0.6,
   },
 
   // Gerçek Ana Sayfa (ızgara)
   homeContainer: {
     flex: 1,
-    backgroundColor: "#F4F9FF",
+    backgroundColor: "#F8FAFC",
   },
   safeArea: {
     flex: 1,
@@ -619,125 +842,255 @@ const styles = StyleSheet.create({
   },
   titleSection: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   homeTitleBadge: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.25)",
+    borderColor: "rgba(255, 255, 255, 0.2)",
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 6,
   },
   homeTitleRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   homeTitleIcon: {
-    width: 34,
-    height: 34,
-    marginRight: 10,
+    marginRight: 12,
   },
   homeTitleText: {
-    fontSize: 30,
-    fontWeight: "900",
-    letterSpacing: 3,
+    fontSize: 22,
+    fontFamily: Fonts.display,
+    letterSpacing: 2.2,
     textTransform: "uppercase",
     color: "#FFFFFF",
-    textShadowColor: "rgba(0, 0, 0, 0.35)",
-    textShadowOffset: { width: 0, height: 3 },
-    textShadowRadius: 8,
   },
   homeTitleAccent: {
-    color: "#FFB366",
-    textShadowColor: "rgba(255, 179, 102, 0.4)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    color: "#F2C94C",
+    fontFamily: Fonts.display,
   },
+  languageSection: {
+    borderRadius: Radius.xl,
+    padding: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  languageTrigger: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  languageTriggerLeft: { flexDirection: "row", alignItems: "center", gap: 9, flex: 1, minWidth: 0 },
+  languageTriggerIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  languageTriggerTextWrap: { flex: 1, minWidth: 0 },
+  languageSectionTitle: { fontSize: 13, fontFamily: Fonts.bodySemiBold, lineHeight: 17 },
+  languageCurrentValue: { fontSize: 11, fontFamily: Fonts.body, lineHeight: 15, marginTop: 1 },
+  languageDropdown: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  languageOptionRow: {
+    borderBottomWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  languageOptionLabelWrap: { flex: 1, minWidth: 0 },
+  languageNative: { fontSize: 13, fontFamily: Fonts.bodySemiBold, lineHeight: 17 },
+  languageEnglish: { fontSize: 11, fontFamily: Fonts.body, lineHeight: 15, marginTop: 1 },
+  languageActivePill: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  languageActiveText: { fontSize: 10, fontFamily: Fonts.bodySemiBold },
 
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    opacity: 1, // Izgara tam opak
+    opacity: 1,
   },
 
   card: {
     width: "48%",
-    height: 145,
-    borderRadius: 20,
+    height: 152,
+    borderRadius: Radius.xl,
     marginBottom: 16,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    elevation: 5,
-    backgroundColor: "#FFFFFF",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    elevation: 7,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.24)",
   },
-  cardImage: {
+  cardGradient: {
     flex: 1,
-  },
-  cardImageRadius: {
+    padding: 14,
     borderRadius: 20,
-  },
-  cardOverlay: {
-    flex: 1,
-    padding: 12,
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    overflow: "hidden",
   },
-  imageTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255, 255, 255, 0.22)",
+  cardAccentStrip: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    opacity: 0.9,
   },
-  imageTintHero: {
-    ...StyleSheet.absoluteFillObject,
+  cardGlowLarge: {
+    position: "absolute",
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    right: -36,
+    top: -28,
     backgroundColor: "rgba(255, 255, 255, 0.14)",
   },
+  cardGlowSmall: {
+    position: "absolute",
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    left: -18,
+    bottom: -16,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.26)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.34)",
+  },
+  cardArrowBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.22)",
+    borderWidth: 1,
+  },
+  cardWatermarkIcon: {
+    position: "absolute",
+    right: -6,
+    top: 6,
+  },
+  cardTextBlock: {
+    alignSelf: "stretch",
+    gap: 4,
+    marginTop: 28,
+  },
+  cardBottomAccent: {
+    width: 56,
+    height: 3,
+    borderRadius: 999,
+    opacity: 0.95,
+  },
   cardTitle: { 
-    fontSize: 18, 
-    fontWeight: "800", 
-    color: "white",
+    fontSize: 17,
+    fontFamily: Fonts.bodySemiBold,
+    color: "#F8FAFC",
     marginBottom: 4,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    letterSpacing: 0.15,
+    textShadowColor: "rgba(0, 0, 0, 0.35)",
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowRadius: 7,
   },
   cardSub: { 
     fontSize: 12, 
-    color: "rgba(255, 255, 255, 0.95)",
-    fontWeight: "600",
-    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    lineHeight: 16,
+    color: "rgba(241, 245, 249, 0.96)",
+    fontFamily: Fonts.bodyMedium,
+    letterSpacing: 0.14,
+    textShadowColor: "rgba(0, 0, 0, 0.25)",
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-    maxWidth: "90%",
+    textShadowRadius: 3,
+    maxWidth: "100%",
   },
   gambleFreeCard: {
-    borderRadius: 22,
-    marginBottom: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 9,
+    borderRadius: Radius.xxl,
+    marginBottom: 24,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
   },
   gambleFreeImage: {
     width: "100%",
-    borderRadius: 22,
+    borderRadius: 24,
     overflow: "hidden",
-    height: 135,
+    height: 148,
   },
-  gambleFreeImageRadius: {
-    borderRadius: 22,
+  heroGlowTop: {
+    position: "absolute",
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -78,
+    right: -48,
+    backgroundColor: "rgba(148, 197, 255, 0.24)",
+  },
+  heroGlowBottom: {
+    position: "absolute",
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    bottom: -72,
+    left: -52,
+    backgroundColor: "rgba(255, 255, 255, 0.13)",
+  },
+  heroRing: {
+    position: "absolute",
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    right: 12,
+    top: 10,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.24)",
   },
   gambleFreeOverlay: {
     flex: 1,
-    padding: 18,
+    padding: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -746,130 +1099,159 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
   },
+  heroSignalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 6,
+  },
+  heroSignalDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "rgba(191, 219, 254, 0.95)",
+  },
   gambleFreeNumber: {
-    fontSize: 44,
-    fontWeight: "900",
+    fontSize: 42,
+    fontFamily: Fonts.display,
     color: "#FFFFFF",
     marginBottom: 4,
+    letterSpacing: -1,
   },
   gambleFreeLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontSize: 11,
+    fontFamily: Fonts.bodyMedium,
+    color: "rgba(255, 255, 255, 0.95)",
     marginBottom: 4,
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     textTransform: "uppercase",
   },
   gambleFreeSubLabel: {
     fontSize: 13,
-    color: "#FFFFFF",
-    opacity: 0.9,
-    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.95)",
+    fontFamily: Fonts.bodyMedium,
+    letterSpacing: 0.2,
   },
   gambleFreeRight: {
     alignItems: "flex-end",
+    gap: 8,
+  },
+  heroStatusBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.3)",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.35)",
   },
   calendarCard: {
-    width: 58,
-    borderRadius: 10,
+    width: 60,
+    borderRadius: 14,
     backgroundColor: "#FFFFFF",
     overflow: "hidden",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.06)",
   },
   calendarHeader: {
     width: "100%",
-    backgroundColor: "#E05858",
-    paddingVertical: 3,
+    backgroundColor: "#DC2626",
+    paddingVertical: 4,
     alignItems: "center",
   },
   calendarHeaderText: {
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: Fonts.bodySemiBold,
     color: "#FFFFFF",
     letterSpacing: 1,
   },
   calendarBody: {
     width: "100%",
     alignItems: "center",
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
   calendarBodyText: {
     fontSize: 20,
-    fontWeight: "800",
-    color: "#2B2B2B",
+    fontFamily: Fonts.bodySemiBold,
+    color: "#0F172A",
   },
-  // Modal stilleri
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
   modalContent: {
-    borderRadius: 32,
+    borderRadius: 28,
     padding: 40,
     width: "100%",
-    maxWidth: 420,
+    maxWidth: 400,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 16,
+    shadowColor: "#0F172A",
+    shadowOpacity: 0.15,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    backgroundColor: "#FFFFFF",
   },
   modalIcon: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 28,
-    shadowColor: "#FFB366",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
+    marginBottom: 24,
+    shadowColor: "#F59E0B",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 6,
   },
   modalIconEmoji: {
-    fontSize: 60,
+    fontSize: 56,
   },
   modalTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 16,
+    fontSize: 22,
+    fontFamily: Fonts.display,
+    color: "#0F172A",
+    marginBottom: 12,
     textAlign: "center",
+    letterSpacing: -0.3,
   },
   modalDescription: {
-    fontSize: 16,
-    color: "#555",
+    fontSize: 14,
+    fontFamily: Fonts.body,
+    color: "#64748B",
     textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 32,
+    lineHeight: 22,
+    marginBottom: 28,
   },
   modalNextBtn: {
-    paddingVertical: 18,
-    paddingHorizontal: 48,
-    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
     width: "100%",
     alignItems: "center",
     shadowColor: "#1D4C72",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   modalNextText: {
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 16,
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 0.2,
   },
 });

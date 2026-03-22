@@ -1,51 +1,105 @@
+import { Fonts, Radius, Spacing } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { router } from "expo-router";
 import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalizedCopy } from "@/hooks/useLocalizedCopy";
 
-const LIMITATIONS = [
+type LimitationItem = {
+  title: string;
+  body: string;
+  tips: string[];
+};
+
+const LIMITATIONS_COPY: Record<
+  "tr" | "en",
   {
-    title: "DNS over HTTPS (DoH)",
-    body: "DoH trafiği şifreli olduğu için DNS filtresi tarafından yakalanamayabilir.",
-    tips: ["Safari DoH ayarlarını kapatın", "Mümkünse standart DNS kullanın"],
+    title: string;
+    subtitle: string;
+    sections: LimitationItem[];
+  }
+> = {
+  tr: {
+    title: "Sinirlamalar",
+    subtitle: "Bu sinirlamalar platform seviyesindedir ve acik sekilde paylasilir.",
+    sections: [
+      {
+        title: "DNS over HTTPS (DoH)",
+        body: "DoH trafigi sifreli oldugu icin DNS filtresi tarafindan yakalanamayabilir.",
+        tips: ["Safari DoH ayarlarini kapatin", "Mumkunse standart DNS kullanin"],
+      },
+      {
+        title: "Uygulama Ici Tarayicilar",
+        body: "Bazi uygulamalar kendi tarayicilarini kullandigi icin filtreyi asabilir.",
+        tips: ["Kritik icerikler icin Safari/Chrome tercih edin"],
+      },
+      {
+        title: "Captive Portal (Ag Girisi)",
+        body: "Halka acik Wi-Fi giris sayfalarinda VPN gecici olarak devre disi kalabilir.",
+        tips: ["Giris tamamlandiktan sonra VPN durumunu kontrol edin"],
+      },
+      {
+        title: "VPN Etkinlestirme",
+        body: "VPN kullanici onayi olmadan otomatik acilamaz.",
+        tips: ["Ayarlar > VPN bolumunden manuel etkinlestirme yapin"],
+      },
+    ],
   },
-  {
-    title: "Uygulama İçi Tarayıcılar",
-    body: "Bazı uygulamalar kendi tarayıcılarını kullandığı için filtreyi aşabilir.",
-    tips: ["Kritik içerikler için Safari/Chrome tercih edin"],
+  en: {
+    title: "Limitations",
+    subtitle: "These are platform-level limits and are shown transparently.",
+    sections: [
+      {
+        title: "DNS over HTTPS (DoH)",
+        body: "DoH traffic may bypass DNS filtering because it is encrypted.",
+        tips: ["Disable DoH in Safari if enabled", "Use standard DNS when possible"],
+      },
+      {
+        title: "In-App Browsers",
+        body: "Some apps use their own browser layers, which may bypass filtering.",
+        tips: ["Use Safari/Chrome for high-risk browsing contexts"],
+      },
+      {
+        title: "Captive Portals (Network Login)",
+        body: "Public Wi-Fi login flows can temporarily interrupt VPN filtering.",
+        tips: ["Check VPN status after network login completes"],
+      },
+      {
+        title: "VPN Activation",
+        body: "VPN cannot be enabled automatically without user consent.",
+        tips: ["Activate manually from Settings > VPN when needed"],
+      },
+    ],
   },
-  {
-    title: "Captive Portal (Ağ Girişi)",
-    body: "Halka açık WiFi giriş sayfalarında VPN geçici olarak devre dışı kalabilir.",
-    tips: ["Giriş tamamlandıktan sonra VPN durumunu kontrol edin"],
-  },
-  {
-    title: "VPN Etkinleştirme",
-    body: "VPN kullanıcı onayı olmadan otomatik açılamaz.",
-    tips: ["Ayarlar > VPN bölümünden manuel etkinleştirme yapın"],
-  },
-];
+};
 
 export default function Limitations() {
+  const { t, language } = useLanguage();
+  const { colors } = useTheme();
+  const copy = useLocalizedCopy(LIMITATIONS_COPY);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Geri</Text>
+          <Text style={[styles.backText, { color: colors.textSecondary }]}>{`← ${t.back}`}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Sınırlamalar</Text>
-        <Text style={styles.subtitle}>
-          Bu sınırlamalar platform seviyesindedir. Uygulama içinden açık şekilde paylaşılır.
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>{copy.title}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{copy.subtitle}</Text>
 
-        {LIMITATIONS.map((item) => (
-          <View key={item.title} style={styles.card}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardText}>{item.body}</Text>
+        {copy.sections.map((item) => (
+          <View
+            key={item.title}
+            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
+            <Text style={[styles.cardText, { color: colors.textSecondary }]}>{item.body}</Text>
             <View style={styles.tipList}>
               {item.tips.map((tip) => (
-                <Text key={tip} style={styles.bulletText}>• {tip}</Text>
+                <Text key={tip} style={[styles.bulletText, { color: colors.textSecondary }]}>{`• ${tip}`}</Text>
               ))}
             </View>
           </View>
@@ -56,25 +110,20 @@ export default function Limitations() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
+  container: { flex: 1 },
+  content: { padding: Spacing.xl, paddingBottom: Spacing.xxxl },
   backBtn: { alignSelf: "flex-start", marginBottom: 10 },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", color: "#1D4C72", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 18, lineHeight: 20 },
+  backText: { fontSize: 16, fontFamily: Fonts.bodyMedium },
+  title: { fontSize: 28, fontFamily: Fonts.display, marginBottom: 8 },
+  subtitle: { fontSize: 14, marginBottom: 18, lineHeight: 20, fontFamily: Fonts.body },
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    borderRadius: Radius.lg,
+    padding: Spacing.base,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
   },
-  cardTitle: { fontSize: 16, fontWeight: "800", color: "#1D4C72", marginBottom: 8 },
-  cardText: { fontSize: 13, color: "#555", lineHeight: 18, marginBottom: 8 },
+  cardTitle: { fontSize: 16, fontFamily: Fonts.bodySemiBold, marginBottom: 8 },
+  cardText: { fontSize: 13, lineHeight: 18, marginBottom: 8, fontFamily: Fonts.body },
   tipList: { gap: 6 },
-  bulletText: { fontSize: 13, color: "#444" },
+  bulletText: { fontSize: 13, fontFamily: Fonts.body },
 });

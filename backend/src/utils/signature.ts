@@ -1,13 +1,13 @@
 /**
- * HMAC İmza Üretimi ve Doğrulaması
- * Engel listesi/kalıp bütünlüğünü doğrulamak için kullanılır
+ * HMAC signature generation and verification.
+ * Used to protect blocklist/pattern payload integrity.
  */
 
 import crypto from 'crypto';
 import { config } from '../config';
 
 /**
- * Veri için HMAC-SHA256 imzası üret
+ * Generate HMAC-SHA256 signature for payload.
  */
 export function generateSignature(data: string | object): string {
   const stringData = typeof data === 'string' ? data : JSON.stringify(data);
@@ -17,25 +17,32 @@ export function generateSignature(data: string | object): string {
 }
 
 /**
- * HMAC imzasını doğrula
+ * Verify HMAC signature.
+ * Returns false for malformed or length-mismatched signatures.
  */
 export function verifySignature(
   data: string | object,
   signature: string
 ): boolean {
+  if (typeof signature !== 'string') return false;
+
+  const normalized = signature.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalized)) return false;
+
   const expectedSignature = generateSignature(data);
-  return crypto.timingSafeEqual(
-    Buffer.from(expectedSignature, 'hex'),
-    Buffer.from(signature, 'hex')
-  );
+  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+  const providedBuffer = Buffer.from(normalized, 'hex');
+
+  if (expectedBuffer.length !== providedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 /**
- * Veriden ETag üret
+ * Generate ETag from payload.
  */
 export function generateETag(data: string | object): string {
   const stringData = typeof data === 'string' ? data : JSON.stringify(data);
   const hash = crypto.createHash('sha256');
   hash.update(stringData);
-  return `"${hash.digest('hex').substring(0, 16)}"`; // ETag için 16 karakter
+  return `"${hash.digest('hex').substring(0, 16)}"`; // 16-char ETag fingerprint
 }

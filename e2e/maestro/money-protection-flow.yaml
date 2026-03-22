@@ -1,0 +1,27 @@
+# Money protection flow
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 20000
+- tapOn:
+    id: "home-card-money-protection"
+- assertVisible:
+    id: "money-protection-screen"
+- tapOn:
+    id: "money-protection-daily-limit-input"
+- inputText: "500"
+- tapOn:
+    id: "money-protection-daily-limit-save-btn"
+- tapOn:
+    id: "money-protection-spend-input"
+- inputText: "100"
+- tapOn:
+    id: "money-protection-spend-add-btn"
+- tapOn:
+    id: "money-protection-lock-start-btn"
+- assertVisible:
+    id: "money-protection-status-card"

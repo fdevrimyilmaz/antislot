@@ -1,38 +1,56 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Language, Translations, translations } from "@/i18n/translations";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import {
+  getLocaleForLanguage,
+  type Language,
+  type SupportedLanguage,
+  type Translations,
+  getTranslationsForLanguage,
+  resolveUiLanguage,
+} from "@/i18n/translations";
 import { getLanguage, setLanguage } from "@/store/languageStore";
 
 interface LanguageContextType {
   language: Language;
-  setLanguage: (lang: Language) => Promise<void>;
+  selectedLanguage: SupportedLanguage;
+  locale: string;
+  setLanguage: (lang: SupportedLanguage) => Promise<void>;
   t: Translations;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>("tr");
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>("tr");
 
   useEffect(() => {
     (async () => {
       const lang = await getLanguage();
-      setLanguageState(lang);
+      setSelectedLanguage(lang);
     })();
   }, []);
 
-  const handleSetLanguage = async (lang: Language) => {
+  const handleSetLanguage = useCallback(async (lang: SupportedLanguage) => {
     await setLanguage(lang);
-    setLanguageState(lang);
-  };
+    setSelectedLanguage(lang);
+  }, []);
+
+  const language = useMemo(() => resolveUiLanguage(selectedLanguage), [selectedLanguage]);
+  const locale = useMemo(() => getLocaleForLanguage(selectedLanguage), [selectedLanguage]);
+  const t = useMemo(() => getTranslationsForLanguage(selectedLanguage), [selectedLanguage]);
+
+  const value = useMemo(
+    () => ({
+      language,
+      selectedLanguage,
+      locale,
+      setLanguage: handleSetLanguage,
+      t,
+    }),
+    [language, selectedLanguage, locale, handleSetLanguage, t]
+  );
 
   return (
-    <LanguageContext.Provider
-      value={{
-        language,
-        setLanguage: handleSetLanguage,
-        t: translations[language],
-      }}
-    >
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

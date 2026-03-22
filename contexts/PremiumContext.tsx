@@ -38,6 +38,10 @@ const STATUS_TONES = {
   neutral: { background: "#F2F4F7", text: "#667085" },
 } as const;
 
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Bir hata olustu.";
+}
+
 export default function PremiumScreen() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -84,6 +88,11 @@ export default function PremiumScreen() {
   const canApplyCode = code.trim().length > 0;
   const isPremiumActive = !!premiumState?.isActive;
   const gamblingLocked = !isPremiumActive;
+  const gradientColors: [string, string, ...string[]] = [
+    colors.backgroundGradient[0],
+    colors.backgroundGradient[1],
+    ...(colors.backgroundGradient.slice(2) || []),
+  ];
 
   const handleLiveSupport = () => {
     const subject = encodeURIComponent("Premium Canlı Destek");
@@ -110,33 +119,33 @@ export default function PremiumScreen() {
   const handleBuyMonthly = async () => {
     try {
       await purchaseMonthly();
-      const state = await setPremiumActive("subscription_monthly" as any);
+      const state = await setPremiumActive("subscription_monthly");
       setPremiumState(state);
       Alert.alert("Başarılı", "Aylık Premium aktif.");
-    } catch (e: any) {
-      Alert.alert("Satın alma başarısız", e?.message ?? "Bir hata oluştu.");
+    } catch (error: unknown) {
+      Alert.alert("Satın alma başarısız", toErrorMessage(error));
     }
   };
 
   const handleBuyYearly = async () => {
     try {
       await purchaseYearly();
-      const state = await setPremiumActive("subscription_yearly" as any);
+      const state = await setPremiumActive("subscription_yearly");
       setPremiumState(state);
       Alert.alert("Başarılı", "Yıllık Premium aktif.");
-    } catch (e: any) {
-      Alert.alert("Satın alma başarısız", e?.message ?? "Bir hata oluştu.");
+    } catch (error: unknown) {
+      Alert.alert("Satın alma başarısız", toErrorMessage(error));
     }
   };
 
   const handleBuyLifetime = async () => {
     try {
       await purchaseLifetime();
-      const state = await setPremiumActive("lifetime" as any);
+      const state = await setPremiumActive("lifetime");
       setPremiumState(state);
       Alert.alert("Başarılı", "Tek seferlik Premium aktif.");
-    } catch (e: any) {
-      Alert.alert("Satın alma başarısız", e?.message ?? "Bir hata oluştu.");
+    } catch (error: unknown) {
+      Alert.alert("Satın alma başarısız", toErrorMessage(error));
     }
   };
 
@@ -146,8 +155,8 @@ export default function PremiumScreen() {
       const state = await getPremiumState();
       setPremiumState(state);
       Alert.alert("Tamam", "Satın alımlar geri yüklendi.");
-    } catch (e: any) {
-      Alert.alert("Geri yükleme başarısız", e?.message ?? "Bir hata oluştu.");
+    } catch (error: unknown) {
+      Alert.alert("Geri yükleme başarısız", toErrorMessage(error));
     }
   };
 
@@ -158,7 +167,7 @@ export default function PremiumScreen() {
 
   return (
     <LinearGradient
-colors={[colors.backgroundGradient[0], colors.backgroundGradient[1], ...(colors.backgroundGradient.slice(2) || [])] as any}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.gradientContainer}

@@ -1,0 +1,25 @@
+# Blocker ekranı — senkronizasyon ve koruma switch
+appId: com.antislot.app
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: "home-screen"
+    timeout: 20000
+- tapOn:
+    text: "Premium"
+- assertVisible:
+    id: "premium-screen"
+- tapOn:
+    text: "Kumar"
+- assertVisible:
+    id: "blocker-screen"
+- assertVisible:
+    id: "blocker-sync-btn"
+- assertVisible:
+    id: "blocker-protection-switch"
+- tapOn:
+    id: "blocker-back"
+- assertVisible:
+    id: "premium-screen"

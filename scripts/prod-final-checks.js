@@ -500,6 +500,16 @@ function checkStorePolicySafety() {
     /ENABLE_NOTIFICATIONS[\s\S]*process\.env\.EXPO_PUBLIC_ENABLE_NOTIFICATIONS[\s\S]*false/s,
     "feature flag default for notifications is false"
   );
+  mustMatch(
+    featureFlags,
+    /ENABLE_PREMIUM_CODE_ACTIVATION[\s\S]*process\.env\.EXPO_PUBLIC_ENABLE_PREMIUM_CODE_ACTIVATION[\s\S]*false/s,
+    "feature flag default for premium code activation is false"
+  );
+  mustMatch(
+    featureFlags,
+    /PREMIUM_FREE_FOR_NOW[\s\S]*process\.env\.EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW[\s\S]*===\s*"true"/s,
+    "premium free mode requires explicit true override"
+  );
 }
 
 function checkOperationalControls() {

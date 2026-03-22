@@ -19,7 +19,7 @@ import { Suggestion } from '../services/domain-suggestor';
 
 interface SuggestionsFile {
   suggestions: Suggestion[];
-  summary: any;
+  summary: unknown;
   timestamp: number;
 }
 

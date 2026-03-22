@@ -42,6 +42,10 @@ export interface PatternsResponse {
   signature: string;
 }
 
+export interface VerifySignatureResponse {
+  ok: boolean;
+}
+
 export interface HealthResponse {
   status: 'ok';
   timestamp: number;
@@ -50,4 +54,11 @@ export interface HealthResponse {
   blocklistCount: number;
   patternsVersion: number;
   patternsCount: number;
+  uptimeSec: number;
+  observability: {
+    sentryEnabled: boolean;
+    rateLimitedCount: number;
+    serverErrorCount: number;
+    lastServerErrorAt: number;
+  };
 }

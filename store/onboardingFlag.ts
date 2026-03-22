@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/lib/secureStoreCompat";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 let secureStoreAvailable: boolean | null = null;

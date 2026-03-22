@@ -1,0 +1,19 @@
+{
+  "entitlements": {
+    "premium-test-user": {
+      "userId": "premium-test-user",
+      "platform": "unknown",
+      "source": "code",
+      "productId": "code",
+      "status": "active",
+      "transactionId": "code-premium-test-user",
+      "eventId": "code-42c84b5d-02d7-4db1-8ba4-f222273b212b",
+      "startedAt": 1774050769121,
+      "expiresAt": null,
+      "updatedAt": 1774050769121
+    }
+  },
+  "processedEvents": {
+    "premium-test-user:code-42c84b5d-02d7-4db1-8ba4-f222273b212b": 1774050769121
+  }
+}

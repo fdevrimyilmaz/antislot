@@ -22,6 +22,14 @@ This command runs:
 4. Production-final policy and legal checks
 5. Security gate baseline check
 
+## IAP-only safety checks
+
+The preflight now also enforces these release defaults in strict mode:
+
+1. `EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW=false`
+2. `EXPO_PUBLIC_ENABLE_PREMIUM_CODE_ACTIVATION=false`
+3. `ENABLE_PREMIUM_CODE_ACTIVATION=false` (server)
+
 ## CI enforcement
 
 1. `.github/workflows/ci.yml` runs strict release preflight on push to `main`/`master`

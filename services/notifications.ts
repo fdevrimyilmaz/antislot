@@ -25,6 +25,12 @@ export type NotificationDiagnostics = {
   message?: string;
 };
 
+export type LocalNotificationPayload = {
+  title: string;
+  body: string;
+  data?: Record<string, string | number | boolean>;
+};
+
 let cachedToken: string | null = null;
 let notificationsModuleCache: NotificationsModule | null | undefined;
 let notificationsModulePromise: Promise<NotificationsModule | null> | null = null;
@@ -206,5 +212,38 @@ export async function registerForPushNotifications(): Promise<NotificationResult
       code: "error",
       message: toMessage(error),
     };
+  }
+}
+
+export async function sendLocalNotification(payload: LocalNotificationPayload): Promise<boolean> {
+  if (!ENABLE_NOTIFICATIONS || Platform.OS === "web") {
+    return false;
+  }
+
+  const Notifications = await getNotificationsModule();
+  if (!Notifications) {
+    return false;
+  }
+
+  try {
+    const permissions = await Notifications.getPermissionsAsync();
+    if (permissions.status !== "granted") {
+      return false;
+    }
+
+    await ensureAndroidChannel();
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: payload.title.trim(),
+        body: payload.body.trim(),
+        sound: "default",
+        data: payload.data,
+      },
+      trigger: null,
+    });
+    return true;
+  } catch (error) {
+    log("sendLocalNotification error:", error);
+    return false;
   }
 }

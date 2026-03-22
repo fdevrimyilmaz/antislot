@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "id": "app_icon",
+      "platform": "ios,android",
+      "path": "assets/images/icon.png",
+      "required": true,
+      "manual": false,
+      "notes": "Primary app icon"
+    },
+    {
+      "id": "splash_icon",
+      "platform": "ios,android",
+      "path": "assets/images/splash-icon.png",
+      "required": true,
+      "manual": false,
+      "notes": "Splash icon"
+    },
+    {
+      "id": "ios_screenshot_6_7_1",
+      "platform": "ios",
+      "path": "store-metadata/assets/ios/6.7/screenshot-01.png",
+      "required": false,
+      "manual": true,
+      "notes": "Apple App Store screenshot set"
+    },
+    {
+      "id": "android_phone_screenshot_1",
+      "platform": "android",
+      "path": "store-metadata/assets/android/phone/screenshot-01.png",
+      "required": false,
+      "manual": true,
+      "notes": "Google Play phone screenshot set"
+    },
+    {
+      "id": "android_phone_screenshot_2",
+      "platform": "android",
+      "path": "store-metadata/assets/android/phone/screenshot-02.png",
+      "required": false,
+      "manual": true,
+      "notes": "Google Play requires at least 2 phone screenshots"
+    },
+    {
+      "id": "android_feature_graphic",
+      "platform": "android",
+      "path": "store-metadata/assets/android/feature-graphic.png",
+      "required": false,
+      "manual": true,
+      "notes": "Google Play feature graphic (1024x500)"
+    }
+  ]
+}

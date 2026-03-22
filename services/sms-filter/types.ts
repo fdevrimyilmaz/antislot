@@ -12,6 +12,10 @@ export interface SpamDetectionResult {
   reasons: string[];
   matchedKeywords: string[];
   matchedPatterns: string[];
+  matchedDomains?: string[];
+  signalCount?: number;
+  riskLevel?: "low" | "medium" | "high" | "critical";
+  recommendedAction?: string;
 }
 
 export interface SMSMessage {

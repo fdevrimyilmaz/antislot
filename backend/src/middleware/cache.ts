@@ -1,41 +1,46 @@
 /**
- * Cache-Control and ETag Middleware for Fastify
+ * Cache-Control and ETag middleware helpers for Fastify.
  */
 
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { generateETag } from '../utils/signature';
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+
+import { generateETag } from "../utils/signature";
 
 /**
- * Setup ETag and Cache-Control support for Fastify instance
+ * Setup ETag and conditional 304 handling.
  */
-export function setupCacheMiddleware(fastify: any) {
-  // ETag üretimi ve 304 yanıtları için onSend hook'u ekle
-  fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
-    // Sadece GET isteklerini işle
-    if (request.method !== 'GET') {
+export function setupCacheMiddleware(fastify: FastifyInstance): void {
+  fastify.addHook(
+    "onSend",
+    async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
+      // Only process GET responses.
+      if (request.method !== "GET") {
+        return payload;
+      }
+
+      const ifNoneMatch = request.headers["if-none-match"];
+      const etagSource =
+        typeof payload === "string" || (payload !== null && typeof payload === "object")
+          ? payload
+          : payload == null
+            ? ""
+            : String(payload);
+      const etag = generateETag(etagSource);
+      reply.header("ETag", etag);
+
+      if (ifNoneMatch === etag || (Array.isArray(ifNoneMatch) && ifNoneMatch.includes(etag))) {
+        reply.code(304);
+        return "";
+      }
+
       return payload;
     }
-
-    // Önce If-None-Match başlığını kontrol et
-    const ifNoneMatch = request.headers['if-none-match'];
-    
-    // Payload'dan ETag üret
-    const etag = generateETag(payload);
-    reply.header('ETag', etag);
-
-    // İstemcinin ETag'i eşleşiyorsa 304 döndür
-    if (ifNoneMatch === etag) {
-      reply.code(304);
-      return '';
-    }
-
-    return payload;
-  });
+  );
 }
 
 /**
- * Set Cache-Control header for response
+ * Set Cache-Control response header.
  */
-export function setCacheControl(reply: FastifyReply, cacheControl: string) {
-  reply.header('Cache-Control', cacheControl);
+export function setCacheControl(reply: FastifyReply, cacheControl: string): void {
+  reply.header("Cache-Control", cacheControl);
 }
