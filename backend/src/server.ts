@@ -336,7 +336,7 @@ function getActiveAiModel(): string {
   return config.aiProvider === "gemini" ? config.geminiModel : config.openAiModel;
 }
 
-async function callOpenAi(messages: Array<{ role: string; content: string }>) {
+async function callOpenAi(messages: { role: string; content: string }[]) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
 
@@ -363,7 +363,7 @@ async function callOpenAi(messages: Array<{ role: string; content: string }>) {
   }
 }
 
-async function callGemini(messages: Array<{ role: string; content: string }>) {
+async function callGemini(messages: { role: string; content: string }[]) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
 
@@ -399,7 +399,7 @@ async function callGemini(messages: Array<{ role: string; content: string }>) {
 
     const data = await response.json().catch(() => null);
     const replyText = (data?.candidates ?? [])
-      .flatMap((candidate: { content?: { parts?: Array<{ text?: string }> } }) =>
+      .flatMap((candidate: { content?: { parts?: { text?: string }[] } }) =>
         candidate?.content?.parts ?? []
       )
       .map((part: { text?: string }) => part.text || "")
@@ -417,7 +417,7 @@ async function callGemini(messages: Array<{ role: string; content: string }>) {
   }
 }
 
-async function callAiProvider(messages: Array<{ role: string; content: string }>) {
+async function callAiProvider(messages: { role: string; content: string }[]) {
   if (config.aiProvider === "gemini") {
     return callGemini(messages);
   }

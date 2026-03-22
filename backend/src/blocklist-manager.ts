@@ -1,4 +1,4 @@
-﻿import { BlocklistStorage } from './storage/blocklist-storage';
+import { BlocklistStorage } from './storage/blocklist-storage';
 import { PatternsStorage } from './storage/patterns-storage';
 import { BlocklistEntry, BlocklistPattern } from './types';
 
