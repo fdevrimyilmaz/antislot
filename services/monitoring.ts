@@ -34,8 +34,16 @@ export const initMonitoring = (): void => {
   if (initialized) return;
   if (!Sentry) return;
 
-  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
-  if (!dsn) return;
+  const dsn = (process.env.EXPO_PUBLIC_SENTRY_DSN ?? "").trim();
+  const isProductionRuntime = typeof __DEV__ !== "undefined"
+    ? !__DEV__ && process.env.NODE_ENV === "production"
+    : process.env.NODE_ENV === "production";
+  if (!dsn) {
+    if (isProductionRuntime) {
+      throw new Error("EXPO_PUBLIC_SENTRY_DSN is required in production mobile builds.");
+    }
+    return;
+  }
 
   const { release, dist } = getReleaseTags();
 

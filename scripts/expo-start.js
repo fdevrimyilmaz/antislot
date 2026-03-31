@@ -1,3 +1,5 @@
+/* global __dirname */
+
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -177,7 +179,10 @@ const parseEnvFile = (filePath) => {
 
 const collectLocalEnvVars = () => {
   const mode = process.env.NODE_ENV || 'development';
-  const files = ['.env', `.env.${mode}`, '.env.local', `.env.${mode}.local`];
+  const includeLocalFiles = mode !== 'production';
+  const files = includeLocalFiles
+    ? ['.env', `.env.${mode}`, '.env.local', `.env.${mode}.local`]
+    : ['.env', `.env.${mode}`];
   const merged = {};
 
   files.forEach((file) => {
@@ -354,9 +359,11 @@ const warnIfFirebaseEnvMissing = (runtimeEnv) => {
     '[expo-start] Firebase config incomplete. Firebase-backed features will run in fallback mode.'
   );
   console.warn(`[expo-start] Missing vars: ${missing.join(', ')}`);
-  console.warn(
-    '[expo-start] Add keys to .env.local or run: npm run check:firebase-env'
-  );
+  if ((process.env.NODE_ENV || 'development') === 'production') {
+    console.warn('[expo-start] Inject these vars via EAS/CI environment, not .env.local.');
+  } else {
+    console.warn('[expo-start] Add keys to .env.local or run: npm run check:firebase-env');
+  }
 };
 
 const getLocalIP = () => {

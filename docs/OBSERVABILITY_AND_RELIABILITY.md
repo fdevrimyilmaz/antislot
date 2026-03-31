@@ -59,8 +59,8 @@ Server can push immediate critical/warning alerts to an external webhook (Slack/
 
 Environment variables:
 
-- `ALERT_WEBHOOK_URL` (recommended in production)
-- `ALERT_WEBHOOK_BEARER_TOKEN` (optional)
+- `ALERT_WEBHOOK_URL` (required in production)
+- `ALERT_WEBHOOK_BEARER_TOKEN` (required in production)
 - `ALERT_TIMEOUT_MS` (default `4000`)
 - `ALERT_MIN_INTERVAL_MS` (default `300000`)
 
@@ -75,7 +75,7 @@ Alert delivery is rate-limited by fingerprint and never blocks request/response 
 ## 5. Crash/Telemetry Scope
 
 - Mobile app: crash and diagnostics events are consent-gated via privacy preferences.
-- Backend/server: crash exceptions are captured via Sentry when `SENTRY_DSN` is configured.
+- Backend/server: `SENTRY_DSN` is required in production; crashes are reported via Sentry.
 - Runtime health + latency + error-rate are exported from `/v1/metrics` for alert evaluation.
 
 ## 6. Load And Resilience Drills
@@ -103,16 +103,22 @@ Environment variables for backup drill:
 
 ## 7. Security Regression Gate
 
-Security gate script compares current production dependency vulnerability counts to a baseline and fails on regressions.
+Security gate compares current production dependency audit output to a committed baseline and fails on security drift.
 
 - Run: `npm run security:gate`
 - Update baseline intentionally: `npm run security:baseline:update`
 - Baseline file: `docs/reports/security-baseline.json`
+- Runtime report output: `reports/security-gate-report.json` (CI artifact: `security-gate-report`)
 
 Gate policy:
 
 - Critical vulnerabilities must not increase.
 - High vulnerabilities must not increase.
 - Moderate vulnerabilities must not increase.
+- Low vulnerabilities must not increase.
+- New vulnerability fingerprints at tracked severities (critical/high/moderate/low) are blocked even if counts stay the same.
+- Zero-vulnerability mode is enabled by default (`SECURITY_GATE_ENFORCE_ZERO_VULNS=true` unless explicitly disabled), so any non-zero production vulnerability count fails the gate.
+- Baseline lockfile hash must match current lockfiles in strict mode (CI), enforcing explicit baseline refresh after dependency changes.
+- Baseline staleness is enforced in strict mode (default max age: 14 days, configurable via `SECURITY_GATE_MAX_BASELINE_AGE_DAYS`).
 
-This allows stable operation with known ecosystem findings while preventing silent security drift.
+This prevents silent dependency security drift while keeping known ecosystem findings explicitly documented and reviewable.

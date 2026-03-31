@@ -15,7 +15,9 @@ import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider, useUser } from '@/contexts/UserContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { syncMoneyProtectionCloud } from '@/services/moneyProtectionApi';
+import { getApiBaseUrl } from '@/services/apiBase';
 import { initMonitoring, registerNavigationContainer } from '@/services/monitoring';
+import { validatePublicRuntimeEnvAtStartup } from '@/services/publicRuntimeEnv';
 import { startProactiveInterventionEngine } from '@/services/proactiveInterventionEngine';
 import { syncUrgeCloud } from '@/services/urgeApi';
 import { setMoneyProtectionSyncClient, useMoneyProtectionStore } from '@/store/moneyProtectionStore';
@@ -34,6 +36,8 @@ export const unstable_settings = {
 };
 
 const APP_BG = Colors.light.background;
+validatePublicRuntimeEnvAtStartup();
+getApiBaseUrl();
 setMoneyProtectionSyncClient(syncMoneyProtectionCloud);
 setUrgeSyncClient(syncUrgeCloud);
 

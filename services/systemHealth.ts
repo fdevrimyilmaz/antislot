@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/services/apiBase";
+import { requestWithRetry } from "@/services/httpClient";
 
 export type BackendHealthSnapshot = {
   ok: boolean;
@@ -24,18 +25,23 @@ function sanitizeList(input: unknown): string[] {
 
 export async function fetchBackendHealth(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<BackendHealthSnapshot> {
   const baseUrl = getApiBaseUrl();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
   try {
-    const response = await fetch(`${baseUrl}/v1/health`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
+    const response = await requestWithRetry(
+      `${baseUrl}/v1/health`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
       },
-      signal: controller.signal,
-    });
+      {
+        retries: 1,
+        timeoutMs,
+        context: "GET /v1/health",
+      }
+    );
 
     const latencyMs = Date.now() - startedAt;
     const requestId = response.headers.get("x-request-id");
@@ -107,7 +113,5 @@ export async function fetchBackendHealth(timeoutMs = DEFAULT_TIMEOUT_MS): Promis
       warnings: [],
       errorCode: code,
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }

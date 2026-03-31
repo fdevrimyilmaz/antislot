@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiBase";
 import { getClientIdentity } from "@/services/clientIdentity";
 import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
+import { buildHttpErrorMessage, requestWithRetry } from "@/services/httpClient";
 import type { DiarySyncRequest, DiarySyncResponse } from "@/types/diary";
 
 function url(path: string): string {
@@ -27,15 +28,22 @@ export async function syncDiaryCloud(
   const headers = await getAuthHeaders();
   if (!headers) return null;
 
-  const response = await fetch(url("/v1/diary/sync"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
+  const response = await requestWithRetry(
+    url("/v1/diary/sync"),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    },
+    {
+      retries: 1,
+      timeoutMs: 12000,
+      context: "POST /v1/diary/sync",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Diary sync failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Diary sync failed"));
   }
 
   const data = (await response.json()) as DiarySyncResponse;

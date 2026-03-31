@@ -7,13 +7,13 @@
       "productId": "code",
       "status": "active",
       "transactionId": "code-premium-test-user",
-      "eventId": "code-42c84b5d-02d7-4db1-8ba4-f222273b212b",
-      "startedAt": 1774050769121,
+      "eventId": "code-a67b92c2-d1ec-4671-b957-ddd3d25fcfcc",
+      "startedAt": 1774994846586,
       "expiresAt": null,
-      "updatedAt": 1774050769121
+      "updatedAt": 1774994846586
     }
   },
   "processedEvents": {
-    "premium-test-user:code-42c84b5d-02d7-4db1-8ba4-f222273b212b": 1774050769121
+    "premium-test-user:code-a67b92c2-d1ec-4671-b957-ddd3d25fcfcc": 1774994846586
   }
 }

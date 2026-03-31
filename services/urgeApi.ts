@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiBase";
 import { getClientIdentity } from "@/services/clientIdentity";
 import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
+import { buildHttpErrorMessage, requestWithRetry } from "@/services/httpClient";
 import type { UrgeSyncRequest, UrgeSyncResponse } from "@/types/urgeSync";
 
 function url(path: string): string {
@@ -27,15 +28,22 @@ export async function syncUrgeCloud(
   const headers = await getAuthHeaders();
   if (!headers) return null;
 
-  const response = await fetch(url("/v1/urge/sync"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
+  const response = await requestWithRetry(
+    url("/v1/urge/sync"),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    },
+    {
+      retries: 1,
+      timeoutMs: 12000,
+      context: "POST /v1/urge/sync",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Urge sync failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Urge sync failed"));
   }
 
   const data = (await response.json()) as UrgeSyncResponse;

@@ -1,5 +1,20 @@
 {
-  "generatedAt": "2026-03-09T22:25:34.373Z",
+  "schemaVersion": 2,
+  "generatedAt": "2026-03-29T16:49:42.412Z",
+  "generator": {
+    "nodeVersion": "v24.13.0",
+    "npmVersion": "11.6.2"
+  },
+  "policy": {
+    "trackedSeverities": [
+      "critical",
+      "high",
+      "moderate",
+      "low"
+    ],
+    "maxBaselineAgeDays": 14,
+    "enforceZeroVulns": true
+  },
   "workspaces": {
     "app": {
       "info": 0,
@@ -7,23 +22,44 @@
       "moderate": 0,
       "high": 0,
       "critical": 0,
-      "total": 0
+      "total": 0,
+      "lockfileSha256": "8a0a5cb4ea1aae1d6919f591812892eec6515f807fc026d3db62bc6ca8d9ceea",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [],
+        "moderate": [],
+        "low": []
+      }
     },
     "backend": {
       "info": 0,
-      "low": 8,
+      "low": 0,
       "moderate": 0,
       "high": 0,
       "critical": 0,
-      "total": 8
+      "total": 0,
+      "lockfileSha256": "1310645ebe9d5b667f6d2b13ba51005d0187f654c028fb5e60893b785908ee92",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [],
+        "moderate": [],
+        "low": []
+      }
     },
     "server": {
       "info": 0,
-      "low": 8,
+      "low": 0,
       "moderate": 0,
       "high": 0,
       "critical": 0,
-      "total": 8
+      "total": 0,
+      "lockfileSha256": "2b218bab34f42959ed1d63ed533591d66d54cac627c4d2b4e1d0c9630a35f708",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [],
+        "moderate": [],
+        "low": []
+      }
     }
   }
 }

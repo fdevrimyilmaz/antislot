@@ -19,6 +19,9 @@ This document defines the strict go-live secret gate used by `release-preflight`
 - `EXPO_PUBLIC_API_URL`
   - Where: EAS env + GitHub Actions Secret
   - Used by: mobile runtime and preflight
+- `EXPO_PUBLIC_SENTRY_DSN`
+  - Where: EAS env + GitHub Actions Secret
+  - Used by: mobile runtime startup validation and strict preflight
 
 ### Backend and server release
 - `CORS_ALLOWLIST`
@@ -33,6 +36,12 @@ This document defines the strict go-live secret gate used by `release-preflight`
 - `ALERT_WEBHOOK_URL` (`https://` in strict mode)
   - Where: server env
   - Used by: operational alerts and strict preflight
+- `ALERT_WEBHOOK_BEARER_TOKEN`
+  - Where: server secret manager
+  - Used by: alert receiver auth, server startup validation, strict preflight
+- `SENTRY_DSN`
+  - Where: server/backend secret manager
+  - Used by: server/backend startup validation and strict preflight
 
 ## One-of groups (at least one must be set)
 
@@ -51,12 +60,10 @@ This document defines the strict go-live secret gate used by `release-preflight`
 
 ## Optional but recommended
 
-- `EXPO_PUBLIC_SENTRY_DSN` (mobile monitoring)
-- `SENTRY_DSN` (server/backend monitoring)
-- `ALERT_WEBHOOK_BEARER_TOKEN` (alert receiver auth)
 - `ADMIN_PROXY_SHARED_SECRET`, `ADMIN_PROXY_ALLOWED_USERS`, `ADMIN_PROXY_ALLOWED_GROUPS` when `ADMIN_PROXY_AUTH_REQUIRED=true`
 
 ## CI enforcement
 
 - Main CI (`.github/workflows/ci.yml`) runs strict release preflight on push to `main`/`master`.
 - Mobile release workflow also runs release preflight before build.
+- Strict/production preflight intentionally ignores all `*.local` env files; required values must come from injected CI/CD secrets.

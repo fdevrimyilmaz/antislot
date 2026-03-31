@@ -157,7 +157,6 @@ const chatRequestBodySchema = z.object({
 
 type OpenAiCircuitState = "closed" | "open" | "half_open";
 type ChatLocale = "tr" | "en";
-type ChatRiskLevel = z.infer<typeof chatRiskLevelSchema>;
 type ChatCoachingContext = z.infer<typeof chatCoachingContextSchema>;
 
 type CoreDependencyHealth = {
@@ -820,7 +819,7 @@ async function requestGeminiChatCompletion(
     }
 
     const reply = (data?.candidates ?? [])
-      .flatMap((candidate: { content?: { parts?: Array<{ text?: string }> } }) =>
+      .flatMap((candidate: { content?: { parts?: { text?: string }[] } }) =>
         candidate?.content?.parts ?? []
       )
       .map((part: { text?: string }) => part.text || "")
@@ -1151,7 +1150,7 @@ async function buildMetricsPayload(): Promise<string> {
 
 async function proxyCoreRead(req: Request, res: Response, targetPath: string): Promise<void> {
   if (!config.coreBackendUrl) {
-    sendError(res, 503, "SERVICE_UNAVAILABLE", "Core backend is not configured.", req);
+    sendError(res, 502, "UPSTREAM_ERROR", "Core backend is not configured.", req);
     return;
   }
 
@@ -1216,7 +1215,7 @@ async function proxyCoreRead(req: Request, res: Response, targetPath: string): P
         targetPath,
         timeoutMs: config.coreBackendTimeoutMs,
       });
-      sendError(res, 503, "SERVICE_UNAVAILABLE", "Core backend timed out. Please try again.", req);
+      sendError(res, 502, "UPSTREAM_ERROR", "Core backend timed out. Please try again.", req);
       return;
     }
 
@@ -1246,7 +1245,7 @@ async function proxyCoreRead(req: Request, res: Response, targetPath: string): P
 
 async function proxyCorePostJson(req: Request, res: Response, targetPath: string): Promise<void> {
   if (!config.coreBackendUrl) {
-    sendError(res, 503, "SERVICE_UNAVAILABLE", "Core backend is not configured.", req);
+    sendError(res, 502, "UPSTREAM_ERROR", "Core backend is not configured.", req);
     return;
   }
 
@@ -1297,7 +1296,7 @@ async function proxyCorePostJson(req: Request, res: Response, targetPath: string
         targetPath,
         timeoutMs: config.coreBackendTimeoutMs,
       });
-      sendError(res, 503, "SERVICE_UNAVAILABLE", "Core backend timed out. Please try again.", req);
+      sendError(res, 502, "UPSTREAM_ERROR", "Core backend timed out. Please try again.", req);
       return;
     }
 

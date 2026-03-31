@@ -203,7 +203,7 @@ describe("Server Integration", () => {
     expect(res.body?.error?.code).toBe("UPSTREAM_ERROR");
   });
 
-  it("returns 503 when core backend request times out", async () => {
+  it("returns 502 when core backend request times out", async () => {
     const hangingServer = http.createServer((_req, _res) => {
       // Intentionally keep the connection open so timeout path is exercised.
     });
@@ -226,9 +226,9 @@ describe("Server Integration", () => {
       });
       const res = await request(app).get("/v1/blocklist");
 
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(502);
       expect(res.body?.ok).toBe(false);
-      expect(res.body?.error?.code).toBe("SERVICE_UNAVAILABLE");
+      expect(res.body?.error?.code).toBe("UPSTREAM_ERROR");
     } finally {
       await new Promise<void>((resolve, reject) => {
         hangingServer.close((err) => (err ? reject(err) : resolve()));
@@ -331,7 +331,7 @@ describe("Server Integration", () => {
         ],
       }),
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (global as any).fetch = mockFetch;
 
     try {

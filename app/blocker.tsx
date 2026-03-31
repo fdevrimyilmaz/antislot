@@ -137,8 +137,8 @@ const BLOCKER_COPY = {
     genericErrorTitle: "Hata",
     permissionDeniedTitle: "VPN izni reddedildi",
     permissionDeniedBody: "Koruma icin VPN izni vermeniz gerekiyor.",
-    comingSoonTitle: "Yakinda",
-    iosNotReady: "iOS icin yerel koruma henuz etkin degil.",
+    comingSoonTitle: "Koruma kullanilamiyor",
+    iosNotReady: "Bu iOS yapisinda yerel koruma etkinlestirilmemis.",
     authorizationRequiredTitle: "Yetkilendirme Gerekli",
     authorizationRequiredBody: "Apple yetkilendirmeleri etkinlestirilmelidir.",
     openSystemSettings: "Ayarlari Ac",
@@ -150,6 +150,8 @@ const BLOCKER_COPY = {
       "Bu Android surumunde VPN lock-down hedefi kullanilamiyor. Standart koruma ile devam edebilirsin.",
     unsupportedTitle: "Desteklenmiyor",
     unsupportedBody: "Bu cihazda yerel koruma modulu kullanilamiyor.",
+    emptyBlocklistTitle: "Engel listesi bos",
+    emptyBlocklistBody: "Koruma baslatilamadi. Once engel listesini senkronize etmelisin.",
     startFailed: "Koruma baslatilamadi.",
     stopFailed: "Koruma durdurulamadi.",
     toggleUnsupported: "Bu cihazda koruma acilip kapatilamiyor.",
@@ -247,8 +249,8 @@ const BLOCKER_COPY = {
     genericErrorTitle: "Error",
     permissionDeniedTitle: "VPN permission denied",
     permissionDeniedBody: "You need to allow VPN permission for protection.",
-    comingSoonTitle: "Coming soon",
-    iosNotReady: "Native protection for iOS is not active yet.",
+    comingSoonTitle: "Protection unavailable",
+    iosNotReady: "Native iOS protection is not enabled in this build.",
     authorizationRequiredTitle: "Authorization Required",
     authorizationRequiredBody: "Apple entitlements must be enabled.",
     openSystemSettings: "Open Settings",
@@ -260,6 +262,8 @@ const BLOCKER_COPY = {
       "This Android version cannot enforce VPN lock-down target. You can continue with standard protection.",
     unsupportedTitle: "Unsupported",
     unsupportedBody: "Native protection module is not available on this device.",
+    emptyBlocklistTitle: "Blocklist is empty",
+    emptyBlocklistBody: "Protection could not start. Sync the blocklist first.",
     startFailed: "Protection could not be started.",
     stopFailed: "Protection could not be stopped.",
     toggleUnsupported: "Protection cannot be toggled on this device.",
@@ -327,6 +331,8 @@ function mapProtectionIssue(
     | "lockdownUnsupportedBody"
     | "unsupportedTitle"
     | "unsupportedBody"
+    | "emptyBlocklistTitle"
+    | "emptyBlocklistBody"
     | "genericErrorTitle"
     | "startFailed"
     | "stopFailed"
@@ -386,6 +392,14 @@ function mapProtectionIssue(
     };
   }
 
+  if (normalizedReason === "empty_blocklist") {
+    return {
+      reason: "generic",
+      title: copy.emptyBlocklistTitle,
+      body: normalizedMessage ?? copy.emptyBlocklistBody,
+    };
+  }
+
   if (!normalizedReason && !normalizedMessage) {
     return null;
   }
@@ -422,7 +436,7 @@ function formatLastSync(
 }
 
 export default function BlockerScreen() {
-  const { t, language, locale } = useLanguage();
+  const { t, locale } = useLanguage();
   const { colors } = useTheme();
   const copy = useLocalizedCopy(BLOCKER_COPY);
   const hydrateHardening = useBlockerHardeningStore((state) => state.hydrate);

@@ -42,6 +42,24 @@ function parseAiProviderEnv(defaultProvider: "openai" | "gemini"): "openai" | "g
   throw new Error("Invalid AI_PROVIDER: use openai or gemini");
 }
 
+function parseSecretEnv(key: string, requiredInProd: boolean): string {
+  const value = (process.env[key] ?? "").trim();
+  const forbidden = new Set(["change-me", "changeme", "default", "test", "secret", "token"]);
+
+  if (!value) {
+    if (requiredInProd) {
+      throw new Error(`${key} is required in production.`);
+    }
+    return "";
+  }
+
+  if (forbidden.has(value.toLowerCase())) {
+    throw new Error(`${key} uses a weak/default value.`);
+  }
+
+  return value;
+}
+
 const nodeEnv = process.env.NODE_ENV || "development";
 const isProduction = nodeEnv === "production";
 
@@ -68,6 +86,7 @@ const openAiApiKey = (process.env.OPENAI_API_KEY || "").trim();
 const geminiApiKey = (process.env.GEMINI_API_KEY || "").trim();
 const aiProviderDefault: "openai" | "gemini" = geminiApiKey ? "gemini" : "openai";
 const aiProvider = parseAiProviderEnv(aiProviderDefault);
+const sentryDsn = parseSecretEnv("SENTRY_DSN", isProduction);
 if (requireApiAuth && !apiAuthToken && !firebaseProjectId) {
   throw new Error("Auth enabled but neither API_AUTH_TOKEN nor FIREBASE_PROJECT_ID configured.");
 }
@@ -106,7 +125,7 @@ export const config = {
   openAiMaxTokens: parseIntEnv("OPENAI_MAX_TOKENS", 300),
   aiRateLimitMax: parseIntEnv("AI_RATE_LIMIT_MAX", 20),
   aiRateLimitWindowMs: parseIntEnv("AI_RATE_LIMIT_WINDOW_MS", 60000),
-  sentryDsn: (process.env.SENTRY_DSN || "").trim(),
+  sentryDsn,
   sentryEnvironment: (process.env.SENTRY_ENV || nodeEnv).trim(),
   sentryRelease: (process.env.SENTRY_RELEASE || "").trim(),
   sentryTracesSampleRate: parseSampleRateEnv(

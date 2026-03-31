@@ -14,6 +14,7 @@ interface GamblingBlockerInterface {
   isProtectionEnabled(): Promise<boolean>;
   syncBlocklist(apiUrl?: string): Promise<boolean>;
   status(): Promise<ProtectionStatus>;
+  diagnostics(): Promise<Record<string, unknown> | null>;
 }
 
 type NativeBlockerModule = {
@@ -25,6 +26,7 @@ type NativeBlockerModule = {
   startFilter?: () => Promise<boolean | { ok?: boolean; code?: string; message?: string }>;
   stopFilter?: () => Promise<boolean | { ok?: boolean; code?: string; message?: string }>;
   isFilterEnabled?: () => Promise<boolean>;
+  diagnostics?: () => Promise<Record<string, unknown>>;
 };
 
 const { GamblingBlockerModule, VpnModule, NetworkExtensionModule } = NativeModules;
@@ -183,7 +185,7 @@ class GamblingBlocker implements GamblingBlockerInterface {
 
   async syncBlocklist(apiUrl: string = "https://api.antislot.app"): Promise<boolean> {
     const module = resolveModule();
-    if (Platform.OS === "android") {
+    if (Platform.OS === "android" || Platform.OS === "ios") {
       const sync = getOptionalMethod(module, "syncBlocklist");
       if (!sync) return false;
       try {
@@ -193,8 +195,7 @@ class GamblingBlocker implements GamblingBlockerInterface {
         return false;
       }
     }
-    // iOS, Network Extension üzerinden otomatik senkronize olur
-    return true;
+    return false;
   }
 
   async status(): Promise<ProtectionStatus> {
@@ -210,6 +211,25 @@ class GamblingBlocker implements GamblingBlockerInterface {
     const enabled = await this.isProtectionEnabled();
     return enabled ? "running" : "stopped";
   }
+
+  async diagnostics(): Promise<Record<string, unknown> | null> {
+    const module = resolveModule();
+    const diagnosticsMethod = getOptionalMethod(module, "diagnostics");
+    if (!diagnosticsMethod) {
+      return null;
+    }
+    try {
+      const result = await diagnosticsMethod();
+      if (result && typeof result === "object") {
+        return result as Record<string, unknown>;
+      }
+      return null;
+    } catch (error) {
+      console.warn("Koruma tanilama bilgisi alinamadi:", error);
+      return null;
+    }
+  }
 }
 
 export default new GamblingBlocker();
+

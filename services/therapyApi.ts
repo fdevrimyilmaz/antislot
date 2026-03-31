@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiBase";
 import { getClientIdentity } from "@/services/clientIdentity";
 import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
+import { buildHttpErrorMessage, requestWithRetry } from "@/services/httpClient";
 import { resolveUiLanguage, type SupportedLanguage } from "@/i18n/translations";
 
 export interface TherapyCallbackRequestPayload {
@@ -49,15 +50,22 @@ export async function enqueueTherapyCallbackRequest(
     locale: payload.locale ? resolveUiLanguage(payload.locale) : undefined,
   };
 
-  const response = await fetch(url("/v1/therapy/callback"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(normalizedPayload),
-  });
+  const response = await requestWithRetry(
+    url("/v1/therapy/callback"),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(normalizedPayload),
+    },
+    {
+      retries: 0,
+      timeoutMs: 12000,
+      context: "POST /v1/therapy/callback",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Therapy callback request failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Therapy callback request failed"));
   }
 
   const data = (await response.json()) as TherapyCallbackRequestResponse;

@@ -19,8 +19,8 @@
   - Do not place secrets (HMAC keys, API tokens) in `EXPO_PUBLIC_*`; keep them server-side.
   - Mobile auth for API calls uses Firebase ID token (`Authorization: Bearer <idToken>`), not a public API token.
   - Server side requires: `IAP_WEBHOOK_SECRET`, strict `CORS_ALLOWLIST`, and auth config (`API_AUTH_TOKEN` or Firebase JWT validation).
-  - Server/backend observability (recommended): `SENTRY_DSN`, optional `SENTRY_ENV`, `SENTRY_RELEASE`, sampling vars.
-  - Operational alerting (recommended): `ALERT_WEBHOOK_URL`, optional `ALERT_WEBHOOK_BEARER_TOKEN`.
+  - Server/backend observability (required for production startup): `SENTRY_DSN`, plus `SENTRY_ENV`, `SENTRY_RELEASE`, sampling vars.
+  - Operational alerting (required for production startup): `ALERT_WEBHOOK_URL` + `ALERT_WEBHOOK_BEARER_TOKEN`.
   - Real partner SMS delivery (optional): `ACCOUNTABILITY_SMS_ENABLED=true` with Twilio vars (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`).
   - Accountability abuse guard (recommended): configure `ACCOUNTABILITY_SMS_COOLDOWN_MS`, `ACCOUNTABILITY_SMS_DAILY_LIMIT`, `ACCOUNTABILITY_SMS_IDEMPOTENCY_WINDOW_MS`.
   - Metrics endpoint controls (recommended): `ENABLE_METRICS_ENDPOINT=true`, `METRICS_AUTH_TOKEN=<secret>`.
@@ -77,6 +77,7 @@ curl -i http://localhost:3001/v1/blocklist
 - Single-source architecture and service boundaries: `docs/ARCHITECTURE.md`
 - Versioned API contract and shared auth/error model: `docs/API_CONTRACT_V1.md`
 - Runtime observability and reliability controls: `docs/OBSERVABILITY_AND_RELIABILITY.md`
+- Secure CI/CD env injection runbook: `docs/SECURE_ENV_INJECTION.md`
 
 ## Release Ops
 - Store metadata: `store-metadata/`

@@ -138,6 +138,7 @@ const openAiApiKey = (process.env.OPENAI_API_KEY || "").trim();
 const geminiApiKey = (process.env.GEMINI_API_KEY || "").trim();
 const aiProviderDefault: "openai" | "gemini" = geminiApiKey ? "gemini" : "openai";
 const aiProvider = parseAiProviderEnv(aiProviderDefault);
+const sentryDsn = parseSecretEnv("SENTRY_DSN", isProduction);
 
 const databaseUrl = (process.env.DATABASE_URL || "").trim();
 const premiumDataFile = process.env.PREMIUM_DATA_FILE || "./data/premium-state.json";
@@ -168,7 +169,7 @@ const coreHealthTimeoutMs = parseIntEnv("CORE_HEALTH_TIMEOUT_MS", 2500);
 const metricsEnabled = parseBooleanEnv("ENABLE_METRICS_ENDPOINT", !isProduction);
 const metricsAuthToken = parseSecretEnv("METRICS_AUTH_TOKEN", false);
 const alertWebhookUrl = (process.env.ALERT_WEBHOOK_URL || "").trim();
-const alertWebhookBearerToken = parseSecretEnv("ALERT_WEBHOOK_BEARER_TOKEN", false);
+const alertWebhookBearerToken = parseSecretEnv("ALERT_WEBHOOK_BEARER_TOKEN", isProduction);
 const alertTimeoutMs = parseIntEnv("ALERT_TIMEOUT_MS", 4000);
 const alertMinIntervalMs = parseNonNegativeIntEnv("ALERT_MIN_INTERVAL_MS", 300000);
 const accountabilitySmsEnabled = parseBooleanEnv("ACCOUNTABILITY_SMS_ENABLED", false);
@@ -186,6 +187,9 @@ const twilioFromNumber = (process.env.TWILIO_FROM_NUMBER || "").trim();
 
 if (alertWebhookUrl && !/^https?:\/\//i.test(alertWebhookUrl)) {
   throw new Error("ALERT_WEBHOOK_URL must start with http:// or https://");
+}
+if (isProduction && !alertWebhookUrl) {
+  throw new Error("ALERT_WEBHOOK_URL is required in production.");
 }
 if (isProduction && alertWebhookUrl && !alertWebhookUrl.startsWith("https://")) {
   throw new Error("Production ALERT_WEBHOOK_URL must use https.");
@@ -221,6 +225,19 @@ if (isProduction && !databaseUrl) {
   throw new Error("Production requires DATABASE_URL (Postgres).");
 }
 
+if (isProduction && !coreBackendUrl) {
+  throw new Error("Production requires CORE_BACKEND_URL.");
+}
+
+if (isProduction && coreBackendUrl) {
+  if (!/^https:\/\//i.test(coreBackendUrl)) {
+    throw new Error("Production CORE_BACKEND_URL must use https.");
+  }
+  if (/example\.com|example\.org/i.test(coreBackendUrl)) {
+    throw new Error("CORE_BACKEND_URL cannot use placeholder/example domains in production.");
+  }
+}
+
 if (isProduction && metricsEnabled && !metricsAuthToken) {
   throw new Error("Production requires METRICS_AUTH_TOKEN when ENABLE_METRICS_ENDPOINT is true.");
 }
@@ -254,7 +271,7 @@ export const config = {
   openAiRetryBaseDelayMs: parseIntEnv("OPENAI_RETRY_BASE_DELAY_MS", 250),
   openAiCircuitFailureThreshold: parseIntEnv("OPENAI_CIRCUIT_FAILURE_THRESHOLD", 4),
   openAiCircuitResetMs: parseIntEnv("OPENAI_CIRCUIT_RESET_MS", 20000),
-  sentryDsn: (process.env.SENTRY_DSN || "").trim(),
+  sentryDsn,
   sentryEnvironment: (process.env.SENTRY_ENV || nodeEnv).trim(),
   sentryRelease: (process.env.SENTRY_RELEASE || "").trim(),
   sentryTracesSampleRate: parseSampleRateEnv(

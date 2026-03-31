@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/services/apiBase";
+import { requestWithRetry } from "@/services/httpClient";
 
 type ApiErrorBody = {
   ok?: false;
@@ -91,14 +92,22 @@ export async function sendAccountabilityAlertViaServer(
   if (!headers) return null;
 
   const idempotencyKey = `acc-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const response = await fetch(url("/v1/accountability/alert"), {
-    method: "POST",
-    headers: {
-      ...headers,
-      "X-Idempotency-Key": idempotencyKey,
+  const response = await requestWithRetry(
+    url("/v1/accountability/alert"),
+    {
+      method: "POST",
+      headers: {
+        ...headers,
+        "X-Idempotency-Key": idempotencyKey,
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    {
+      retries: 1,
+      timeoutMs: 12000,
+      context: "POST /v1/accountability/alert",
+    }
+  );
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as ApiErrorBody | null;

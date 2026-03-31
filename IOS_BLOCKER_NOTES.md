@@ -1,28 +1,35 @@
 # iOS Blocker Notes
 
 ## What Works Now
-- The iOS app compiles and runs with stubbed Network Extension behavior.
-- `GamblingBlockerModule.startFilter/stopFilter` return a structured `{ ok, code, message }` result and never crash.
-- `SharedConfigModule` writes to App Group UserDefaults when available, otherwise falls back to standard UserDefaults.
+- `GamblingBlockerModule` now uses `NEDNSSettingsManager` for real DNS-based domain blocking.
+- `startFilter/stopFilter/isFilterEnabled/status` are backed by live DNS settings state, not fake return values.
+- `syncBlocklist` stores remote blocklist + patterns and reapplies DNS match domains when protection is active.
+- Blocklist integration reads from App Group keys:
+  - `blocker.blocklist`
+  - `blocker.patterns`
+  - `blocker.whitelist`
 
-## What Still Requires Apple Entitlements
-- DNS proxy / Network Extension activation.
-- Message filter activation.
-- Any real start/stop implementation of the Network Extension.
+## iOS Blocking Model
+- Blocking is implemented by applying blocked domains to DNS `matchDomains`.
+- Blocked domains are routed to a sinkhole DNS server (`0.0.0.0`), so those domains fail DNS resolution.
+- This is limited by iOS DNS behavior and can be bypassed by some hardcoded-IP or tunnel paths.
 
-If those entitlements are not enabled for the App ID, the module returns `code: "not_authorized"` and a safe message.
+## Required Entitlements
+- App target entitlement:
+  - `com.apple.developer.networking.networkextension = ["dns-settings"]`
+- App Group entitlement:
+  - `com.apple.security.application-groups = ["group.com.antislot.app"]`
+
+If Network Extension entitlement is not enabled in the Apple Developer App ID + provisioning profile, native calls may return `code: "not_authorized"`.
 
 ## Feature Flag
 - `ENABLE_IOS_NE` lives in `app.json` under `ios.infoPlist`.
-- Default: `false`
-- To enable: set `"ENABLE_IOS_NE": true` in `app.json`, rebuild the iOS app, and ensure Apple entitlements are enabled.
-- If you are not re-running prebuild, keep `ios/HelloWorld/Info.plist` in sync with the same flag.
+- Current value: `true`
+- If disabled, iOS native blocker methods return `code: "unsupported"`.
 
 ## CHANGELOG
-- `app.json`: add `ENABLE_IOS_NE` flag to Info.plist.
-- `ios/HelloWorld/GamblingBlockerModule.swift`: return structured results and guard all NE calls.
-- `ios/HelloWorld/SharedConfigModule.swift`: write to App Group UserDefaults with safe fallback.
-- `react-native-bridge/GamblingBlockerModule.ts`: normalize iOS structured results for JS callers.
-- `app/blocker.tsx`: show user-friendly messages for unsupported/not-authorized states.
-- `app/native-modules-test.tsx`: show result `message` in debug output.
-- `NATIVE_MODULES.md`: document structured result shape and iOS behavior.
+- `ios/Antislot/GamblingBlockerModule.swift`: replaced stub logic with live DNS settings manager flow.
+- `ios/HelloWorld/GamblingBlockerModule.swift`: synced with the same implementation.
+- `ios/Antislot/Antislot.entitlements`: added `dns-settings` Network Extension entitlement.
+- `app.json`: added iOS entitlement for `dns-settings` and set `ENABLE_IOS_NE` to `true`.
+- `ios/Antislot/Info.plist` and `ios/HelloWorld/Info.plist`: set `ENABLE_IOS_NE` to `true`.

@@ -18,6 +18,20 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Keep native source projects tracked for deterministic release builds.
+!/android/
+!/android/**
+!/ios/
+!/ios/**
+
+# Native generated build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+ios/Pods/
+ios/build/
+
 # Metro
 .metro-health-check*
 
@@ -52,10 +66,6 @@ server/.env
 .tmp_*.txt
 
 app-example
-
-# generated native folders
-/ios
-/android
 
 # local store submit credentials
 /credentials/

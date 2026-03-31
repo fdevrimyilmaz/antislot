@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiBase";
 import { getClientIdentity } from "@/services/clientIdentity";
 import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
+import { buildHttpErrorMessage, requestWithRetry } from "@/services/httpClient";
 
 export type RealityFeedApiItem = {
   id: string;
@@ -45,15 +46,23 @@ export async function fetchRealityFeed(
   options?: FetchRealityFeedOptions
 ): Promise<RealityFeedApiResponse> {
   const baseUrl = getApiBaseUrl();
-  const response = await fetch(`${baseUrl}/v1/explore/reality-feed`, {
-    method: "GET",
-    headers: await buildHeaders(),
-    signal: options?.signal,
-  });
+  const response = await requestWithRetry(
+    `${baseUrl}/v1/explore/reality-feed`,
+    {
+      method: "GET",
+      headers: await buildHeaders(),
+      signal: options?.signal,
+    },
+    {
+      retries: 1,
+      timeoutMs: 10000,
+      signal: options?.signal,
+      context: "GET /v1/explore/reality-feed",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Reality feed request failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Reality feed request failed"));
   }
 
   const data = (await response.json()) as RealityFeedApiResponse;

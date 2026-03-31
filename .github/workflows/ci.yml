@@ -136,6 +136,17 @@ jobs:
 
       - name: Security gate (audit baseline)
         run: npm run security:gate
+        env:
+          SECURITY_GATE_ENFORCE_ZERO_VULNS: "true"
+          SECURITY_GATE_MAX_BASELINE_AGE_DAYS: "14"
+
+      - name: Upload security gate artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-gate-report
+          path: reports/security-gate-report.json
+          if-no-files-found: error
 
   iap-smoke:
     runs-on: ubuntu-latest

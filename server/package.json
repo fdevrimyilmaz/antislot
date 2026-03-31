@@ -37,7 +37,14 @@
     "better-sqlite3": "^11.6.0"
   },
   "overrides": {
-    "fast-xml-parser": "^5.5.8"
+    "fast-xml-parser": "^5.5.8",
+    "@tootallnate/once": "^3.0.1",
+    "http-proxy-agent": "^8.0.0",
+    "teeny-request": "^10.1.2",
+    "retry-request": "^8.0.2",
+    "google-gax": "^5.0.6",
+    "@google-cloud/firestore": "^8.3.0",
+    "@google-cloud/storage": "^7.19.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

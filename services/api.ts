@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiBase";
 import { getClientIdentity } from "@/services/clientIdentity";
 import { getFirebaseAuthBearerToken } from "@/services/firebaseAuthToken";
+import { buildHttpErrorMessage, requestWithRetry } from "@/services/httpClient";
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
@@ -49,16 +50,24 @@ export async function postChat(messages: ChatMessage[], options?: PostChatOption
     messages,
   };
 
-  const response = await fetch(`${baseUrl}/v1/chat`, {
-    method: "POST",
-    headers: await buildHeaders(),
-    body: JSON.stringify(bodyPayload),
-    signal: options?.signal,
-  });
+  const response = await requestWithRetry(
+    `${baseUrl}/v1/chat`,
+    {
+      method: "POST",
+      headers: await buildHeaders(),
+      body: JSON.stringify(bodyPayload),
+      signal: options?.signal,
+    },
+    {
+      retries: 1,
+      timeoutMs: 15000,
+      signal: options?.signal,
+      context: "POST /v1/chat",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Chat request failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Chat request failed"));
   }
 
   const data = (await response.json()) as ChatResponse;
@@ -80,16 +89,24 @@ export async function postChatWithContext(
     coachingContext,
   };
 
-  const response = await fetch(`${baseUrl}/v1/chat`, {
-    method: "POST",
-    headers: await buildHeaders(),
-    body: JSON.stringify(bodyPayload),
-    signal: options?.signal,
-  });
+  const response = await requestWithRetry(
+    `${baseUrl}/v1/chat`,
+    {
+      method: "POST",
+      headers: await buildHeaders(),
+      body: JSON.stringify(bodyPayload),
+      signal: options?.signal,
+    },
+    {
+      retries: 1,
+      timeoutMs: 15000,
+      signal: options?.signal,
+      context: "POST /v1/chat",
+    }
+  );
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Chat request failed (${response.status}) ${errorText}`);
+    throw new Error(await buildHttpErrorMessage(response, "Chat request failed"));
   }
 
   const data = (await response.json()) as ChatResponse;

@@ -39,3 +39,4 @@ The preflight now also enforces these release defaults in strict mode:
 ## Secret reference
 
 Use `docs/RELEASE_SECRET_MATRIX.md` as the source of truth for required and optional release secrets.
+Use `docs/SECURE_ENV_INJECTION.md` for CI/CD injection patterns (EAS, GitHub Secrets, runtime secret manager).

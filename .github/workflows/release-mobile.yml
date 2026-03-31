@@ -15,6 +15,11 @@ on:
         default: "all"
         type: choice
         options: [all, android, ios]
+      submit_android:
+        description: "Submit latest Android build to Google Play internal track"
+        required: true
+        default: false
+        type: boolean
 
 env:
   EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -33,7 +38,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19.4
           cache: "npm"
 
       - name: Install dependencies
@@ -102,7 +107,7 @@ jobs:
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 16.28.0
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: EAS Build (reproducible, freeze credentials)
@@ -113,6 +118,17 @@ jobs:
           eas build --platform "$PLATFORM" --profile production --non-interactive --freeze-credentials
           # Parse build URLs from last run (optional: eas build --json and jq)
           echo "Build submitted. Check EAS dashboard for artifact URLs." >> $GITHUB_STEP_SUMMARY
+
+      - name: Prepare Google Play service account key
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.submit_android == 'true' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android') && (secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_B64 != '' || secrets.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 != '') }}
+        run: npm run release:prepare:play-key
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_B64 }}
+          IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64: ${{ secrets.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+
+      - name: Submit Android build to Play internal track
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.submit_android == 'true' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'android') && (secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_B64 != '' || secrets.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 != '') }}
+        run: npm run release:submit:android
 
       - name: Export build metadata for artifact signing / release
         id: meta

@@ -1,0 +1,47 @@
+pluginManagement {
+  // Prefer local relative paths to avoid Unicode decoding issues from shell command output.
+  def localReactNativeGradlePluginPath = new File(settingsDir, "../node_modules/@react-native/gradle-plugin").absolutePath
+  def localExpoAutolinkingPluginPath = new File(settingsDir, "../node_modules/expo-modules-autolinking/android/expo-gradle-plugin").absolutePath
+  includeBuild(localReactNativeGradlePluginPath)
+  includeBuild(localExpoAutolinkingPluginPath)
+  gradle.ext.localReactNativeGradlePluginPath = localReactNativeGradlePluginPath
+}
+
+plugins {
+  id("com.facebook.react.settings")
+  id("expo-autolinking-settings")
+}
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+  if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {
+    ex.autolinkLibrariesFromCommand()
+  } else {
+    def rnConfigCommand = [
+      'node',
+      '--no-warnings',
+      '--eval',
+      "require('expo/bin/autolinking')",
+      'expo-modules-autolinking',
+      'react-native-config',
+      '--platform',
+      'android',
+      '--json',
+    ]
+    if (System.properties['os.name'].toLowerCase().contains('windows')) {
+      rnConfigCommand = [
+        'node',
+        './android/scripts/autolink-windows-path-fix.js',
+      ]
+    }
+
+    ex.autolinkLibrariesFromCommand(rnConfigCommand)
+  }
+}
+expoAutolinking.useExpoModules()
+
+rootProject.name = 'Antislot'
+
+expoAutolinking.useExpoVersionCatalog()
+
+include ':app'
+includeBuild(gradle.ext.localReactNativeGradlePluginPath)

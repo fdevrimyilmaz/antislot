@@ -2,6 +2,7 @@ import * as SecureStore from "@/lib/secureStoreCompat";
 import { BlocklistEntry, BlocklistPattern, DomainMatcher } from "@/services/gambling-blocker/domain-matcher";
 import { trackEvent } from "@/services/analytics";
 import { SharedConfig } from "@/react-native-bridge/SharedConfigModule";
+import { requestWithRetry } from "@/services/httpClient";
 
 export interface BlockerState {
   apiUrl: string;
@@ -186,11 +187,19 @@ async function verifySignatureWithServer(
 ): Promise<boolean> {
   if (!isNonEmptyString(signature)) return false;
   try {
-    const res = await fetch(`${baseUrl}/v1/verify-signature`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ payload, signature }),
-    });
+    const res = await requestWithRetry(
+      `${baseUrl}/v1/verify-signature`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload, signature }),
+      },
+      {
+        retries: 1,
+        timeoutMs: 10000,
+        context: "POST /v1/verify-signature",
+      }
+    );
     if (!res.ok) {
       throw new Error(`verify-signature failed (${res.status})`);
     }
@@ -362,8 +371,16 @@ export async function syncBlocklist(
   let stage: SyncStage = "fetch";
   try {
     const [blocklistRes, patternsRes] = await Promise.all([
-      fetch(`${baseUrl}/v1/blocklist`),
-      fetch(`${baseUrl}/v1/patterns`),
+      requestWithRetry(
+        `${baseUrl}/v1/blocklist`,
+        { method: "GET" },
+        { retries: 2, timeoutMs: 12000, context: "GET /v1/blocklist" }
+      ),
+      requestWithRetry(
+        `${baseUrl}/v1/patterns`,
+        { method: "GET" },
+        { retries: 2, timeoutMs: 12000, context: "GET /v1/patterns" }
+      ),
     ]);
 
     if (!blocklistRes.ok || !patternsRes.ok) {

@@ -18,9 +18,11 @@ const NATIVE_MODULE_COPY = {
     sharedTitle: "SharedConfigModule",
     check: "Kontrol Et",
     status: "Durum",
+    diagnostics: "iOS Self-Check",
     start: "Baslat",
     stop: "Durdur",
     test: "Test Et",
+    noDiagnostics: "tanilama verisi yok",
     permissionDeniedTitle: "VPN izni reddedildi",
     permissionDeniedBody: "Koruma icin VPN izni vermeniz gerekiyor.",
     resultStart: "Baslat",
@@ -34,9 +36,11 @@ const NATIVE_MODULE_COPY = {
     sharedTitle: "SharedConfigModule",
     check: "Check",
     status: "Status",
+    diagnostics: "iOS Self-Check",
     start: "Start",
     stop: "Stop",
     test: "Run Test",
+    noDiagnostics: "no diagnostics data",
     permissionDeniedTitle: "VPN permission denied",
     permissionDeniedBody: "You need to grant VPN permission for protection.",
     resultStart: "Start",
@@ -45,7 +49,7 @@ const NATIVE_MODULE_COPY = {
 } as const;
 
 export default function NativeModulesTestScreen() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const { colors } = useTheme();
   const copy = useLocalizedCopy(NATIVE_MODULE_COPY);
 
@@ -57,6 +61,42 @@ export default function NativeModulesTestScreen() {
     const message = result.message ? ` - ${result.message}` : "";
     return `${label}: ${result.status}${reason}${message}`;
   };
+
+  const formatDiagnosticValue = useCallback((value: unknown) => {
+    if (value === null || value === undefined) return "null";
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  }, []);
+
+  const formatDiagnostics = useCallback(
+    (payload: Record<string, unknown> | null) => {
+      if (!payload) {
+        return `diagnostics: ${copy.noDiagnostics}`;
+      }
+      const summaryKeys = [
+        "state",
+        "featureEnabled",
+        "supported",
+        "managerLoaded",
+        "managerEnabled",
+        "managerRunning",
+        "managerMatchDomainsCount",
+        "managerError",
+        "blocklistCount",
+        "patternsCount",
+        "whitelistCount",
+        "nativeStatus",
+        "nativeApiUrl",
+        "nativeLastSyncMs",
+      ];
+      const summary = summaryKeys
+        .filter((key) => Object.prototype.hasOwnProperty.call(payload, key))
+        .map((key) => `${key}=${formatDiagnosticValue(payload[key])}`)
+        .join(", ");
+      return `diagnostics: ${summary}`;
+    },
+    [copy.noDiagnostics, formatDiagnosticValue]
+  );
 
   const getErrorMessage = useCallback(
     (error: unknown) => (error instanceof Error ? error.message : copy.unknownError),
@@ -116,6 +156,17 @@ export default function NativeModulesTestScreen() {
     }
   }, [copy.blockerTitle, copy.resultStop, getErrorMessage]);
 
+  const runBlockerDiagnostics = useCallback(async () => {
+    try {
+      const payload = await GamblingBlocker.diagnostics();
+      setBlockerStatus(formatDiagnostics(payload));
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setBlockerStatus(`error: ${message}`);
+      Alert.alert(copy.blockerTitle, message);
+    }
+  }, [copy.blockerTitle, formatDiagnostics, getErrorMessage]);
+
   const runSharedConfigTest = useCallback(async () => {
     try {
       const ok = await SharedConfig.saveBlocklist(["example.com"]);
@@ -129,8 +180,9 @@ export default function NativeModulesTestScreen() {
 
   useEffect(() => {
     void runBlockerTest();
+    void runBlockerDiagnostics();
     void runSharedConfigTest();
-  }, [runBlockerTest, runSharedConfigTest]);
+  }, [runBlockerDiagnostics, runBlockerTest, runSharedConfigTest]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -171,6 +223,14 @@ export default function NativeModulesTestScreen() {
               onPress={() => void runBlockerStop()}
             >
               <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>{copy.stop}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+              onPress={() => void runBlockerDiagnostics()}
+            >
+              <Text style={styles.primaryButtonText}>{copy.diagnostics}</Text>
             </TouchableOpacity>
           </View>
         </View>
