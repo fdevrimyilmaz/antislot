@@ -1,7 +1,7 @@
 {
   "name": "antislot",
   "main": "expo-router/entry",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "scripts": {
     "start": "node ./scripts/expo-start.js",
     "start:8082": "expo start --port 8082 --clear",
