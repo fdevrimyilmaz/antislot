@@ -12,6 +12,7 @@
     "userInterfaceStyle": "automatic",
     "primaryColor": "#1D4C72",
     "ios": {
+      "icon": "./assets/images/icon.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.antislot.app",
       "buildNumber": "3",

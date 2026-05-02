@@ -50,6 +50,11 @@
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascAppId": "6765941064",
+        "appleId": "yalandiyar2009@icloud.com",
+        "appleTeamId": "Y9PB3B99CC"
+      },
       "android": {
         "serviceAccountKeyPath": "./credentials/google-play-service-account.json",
         "track": "internal",
