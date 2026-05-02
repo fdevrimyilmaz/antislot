@@ -34,7 +34,7 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4",
+        "image": "latest",
         "resourceClass": "m-medium",
         "credentialsSource": "remote"
       },
