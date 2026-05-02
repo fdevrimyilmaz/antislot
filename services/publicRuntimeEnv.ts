@@ -54,8 +54,10 @@ export function validatePublicRuntimeEnvAtStartup(): void {
   const apiUrl = requireNonEmptyEnv("EXPO_PUBLIC_API_URL");
   requireHttpsUrl("EXPO_PUBLIC_API_URL", apiUrl, { rejectLocalHosts: true });
 
-  const sentryDsn = requireNonEmptyEnv("EXPO_PUBLIC_SENTRY_DSN");
-  requireHttpsUrl("EXPO_PUBLIC_SENTRY_DSN", sentryDsn, { rejectLocalHosts: false });
+  const sentryDsn = (process.env.EXPO_PUBLIC_SENTRY_DSN ?? "").trim();
+  if (sentryDsn) {
+    requireHttpsUrl("EXPO_PUBLIC_SENTRY_DSN", sentryDsn, { rejectLocalHosts: false });
+  }
 
   hasValidated = true;
 }
