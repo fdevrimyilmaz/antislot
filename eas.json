@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": "18.4.0",
-    "appVersionSource": "local",
+    "appVersionSource": "remote",
     "requireCommit": true
   },
   "build": {
@@ -19,6 +19,7 @@
       }
     },
     "production": {
+      "autoIncrement": true,
       "distribution": "store",
       "node": "20.19.4",
       "cache": {
