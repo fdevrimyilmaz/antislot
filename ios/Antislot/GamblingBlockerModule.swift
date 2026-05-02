@@ -3,14 +3,7 @@ import React
 import NetworkExtension
 
 @objc(GamblingBlockerModule)
-class GamblingBlockerModule: NSObject, RCTBridgeModule {
-  static func moduleName() -> String! {
-    return "GamblingBlockerModule"
-  }
-
-  static func requiresMainQueueSetup() -> Bool {
-    return false
-  }
+class GamblingBlockerModule: NSObject {
 
   private let featureFlagKey = "ENABLE_IOS_NE"
   private let appGroupId = "group.com.antislot.app"

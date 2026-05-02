@@ -2,14 +2,7 @@ import Foundation
 import React
 
 @objc(SharedConfigModule)
-class SharedConfigModule: NSObject, RCTBridgeModule {
-  static func moduleName() -> String! {
-    return "SharedConfigModule"
-  }
-
-  static func requiresMainQueueSetup() -> Bool {
-    return false
-  }
+class SharedConfigModule: NSObject {
 
   private let appGroupId = "group.com.antislot.app"
   private let keySmsSettings = "sms.settings"

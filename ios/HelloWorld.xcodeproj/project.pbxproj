@@ -16,6 +16,7 @@
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F1B0C0DE1A2B3C4D5E6F1001 /* GamblingBlockerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B0C0DE1A2B3C4D5E6F0001 /* GamblingBlockerModule.swift */; };
 		F1B0C0DE1A2B3C4D5E6F1002 /* SharedConfigModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B0C0DE1A2B3C4D5E6F0002 /* SharedConfigModule.swift */; };
+		F1B0C0DE1A2B3C4D5E6F1003 /* ReactNativeModuleExports.m in Sources */ = {isa = PBXBuildFile; fileRef = F1B0C0DE1A2B3C4D5E6F0003 /* ReactNativeModuleExports.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 		F11748442D0722820044C1D9 /* Antislot-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Antislot-Bridging-Header.h"; path = "Antislot/Antislot-Bridging-Header.h"; sourceTree = "<group>"; };
 		F1B0C0DE1A2B3C4D5E6F0001 /* GamblingBlockerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GamblingBlockerModule.swift; path = Antislot/GamblingBlockerModule.swift; sourceTree = "<group>"; };
 		F1B0C0DE1A2B3C4D5E6F0002 /* SharedConfigModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedConfigModule.swift; path = Antislot/SharedConfigModule.swift; sourceTree = "<group>"; };
+		F1B0C0DE1A2B3C4D5E6F0003 /* ReactNativeModuleExports.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = ReactNativeModuleExports.m; path = Antislot/ReactNativeModuleExports.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
 				F1B0C0DE1A2B3C4D5E6F0001 /* GamblingBlockerModule.swift */,
 				F1B0C0DE1A2B3C4D5E6F0002 /* SharedConfigModule.swift */,
+				F1B0C0DE1A2B3C4D5E6F0003 /* ReactNativeModuleExports.m */,
 				F11748442D0722820044C1D9 /* Antislot-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -323,6 +326,7 @@
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
 				F1B0C0DE1A2B3C4D5E6F1001 /* GamblingBlockerModule.swift in Sources */,
 				F1B0C0DE1A2B3C4D5E6F1002 /* SharedConfigModule.swift in Sources */,
+				F1B0C0DE1A2B3C4D5E6F1003 /* ReactNativeModuleExports.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
