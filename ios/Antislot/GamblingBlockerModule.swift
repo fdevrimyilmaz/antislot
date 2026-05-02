@@ -344,7 +344,6 @@ class GamblingBlockerModule: NSObject {
 
     manager.localizedDescription = "Anti Slot Domain Blocker"
     manager.dnsSettings = buildDnsSettings(matchDomains: matchDomains)
-    manager.isEnabled = true
     manager.saveToPreferences { saveError in
       if let saveError = saveError {
         completion(.failure(saveError))
@@ -365,7 +364,6 @@ class GamblingBlockerModule: NSObject {
     _ manager: NEDNSSettingsManager,
     completion: @escaping (Result<Void, Error>) -> Void
   ) {
-    manager.isEnabled = false
     manager.dnsSettings = nil
     manager.saveToPreferences { saveError in
       if let saveError = saveError {
