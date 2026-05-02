@@ -80,6 +80,14 @@ if (isProduction && corsAllowlist.length === 0) {
 
 const apiAuthToken = process.env.API_AUTH_TOKEN ?? "";
 const requireApiAuth = isProduction || process.env.REQUIRE_API_AUTH === "true";
+const telegramIngestToken = parseSecretEnv("TELEGRAM_INGEST_TOKEN", false);
+const telegramIngestEnabled =
+  process.env.TELEGRAM_INGEST_ENABLED === "true" || Boolean(telegramIngestToken);
+if (telegramIngestEnabled && !telegramIngestToken) {
+  throw new Error(
+    "TELEGRAM_INGEST_ENABLED=true requires TELEGRAM_INGEST_TOKEN."
+  );
+}
 const firebaseProjectId = (process.env.FIREBASE_PROJECT_ID || "").trim();
 const firebaseServiceAccountJsonB64 = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_B64 || "").trim();
 const openAiApiKey = (process.env.OPENAI_API_KEY || "").trim();
@@ -99,6 +107,9 @@ export const config = {
   corsAllowlist,
   apiAuthToken,
   requireApiAuth,
+  telegramIngestEnabled,
+  telegramIngestToken,
+  telegramIngestMaxDomainsPerRequest: parseIntEnv("TELEGRAM_INGEST_MAX_DOMAINS", 50),
   firebaseProjectId,
   firebaseServiceAccountJsonB64,
 

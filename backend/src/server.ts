@@ -20,12 +20,20 @@ import {
   BlocklistResponse,
   HealthResponse,
   PatternsResponse,
+  TelegramDomainIngestResponse,
   VerifySignatureResponse,
 } from "./types";
 import { generateSignature, verifySignature } from "./utils/signature";
 
 type AiHistoryItem = { role: "user" | "assistant"; content: string };
 type AiChatRequest = { message?: string; history?: AiHistoryItem[] };
+type TelegramDomainIngestRequest = {
+  domain?: string;
+  domains?: string[];
+  source?: string;
+  reason?: string;
+  dryRun?: boolean;
+};
 
 type ApiErrorBody = {
   ok: false;
@@ -82,6 +90,54 @@ function authTokenFromHeader(headerValue?: string): string {
   const [scheme, token] = headerValue.split(" ");
   if (scheme?.toLowerCase() !== "bearer") return "";
   return token?.trim() ?? "";
+}
+
+function sanitizeMetaText(value: string | undefined, maxLength = 120): string {
+  if (!value) return "";
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) return "";
+  return compact.slice(0, maxLength);
+}
+
+function isValidDomainLabel(label: string): boolean {
+  if (!label || label.length > 63) return false;
+  if (label.startsWith("-") || label.endsWith("-")) return false;
+  return /^[a-z0-9-]+$/.test(label);
+}
+
+function normalizeDomainCandidate(raw: string): string | null {
+  const compact = raw.trim().toLowerCase();
+  if (!compact) return null;
+
+  let candidate = compact;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)) {
+    try {
+      candidate = new URL(candidate).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  } else {
+    candidate = candidate.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+    candidate = candidate.split("/")[0];
+    candidate = candidate.split("?")[0];
+    candidate = candidate.split("#")[0];
+  }
+
+  candidate = candidate.replace(/\.+$/, "");
+  if (candidate.startsWith("www.")) {
+    candidate = candidate.slice(4);
+  }
+  candidate = candidate.split(":")[0];
+
+  if (candidate.length < 4 || candidate.length > 253) return null;
+  if (!candidate.includes(".")) return null;
+  if (/[^a-z0-9.-]/.test(candidate)) return null;
+
+  const labels = candidate.split(".");
+  if (labels.some((label) => !isValidDomainLabel(label))) return null;
+  if (labels.every((label) => /^\d+$/.test(label))) return null;
+
+  return candidate;
 }
 
 function sendError(
@@ -295,6 +351,56 @@ const verifySignatureResponseSchema = {
   required: ["ok"],
   properties: {
     ok: { type: "boolean" },
+  },
+};
+
+const telegramDomainIngestBodySchema = {
+  type: "object",
+  properties: {
+    domain: { type: "string", minLength: 1, maxLength: 512 },
+    domains: {
+      type: "array",
+      items: { type: "string", minLength: 1, maxLength: 512 },
+      minItems: 1,
+      maxItems: 200,
+    },
+    source: { type: "string", minLength: 1, maxLength: 120 },
+    reason: { type: "string", minLength: 1, maxLength: 240 },
+    dryRun: { type: "boolean" },
+  },
+};
+
+const telegramDomainIngestResponseSchema = {
+  type: "object",
+  required: [
+    "ok",
+    "dryRun",
+    "received",
+    "addedCount",
+    "added",
+    "skipped",
+    "blocklistVersion",
+    "blocklistCount",
+  ],
+  properties: {
+    ok: { type: "boolean", const: true },
+    dryRun: { type: "boolean" },
+    received: { type: "number" },
+    addedCount: { type: "number" },
+    added: { type: "array", items: { type: "string" } },
+    skipped: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["input", "reason"],
+        properties: {
+          input: { type: "string" },
+          reason: { type: "string" },
+        },
+      },
+    },
+    blocklistVersion: { type: "number" },
+    blocklistCount: { type: "number" },
   },
 };
 
@@ -546,6 +652,114 @@ fastify.post(
 
     const response: VerifySignatureResponse = {
       ok: verifySignature(body.payload as string | object, body.signature),
+    };
+    return reply.send(response);
+  }
+);
+
+fastify.post(
+  "/v1/internal/telegram/domains",
+  {
+    schema: {
+      tags: ["blocklist"],
+      summary: "Ingest domains from Telegram bot (internal)",
+      body: telegramDomainIngestBodySchema,
+      response: {
+        200: telegramDomainIngestResponseSchema,
+        400: errorResponseSchema,
+        401: errorResponseSchema,
+        404: errorResponseSchema,
+      },
+    },
+  },
+  async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+
+    const requestId = request.id;
+    if (!config.telegramIngestEnabled || !config.telegramIngestToken) {
+      return sendError(reply, 404, "NOT_FOUND", "Route not found.", requestId);
+    }
+
+    const token = authTokenFromHeader(request.headers.authorization);
+    const isAuthorized = token && secureEqualToken(config.telegramIngestToken, token);
+    if (!isAuthorized) {
+      return sendError(reply, 401, "UNAUTHORIZED", "Invalid ingest token.", requestId);
+    }
+
+    const body = request.body as TelegramDomainIngestRequest | undefined;
+    const incomingDomains: string[] = [];
+
+    if (body?.domain) {
+      incomingDomains.push(body.domain);
+    }
+    if (Array.isArray(body?.domains)) {
+      incomingDomains.push(...body.domains);
+    }
+
+    if (incomingDomains.length === 0) {
+      return sendError(reply, 400, "BAD_REQUEST", "domain or domains is required.", requestId);
+    }
+    if (incomingDomains.length > config.telegramIngestMaxDomainsPerRequest) {
+      return sendError(
+        reply,
+        400,
+        "BAD_REQUEST",
+        `Too many domains. Max ${config.telegramIngestMaxDomainsPerRequest} per request.`,
+        requestId
+      );
+    }
+
+    const source = sanitizeMetaText(body?.source, 80);
+    const reasonText = sanitizeMetaText(body?.reason, 140);
+    const reasonParts = ["Telegram ingest"];
+    if (source) {
+      reasonParts.push(`source=${source}`);
+    }
+    if (reasonText) {
+      reasonParts.push(reasonText);
+    }
+    const finalReason = reasonParts.join(" | ");
+    const dryRun = body?.dryRun === true;
+
+    const existingDomains = new Set(await blocklistStorage.getDomains());
+    const seenInRequest = new Set<string>();
+    const added: string[] = [];
+    const skipped: Array<{ input: string; reason: string }> = [];
+
+    for (const rawInput of incomingDomains) {
+      const normalized = normalizeDomainCandidate(rawInput);
+      if (!normalized) {
+        skipped.push({ input: rawInput, reason: "invalid_domain" });
+        continue;
+      }
+      if (seenInRequest.has(normalized)) {
+        skipped.push({ input: rawInput, reason: "duplicate_in_request" });
+        continue;
+      }
+      seenInRequest.add(normalized);
+
+      if (existingDomains.has(normalized)) {
+        skipped.push({ input: rawInput, reason: "already_exists" });
+        continue;
+      }
+
+      if (!dryRun) {
+        await blocklistStorage.addDomain(normalized, finalReason);
+        existingDomains.add(normalized);
+      }
+      added.push(normalized);
+    }
+
+    const metadata = await blocklistStorage.getMetadata();
+    const response: TelegramDomainIngestResponse = {
+      ok: true,
+      dryRun,
+      received: incomingDomains.length,
+      addedCount: added.length,
+      added,
+      skipped,
+      blocklistVersion: metadata.version,
+      blocklistCount: existingDomains.size,
     };
     return reply.send(response);
   }

@@ -50,12 +50,37 @@
 ## Security Notes
 - Removed client-side secrets from `EXPO_PUBLIC_*` env vars.
 - Blocklist/patterns signature verification is delegated to backend endpoint `POST /v1/verify-signature`.
+- Telegram tabanlı blocklist otomasyonu için backend'de internal ingest endpoint'i vardır: `POST /v1/internal/telegram/domains` (Bearer token ile korunur).
 - Client allows dev fallback when verification endpoint is unavailable; production fails closed for verification errors.
 - Premium activation is server-authoritative: mobile sends store receipt, server validates and returns entitlement.
 - Mobile premium routes (`/v1/premium/status|sync|activate|restore` and `/v1/iap/validate`) accept only Firebase user token; server binds user identity to JWT `uid` and does not trust `X-User-Id` alone.
 - `API_AUTH_TOKEN` is reserved for server-to-server traffic and is restricted by `INTERNAL_API_IP_ALLOWLIST`.
 - Core proxy and store-validator upstream calls are timeout-protected (`CORE_BACKEND_TIMEOUT_MS`, `IAP_STORE_TIMEOUT_MS`) and network errors are caught (no server crash).
 - `POST /iap/validate` endpoint can be used (server-side auth required) to smoke-test receipt validation path.
+
+Telegram ingest quick use (internal network only):
+```bash
+curl -X POST http://localhost:3000/v1/internal/telegram/domains \
+  -H "Authorization: Bearer $TELEGRAM_INGEST_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domains": ["new-bet-site123.com", "https://mirror-casino777.net/path"],
+    "source": "telegram-bot-main",
+    "reason": "auto-detected",
+    "dryRun": false
+  }'
+```
+
+Telegram worker (polls bot updates and ingests detected domains):
+```bash
+cd backend
+npm run telegram:ingest
+```
+
+PM2 `ecosystem.config.cjs` `backend/.env` dosyasını otomatik yükler.
+
+Kalıcı servis kurulumu (`pm2` / `systemd`):
+- `docs/TELEGRAM_INGEST_SERVICE_SETUP.md`
 
 Quick check (proxy upstream failure handling):
 ```bash

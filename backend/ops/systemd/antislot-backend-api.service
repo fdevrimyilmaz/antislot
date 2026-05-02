@@ -1,0 +1,20 @@
+[Unit]
+Description=AntiSlot Backend API
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/antislot/backend
+EnvironmentFile=-/etc/antislot/backend.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=30
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
+

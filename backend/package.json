@@ -14,6 +14,9 @@
     "admin": "ts-node src/cli/admin.ts",
     "suggest": "ts-node src/scripts/suggest-domains.ts",
     "integrate-suggestions": "ts-node src/scripts/integrate-suggestions.ts",
+    "telegram:ingest": "ts-node src/scripts/telegram-ingest-worker.ts",
+    "telegram:ingest:once": "ts-node src/scripts/telegram-ingest-worker.ts --once",
+    "start:telegram:worker": "node dist/scripts/telegram-ingest-worker.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

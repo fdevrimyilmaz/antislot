@@ -1,0 +1,21 @@
+[Unit]
+Description=AntiSlot Telegram Domain Ingest Worker
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/antislot/backend
+EnvironmentFile=-/etc/antislot/backend.env
+Environment=TELEGRAM_WORKER_CONTINUOUS=true
+ExecStart=/usr/bin/node dist/scripts/telegram-ingest-worker.js
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
+

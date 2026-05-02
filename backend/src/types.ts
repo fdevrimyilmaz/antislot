@@ -62,3 +62,17 @@ export interface HealthResponse {
     lastServerErrorAt: number;
   };
 }
+
+export interface TelegramDomainIngestResponse {
+  ok: true;
+  dryRun: boolean;
+  received: number;
+  addedCount: number;
+  added: string[];
+  skipped: Array<{
+    input: string;
+    reason: string;
+  }>;
+  blocklistVersion: number;
+  blocklistCount: number;
+}
