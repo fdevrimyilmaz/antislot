@@ -19,14 +19,11 @@
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.antislot.app"
-        ],
-        "com.apple.developer.networking.networkextension": [
-          "dns-settings"
         ]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "ENABLE_IOS_NE": true
+        "ENABLE_IOS_NE": false
       },
       "config": {
         "usesNonExemptEncryption": false
