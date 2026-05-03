@@ -15,7 +15,7 @@
       "icon": "./assets/images/icon.png",
       "supportsTablet": false,
       "bundleIdentifier": "com.antislot.app",
-      "buildNumber": "3",
+      "buildNumber": "5",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.antislot.app"
