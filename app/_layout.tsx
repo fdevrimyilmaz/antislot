@@ -28,7 +28,7 @@ import { useProgressStore } from '@/store/progressStore';
 import { setUrgeSyncClient, useUrgeStore } from '@/store/urgeStore';
 
 // Keep splash visible until we hide it explicitly
-SplashScreen.preventAutoHideAsync?.();
+SplashScreen.preventAutoHideAsync?.().catch(() => {});
 
 // Root layout.
 export const unstable_settings = {
@@ -36,10 +36,29 @@ export const unstable_settings = {
 };
 
 const APP_BG = Colors.light.background;
-validatePublicRuntimeEnvAtStartup();
-getApiBaseUrl();
-setMoneyProtectionSyncClient(syncMoneyProtectionCloud);
-setUrgeSyncClient(syncUrgeCloud);
+
+function bootstrapAppRuntime(): void {
+  try {
+    validatePublicRuntimeEnvAtStartup();
+  } catch (error) {
+    console.error("[Startup] Runtime env validation failed:", error);
+  }
+
+  try {
+    getApiBaseUrl();
+  } catch (error) {
+    console.error("[Startup] API base URL initialization failed:", error);
+  }
+
+  try {
+    setMoneyProtectionSyncClient(syncMoneyProtectionCloud);
+    setUrgeSyncClient(syncUrgeCloud);
+  } catch (error) {
+    console.error("[Startup] Sync client wiring failed:", error);
+  }
+}
+
+bootstrapAppRuntime();
 
 function RootLayoutContent() {
   const colorScheme = useColorScheme();
@@ -83,15 +102,30 @@ function RootLayoutContent() {
   }, []);
 
   useEffect(() => {
-    hydratePremium();
-    hydrateMoneyProtection();
-    hydrateUrge();
-    hydratePrivacy();
-    hydrateAccessibility();
+    void hydratePremium().catch((error) => {
+      console.error("[Startup] Premium hydrate failed:", error);
+    });
+    void hydrateMoneyProtection().catch((error) => {
+      console.error("[Startup] Money protection hydrate failed:", error);
+    });
+    void hydrateUrge().catch((error) => {
+      console.error("[Startup] Urge hydrate failed:", error);
+    });
+    void hydratePrivacy().catch((error) => {
+      console.error("[Startup] Privacy hydrate failed:", error);
+    });
+    void hydrateAccessibility().catch((error) => {
+      console.error("[Startup] Accessibility hydrate failed:", error);
+    });
   }, [hydratePremium, hydrateMoneyProtection, hydrateUrge, hydratePrivacy, hydrateAccessibility]);
 
   useEffect(() => {
-    const stopEngine = startProactiveInterventionEngine();
+    let stopEngine = () => {};
+    try {
+      stopEngine = startProactiveInterventionEngine();
+    } catch (error) {
+      console.error("[Startup] Proactive intervention engine failed:", error);
+    }
     return () => stopEngine();
   }, []);
 
@@ -124,7 +158,11 @@ function RootLayoutContent() {
   useEffect(() => {
     if (!privacyHydrated) return;
     if (!telemetryEnabled || !crashReportingEnabled) return;
-    initMonitoring();
+    try {
+      initMonitoring();
+    } catch (error) {
+      console.error("[Startup] Monitoring init failed:", error);
+    }
   }, [privacyHydrated, telemetryEnabled, crashReportingEnabled]);
 
   useEffect(() => {
