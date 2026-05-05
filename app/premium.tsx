@@ -120,10 +120,10 @@ const COPY = {
     liveSupportSubject: "Premium Canli Destek",
     planCards: {
       plans: [
-        { id: "monthly", label: "Aylik Premium", sublabel: "Esnek baslangic", fallbackPrice: "$8.99 / ay", valueNote: "Tum araclar acik", ctaLabel: "Ayligi baslat" },
-        { id: "quarterly", label: "3 Aylik Premium", sublabel: "90 gun odakli paket", fallbackPrice: "$22.99 / 3 ay", valueNote: "Dengeli fiyat, daha guclu rutin", ctaLabel: "3 ayligi sec" },
-        { id: "semiannual", label: "6 Aylik Premium", sublabel: "Yari yillik koruma", fallbackPrice: "$39.99 / 6 ay", valueNote: "Uzun sureli istikrar", ctaLabel: "6 ayligi sec" },
-        { id: "yearly", label: "Yillik Premium", sublabel: "En iyi deger", badge: "En iyi deger", fallbackPrice: "$59.99 / yil", fallbackOriginalPrice: "$107.88 / yil", valueNote: "12 ay planli koruma", ctaLabel: "Yilligi sec", highlight: true },
+        { id: "monthly", label: "Aylik Premium", sublabel: "Esnek baslangic", valueNote: "Tum araclar acik", ctaLabel: "Ayligi baslat" },
+        { id: "quarterly", label: "3 Aylik Premium", sublabel: "90 gun odakli paket", valueNote: "Dengeli fiyat, daha guclu rutin", ctaLabel: "3 ayligi sec" },
+        { id: "semiannual", label: "6 Aylik Premium", sublabel: "Yari yillik koruma", valueNote: "Uzun sureli istikrar", ctaLabel: "6 ayligi sec" },
+        { id: "yearly", label: "Yillik Premium", sublabel: "En iyi deger", badge: "En iyi deger", valueNote: "12 ay planli koruma", ctaLabel: "Yilligi sec", highlight: true },
       ] as const,
       activeLabel: "Premium aktif",
       comingSoonLabel: "Magaza baglantisi yok",
@@ -213,10 +213,10 @@ const COPY = {
     liveSupportSubject: "Premium Live Support",
     planCards: {
       plans: [
-        { id: "monthly", label: "Monthly Premium", sublabel: "Flexible start", fallbackPrice: "$8.99 / month", valueNote: "All tools unlocked", ctaLabel: "Start monthly" },
-        { id: "quarterly", label: "3-Month Premium", sublabel: "90-day focused plan", fallbackPrice: "$22.99 / 3 months", valueNote: "Balanced pricing and stronger routine", ctaLabel: "Choose 3 months" },
-        { id: "semiannual", label: "6-Month Premium", sublabel: "Half-year protection", fallbackPrice: "$39.99 / 6 months", valueNote: "Longer-term consistency", ctaLabel: "Choose 6 months" },
-        { id: "yearly", label: "Yearly Premium", sublabel: "Best value", badge: "Best value", fallbackPrice: "$59.99 / year", fallbackOriginalPrice: "$107.88 / year", valueNote: "12 months structured protection", ctaLabel: "Choose yearly", highlight: true },
+        { id: "monthly", label: "Monthly Premium", sublabel: "Flexible start", valueNote: "All tools unlocked", ctaLabel: "Start monthly" },
+        { id: "quarterly", label: "3-Month Premium", sublabel: "90-day focused plan", valueNote: "Balanced pricing and stronger routine", ctaLabel: "Choose 3 months" },
+        { id: "semiannual", label: "6-Month Premium", sublabel: "Half-year protection", valueNote: "Longer-term consistency", ctaLabel: "Choose 6 months" },
+        { id: "yearly", label: "Yearly Premium", sublabel: "Best value", badge: "Best value", valueNote: "12 months structured protection", ctaLabel: "Choose yearly", highlight: true },
       ] as const,
       activeLabel: "Premium active",
       comingSoonLabel: "Store unavailable",
@@ -348,18 +348,16 @@ export default function PremiumScreen() {
         id: PlanId;
         label: string;
         sublabel?: string;
-        fallbackPrice: string;
-        fallbackOriginalPrice?: string;
         valueNote: string;
         ctaLabel?: string;
         badge?: string;
         highlight?: boolean;
       };
       const offer = iapOffers[resolvedPlan.id];
-      const storeOfferReady = !!offer;
+      const storeOfferReady = !!offer?.priceLabel;
       let badge = resolvedPlan.badge;
       let valueNote = resolvedPlan.valueNote;
-      let originalPriceLabel = resolvedPlan.fallbackOriginalPrice;
+      let originalPriceLabel: string | undefined;
       let ctaLabel = resolvedPlan.ctaLabel;
       let disabled = !storeOfferReady;
 
@@ -381,7 +379,7 @@ export default function PremiumScreen() {
         label: resolvedPlan.label,
         sublabel: resolvedPlan.sublabel,
         badge,
-        priceLabel: storeOfferReady ? (offer?.priceLabel ?? resolvedPlan.fallbackPrice) : undefined,
+        priceLabel: storeOfferReady ? offer?.priceLabel : undefined,
         originalPriceLabel,
         valueNote,
         ctaLabel,
