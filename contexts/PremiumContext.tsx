@@ -1,6 +1,12 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { purchaseLifetime, purchaseMonthly, purchaseYearly, restorePurchases } from "@/services/iap";
+import {
+  purchaseMonthly,
+  purchaseQuarterly,
+  purchaseSemiannual,
+  purchaseYearly,
+  restorePurchases,
+} from "@/services/iap";
 import { clearPremium, getPremiumState, setPremiumActive } from "@/store/premiumStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 import type { PremiumState } from "@/types/premium";
@@ -127,25 +133,36 @@ export default function PremiumScreen() {
     }
   };
 
+  const handleBuyQuarterly = async () => {
+    try {
+      await purchaseQuarterly();
+      const state = await setPremiumActive("subscription_quarterly");
+      setPremiumState(state);
+      Alert.alert("Basarili", "3 aylik Premium aktif.");
+    } catch (error: unknown) {
+      Alert.alert("Satin alma basarisiz", toErrorMessage(error));
+    }
+  };
+
+  const handleBuySemiannual = async () => {
+    try {
+      await purchaseSemiannual();
+      const state = await setPremiumActive("subscription_semiannual");
+      setPremiumState(state);
+      Alert.alert("Basarili", "6 aylik Premium aktif.");
+    } catch (error: unknown) {
+      Alert.alert("Satin alma basarisiz", toErrorMessage(error));
+    }
+  };
+
   const handleBuyYearly = async () => {
     try {
       await purchaseYearly();
       const state = await setPremiumActive("subscription_yearly");
       setPremiumState(state);
-      Alert.alert("Başarılı", "Yıllık Premium aktif.");
+      Alert.alert("Basarili", "Yillik Premium aktif.");
     } catch (error: unknown) {
-      Alert.alert("Satın alma başarısız", toErrorMessage(error));
-    }
-  };
-
-  const handleBuyLifetime = async () => {
-    try {
-      await purchaseLifetime();
-      const state = await setPremiumActive("lifetime");
-      setPremiumState(state);
-      Alert.alert("Başarılı", "Tek seferlik Premium aktif.");
-    } catch (error: unknown) {
-      Alert.alert("Satın alma başarısız", toErrorMessage(error));
+      Alert.alert("Satin alma basarisiz", toErrorMessage(error));
     }
   };
 
@@ -298,7 +315,43 @@ export default function PremiumScreen() {
               style={styles.premiumButtonGradient}
             >
               <Text style={styles.premiumButtonText}>
-                {isPremiumActive ? "Premium Aktif" : "Aylık Premium Satın Al"}
+                {isPremiumActive ? "Premium Aktif" : "1 Aylik Premium Satin Al"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.premiumButton, isPremiumActive && styles.premiumButtonDisabled, { marginTop: 12 }]}
+            activeOpacity={0.85}
+            onPress={handleBuyQuarterly}
+            disabled={isPremiumActive}
+          >
+            <LinearGradient
+              colors={["#FFD700", "#FFA500", "#FF8C00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.premiumButtonGradient}
+            >
+              <Text style={styles.premiumButtonText}>
+                {isPremiumActive ? "Premium Aktif" : "3 Aylik Premium Satin Al"}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.premiumButton, isPremiumActive && styles.premiumButtonDisabled, { marginTop: 12 }]}
+            activeOpacity={0.85}
+            onPress={handleBuySemiannual}
+            disabled={isPremiumActive}
+          >
+            <LinearGradient
+              colors={["#FFD700", "#FFA500", "#FF8C00"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.premiumButtonGradient}
+            >
+              <Text style={styles.premiumButtonText}>
+                {isPremiumActive ? "Premium Aktif" : "6 Aylik Premium Satin Al"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -316,25 +369,7 @@ export default function PremiumScreen() {
               style={styles.premiumButtonGradient}
             >
               <Text style={styles.premiumButtonText}>
-                {isPremiumActive ? "Premium Aktif" : "Yıllık Premium Satın Al"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.premiumButton, isPremiumActive && styles.premiumButtonDisabled, { marginTop: 12 }]}
-            activeOpacity={0.85}
-            onPress={handleBuyLifetime}
-            disabled={isPremiumActive}
-          >
-            <LinearGradient
-              colors={["#FFD700", "#FFA500", "#FF8C00"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.premiumButtonGradient}
-            >
-              <Text style={styles.premiumButtonText}>
-                {isPremiumActive ? "Premium Aktif" : "Tek Seferlik Satın Al"}
+                {isPremiumActive ? "Premium Aktif" : "Yillik Premium Satin Al"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -346,7 +381,7 @@ export default function PremiumScreen() {
             ]}
             onPress={handleRestore}
           >
-            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Satın Alımı Geri Yükle</Text>
+            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Satin Alimi Geri Yukle</Text>
           </TouchableOpacity>
 
           {isPremiumActive ? (
@@ -680,3 +715,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 });
+
+
+

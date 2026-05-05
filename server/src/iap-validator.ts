@@ -3,6 +3,8 @@ import { validateReceiptWithStores } from "./iap-store-validator";
 
 export type ReceiptValidationSource =
   | "subscription_monthly"
+  | "subscription_quarterly"
+  | "subscription_semiannual"
   | "subscription_yearly"
   | "lifetime";
 
@@ -28,6 +30,8 @@ type ProviderPayload = {
 
 function sourceFromProductId(productId: string): ReceiptValidationSource | null {
   if (productId === config.iapProductMonthly) return "subscription_monthly";
+  if (productId === config.iapProductQuarterly) return "subscription_quarterly";
+  if (productId === config.iapProductSemiannual) return "subscription_semiannual";
   if (productId === config.iapProductYearly) return "subscription_yearly";
   if (productId === config.iapProductLifetime) return "lifetime";
   return null;
@@ -35,6 +39,8 @@ function sourceFromProductId(productId: string): ReceiptValidationSource | null 
 
 function sourceFromPayload(value: unknown): ReceiptValidationSource | null {
   if (value === "subscription_monthly") return "subscription_monthly";
+  if (value === "subscription_quarterly") return "subscription_quarterly";
+  if (value === "subscription_semiannual") return "subscription_semiannual";
   if (value === "subscription_yearly") return "subscription_yearly";
   if (value === "lifetime") return "lifetime";
   return null;

@@ -5,8 +5,9 @@
 
 export const PRODUCT_IDS = {
   monthly: "antislot_premium_monthly",
+  quarterly: "antislot_premium_quarterly",
+  semiannual: "antislot_premium_semiannual",
   yearly: "antislot_premium_yearly",
-  lifetime: "antislot_premium_lifetime",
 } as const;
 
 type IapCode = "disabled" | "not_ready" | "store_unavailable" | "error";
@@ -20,12 +21,16 @@ export const purchaseMonthly = async (): Promise<IapResult> => {
   return { ok: true, data: { sku: PRODUCT_IDS.monthly } };
 };
 
-export const purchaseYearly = async (): Promise<IapResult> => {
-  return { ok: true, data: { sku: PRODUCT_IDS.yearly } };
+export const purchaseQuarterly = async (): Promise<IapResult> => {
+  return { ok: true, data: { sku: PRODUCT_IDS.quarterly } };
 };
 
-export const purchaseLifetime = async (): Promise<IapResult> => {
-  return { ok: true, data: { sku: PRODUCT_IDS.lifetime } };
+export const purchaseSemiannual = async (): Promise<IapResult> => {
+  return { ok: true, data: { sku: PRODUCT_IDS.semiannual } };
+};
+
+export const purchaseYearly = async (): Promise<IapResult> => {
+  return { ok: true, data: { sku: PRODUCT_IDS.yearly } };
 };
 
 export const restorePurchases = async (): Promise<IapResult> => {

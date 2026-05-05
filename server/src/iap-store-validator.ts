@@ -22,10 +22,10 @@ type AppleVerifyResponse = {
 type AndroidSubscriptionV2 = {
   subscriptionState?: string;
   latestOrderId?: string;
-  lineItems?: Array<{
+  lineItems?: {
     productId?: string;
     expiryTime?: string;
-  }>;
+  }[];
 };
 
 type AndroidInAppProduct = {
@@ -39,13 +39,21 @@ const ANDROID_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 
 function sourceFromProductId(productId: string): ReceiptValidationSource | null {
   if (productId === config.iapProductMonthly) return "subscription_monthly";
+  if (productId === config.iapProductQuarterly) return "subscription_quarterly";
+  if (productId === config.iapProductSemiannual) return "subscription_semiannual";
   if (productId === config.iapProductYearly) return "subscription_yearly";
   if (productId === config.iapProductLifetime) return "lifetime";
   return null;
 }
 
 function allowedProductIds(): string[] {
-  return [config.iapProductMonthly, config.iapProductYearly, config.iapProductLifetime];
+  return [
+    config.iapProductMonthly,
+    config.iapProductQuarterly,
+    config.iapProductSemiannual,
+    config.iapProductYearly,
+    config.iapProductLifetime,
+  ];
 }
 
 async function fetchJsonWithTimeout<T>(

@@ -5,6 +5,8 @@ export type EntitlementStatus = "active" | "canceled" | "refunded" | "grace" | "
 export type PremiumSource =
   | "trial"
   | "subscription_monthly"
+  | "subscription_quarterly"
+  | "subscription_semiannual"
   | "subscription_yearly"
   | "lifetime"
   | "code"

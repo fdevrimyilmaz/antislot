@@ -23,7 +23,6 @@ export function usePremium() {
     hasFeature,
     source: state.source,
     expiresAt: state.expiresAt,
-    trialEndsAt: state.trialEndsAt,
     features: state.features,
     lastSync: state.lastSync,
     loading,

@@ -69,6 +69,8 @@ const objectPayloadSchema = z.object({}).passthrough();
 const premiumSourceSchema = z.enum([
   "trial",
   "subscription_monthly",
+  "subscription_quarterly",
+  "subscription_semiannual",
   "subscription_yearly",
   "lifetime",
   "code",
@@ -133,7 +135,13 @@ const webhookBodySchema = z.object({
   userId: z.string().trim().min(1),
   transactionId: z.string().trim().min(1),
   productId: z.string().trim().min(1),
-  source: z.enum(["subscription_monthly", "subscription_yearly", "lifetime"]),
+  source: z.enum([
+    "subscription_monthly",
+    "subscription_quarterly",
+    "subscription_semiannual",
+    "subscription_yearly",
+    "lifetime",
+  ]),
   platform: z.enum(["ios", "android", "unknown"]).optional(),
   type: z.enum(["renewal", "cancel", "refund", "grace", "expire"]),
   expiresAt: z.number().finite().nullable().optional(),

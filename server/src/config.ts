@@ -160,6 +160,8 @@ const iapIosSharedSecret = (process.env.IAP_IOS_SHARED_SECRET || "").trim();
 const iapAndroidPackageName = (process.env.IAP_ANDROID_PACKAGE_NAME || "").trim();
 const iapGoogleServiceAccountJsonB64 = (process.env.IAP_GOOGLE_SERVICE_ACCOUNT_JSON_B64 || "").trim();
 const iapProductMonthly = (process.env.IAP_PRODUCT_MONTHLY || "antislot_premium_monthly").trim();
+const iapProductQuarterly = (process.env.IAP_PRODUCT_QUARTERLY || "antislot_premium_quarterly").trim();
+const iapProductSemiannual = (process.env.IAP_PRODUCT_SEMIANNUAL || "antislot_premium_semiannual").trim();
 const iapProductYearly = (process.env.IAP_PRODUCT_YEARLY || "antislot_premium_yearly").trim();
 const iapProductLifetime = (process.env.IAP_PRODUCT_LIFETIME || "antislot_premium_lifetime").trim();
 const coreBackendTimeoutMs = parseIntEnv("CORE_BACKEND_TIMEOUT_MS", 12000);
@@ -320,6 +322,8 @@ export const config = {
   iapAndroidPackageName,
   iapGoogleServiceAccountJsonB64,
   iapProductMonthly,
+  iapProductQuarterly,
+  iapProductSemiannual,
   iapProductYearly,
   iapProductLifetime,
   coreBackendTimeoutMs,

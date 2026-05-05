@@ -18,8 +18,9 @@ import {
   endConnection,
   getIosReceipt,
   getIapOffers,
-  purchaseLifetime,
   purchaseMonthly,
+  purchaseQuarterly,
+  purchaseSemiannual,
   purchaseYearly,
   restorePurchases as iapRestore,
   type IapOffer,
@@ -45,8 +46,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const SUPPORT_EMAIL = "support@antislot.app";
 const EMPTY_OFFERS: Record<PlanId, IapOffer | null> = {
   monthly: null,
+  quarterly: null,
+  semiannual: null,
   yearly: null,
-  lifetime: null,
 };
 const isPremiumFree = PREMIUM_FREE_FOR_NOW;
 
@@ -119,8 +121,9 @@ const COPY = {
     planCards: {
       plans: [
         { id: "monthly", label: "Aylik Premium", sublabel: "Esnek baslangic", fallbackPrice: "$8.99 / ay", valueNote: "Tum araclar acik", ctaLabel: "Ayligi baslat" },
+        { id: "quarterly", label: "3 Aylik Premium", sublabel: "90 gun odakli paket", fallbackPrice: "$22.99 / 3 ay", valueNote: "Dengeli fiyat, daha guclu rutin", ctaLabel: "3 ayligi sec" },
+        { id: "semiannual", label: "6 Aylik Premium", sublabel: "Yari yillik koruma", fallbackPrice: "$39.99 / 6 ay", valueNote: "Uzun sureli istikrar", ctaLabel: "6 ayligi sec" },
         { id: "yearly", label: "Yillik Premium", sublabel: "En iyi deger", badge: "En iyi deger", fallbackPrice: "$59.99 / yil", fallbackOriginalPrice: "$107.88 / yil", valueNote: "12 ay planli koruma", ctaLabel: "Yilligi sec", highlight: true },
-        { id: "lifetime", label: "Omur Boyu", sublabel: "Tek odeme", fallbackPrice: "$119.99 tek odeme", valueNote: "Kalici erisim", ctaLabel: "Omur boyu ac" },
       ] as const,
       activeLabel: "Premium aktif",
       comingSoonLabel: "Magaza baglantisi yok",
@@ -140,10 +143,7 @@ const COPY = {
       inactiveBadge: "Kapali",
       inactiveValue: "Premium erisimi kapali",
       inactiveHint: "Koruma seviyesini yukselterek ac.",
-      trialBadge: "Deneme",
-      trialValue: "Premium deneme aktif",
-      trialHint: (days: number) => `${days} gun deneme kaldi`,
-      planLabels: { subscription_monthly: "Aylik", subscription_yearly: "Yillik", lifetime: "Omur boyu", code: "Kod", admin: "Admin", trial: "Deneme" },
+      planLabels: { subscription_monthly: "1 Aylik", subscription_quarterly: "3 Aylik", subscription_semiannual: "6 Aylik", subscription_yearly: "Yillik", lifetime: "Omur boyu", code: "Kod", admin: "Admin" },
       activeFallbackLabel: "Aktif",
       activeValue: (plan: string) => `${plan} Premium aktif`,
       activeHintLifetime: "Bu hesapta premium kalici aktif.",
@@ -214,8 +214,9 @@ const COPY = {
     planCards: {
       plans: [
         { id: "monthly", label: "Monthly Premium", sublabel: "Flexible start", fallbackPrice: "$8.99 / month", valueNote: "All tools unlocked", ctaLabel: "Start monthly" },
+        { id: "quarterly", label: "3-Month Premium", sublabel: "90-day focused plan", fallbackPrice: "$22.99 / 3 months", valueNote: "Balanced pricing and stronger routine", ctaLabel: "Choose 3 months" },
+        { id: "semiannual", label: "6-Month Premium", sublabel: "Half-year protection", fallbackPrice: "$39.99 / 6 months", valueNote: "Longer-term consistency", ctaLabel: "Choose 6 months" },
         { id: "yearly", label: "Yearly Premium", sublabel: "Best value", badge: "Best value", fallbackPrice: "$59.99 / year", fallbackOriginalPrice: "$107.88 / year", valueNote: "12 months structured protection", ctaLabel: "Choose yearly", highlight: true },
-        { id: "lifetime", label: "Lifetime", sublabel: "One-time payment", fallbackPrice: "$119.99 one-time", valueNote: "Permanent access", ctaLabel: "Unlock lifetime" },
       ] as const,
       activeLabel: "Premium active",
       comingSoonLabel: "Store unavailable",
@@ -235,10 +236,7 @@ const COPY = {
       inactiveBadge: "Inactive",
       inactiveValue: "Premium is locked",
       inactiveHint: "Upgrade your protection level.",
-      trialBadge: "Trial",
-      trialValue: "Premium trial active",
-      trialHint: (days: number) => `${days} days of trial left`,
-      planLabels: { subscription_monthly: "Monthly", subscription_yearly: "Yearly", lifetime: "Lifetime", code: "Code", admin: "Admin", trial: "Trial" },
+      planLabels: { subscription_monthly: "1 Month", subscription_quarterly: "3 Months", subscription_semiannual: "6 Months", subscription_yearly: "Yearly", lifetime: "Lifetime", code: "Code", admin: "Admin" },
       activeFallbackLabel: "Active",
       activeValue: (plan: string) => `${plan} Premium active`,
       activeHintLifetime: "This account has permanent premium access.",
@@ -253,8 +251,9 @@ const COPY = {
 
 function resolvePlanId(source: string | null | undefined): PlanId | null {
   if (source === "subscription_monthly") return "monthly";
+  if (source === "subscription_quarterly") return "quarterly";
+  if (source === "subscription_semiannual") return "semiannual";
   if (source === "subscription_yearly") return "yearly";
-  if (source === "lifetime") return "lifetime";
   return null;
 }
 
@@ -565,8 +564,9 @@ export default function PremiumScreen() {
                 isPremiumActive={!!isPremiumActive}
                 activePlanId={activePlanId}
                 onMonthly={() => handlePurchase("monthly", purchaseMonthly)}
+                onQuarterly={() => handlePurchase("quarterly", purchaseQuarterly)}
+                onSemiannual={() => handlePurchase("semiannual", purchaseSemiannual)}
                 onYearly={() => handlePurchase("yearly", purchaseYearly)}
-                onLifetime={() => handlePurchase("lifetime", purchaseLifetime)}
                 plans={planItems}
                 activeLabel={copy.planCards.activeLabel}
                 selectLabel={copy.planCards.selectLabel}

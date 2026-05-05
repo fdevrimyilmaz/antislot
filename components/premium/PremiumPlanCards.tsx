@@ -4,7 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export type PlanId = "monthly" | "yearly" | "lifetime";
+export type PlanId = "monthly" | "quarterly" | "semiannual" | "yearly";
 
 export type PlanItem = {
   id: PlanId;
@@ -28,6 +28,18 @@ const DEFAULT_PLANS: PlanItem[] = [
     ctaLabel: "Start Monthly",
   },
   {
+    id: "quarterly",
+    label: "3-Month Premium",
+    sublabel: "Stay consistent for 90 days",
+    ctaLabel: "Choose 3 Months",
+  },
+  {
+    id: "semiannual",
+    label: "6-Month Premium",
+    sublabel: "Half-year structured protection",
+    ctaLabel: "Choose 6 Months",
+  },
+  {
     id: "yearly",
     label: "Yearly Premium",
     sublabel: "Best value for consistent recovery",
@@ -35,20 +47,15 @@ const DEFAULT_PLANS: PlanItem[] = [
     ctaLabel: "Choose Yearly",
     highlight: true,
   },
-  {
-    id: "lifetime",
-    label: "Lifetime Access",
-    sublabel: "Single payment, long-term safety",
-    ctaLabel: "Unlock Lifetime",
-  },
 ];
 
 type PremiumPlanCardsProps = {
   isPremiumActive: boolean;
   activePlanId?: PlanId | null;
   onMonthly: () => void;
+  onQuarterly: () => void;
+  onSemiannual: () => void;
   onYearly: () => void;
-  onLifetime: () => void;
   plans?: PlanItem[];
   activeLabel?: string;
   selectLabel?: string;
@@ -59,8 +66,9 @@ export function PremiumPlanCards({
   isPremiumActive,
   activePlanId = null,
   onMonthly,
+  onQuarterly,
+  onSemiannual,
   onYearly,
-  onLifetime,
   plans = DEFAULT_PLANS,
   activeLabel = "Premium Active",
   selectLabel = "Choose Plan",
@@ -70,8 +78,9 @@ export function PremiumPlanCards({
 
   const handlers: Record<PlanId, () => void> = {
     monthly: onMonthly,
+    quarterly: onQuarterly,
+    semiannual: onSemiannual,
     yearly: onYearly,
-    lifetime: onLifetime,
   };
 
   return (

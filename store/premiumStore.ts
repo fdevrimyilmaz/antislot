@@ -46,8 +46,9 @@ function toNumber(value: unknown): number | null {
 function toSource(value: unknown): PremiumState["source"] {
   if (value === "none") return null;
   if (
-    value === "trial" ||
     value === "subscription_monthly" ||
+    value === "subscription_quarterly" ||
+    value === "subscription_semiannual" ||
     value === "subscription_yearly" ||
     value === "lifetime" ||
     value === "code" ||
@@ -81,7 +82,7 @@ function normalizePremiumState(input: unknown): PremiumState {
     return { ...DEFAULT_PREMIUM_STATE, lastSync };
   }
 
-  if (source === "trial" && trialEndsAt && Date.now() > trialEndsAt) {
+  if (!source) {
     return { ...DEFAULT_PREMIUM_STATE, lastSync };
   }
 
@@ -111,14 +112,14 @@ async function readPersistedState(): Promise<PremiumState> {
   }
 }
 
-function buildActiveLocalState(source: PremiumState["source"], trialEndsAt: number | null = null): PremiumState {
+function buildActiveLocalState(source: PremiumState["source"]): PremiumState {
   const now = Date.now();
   return {
     isActive: true,
     source: source ?? "code",
     startedAt: now,
-    expiresAt: source === "trial" ? trialEndsAt : null,
-    trialEndsAt: source === "trial" ? trialEndsAt : null,
+    expiresAt: null,
+    trialEndsAt: null,
     features: [...ALL_PREMIUM_FEATURES],
     lastSync: now,
   };
@@ -266,19 +267,12 @@ export async function getPremiumState(): Promise<PremiumState> {
   return usePremiumStore.getState().state;
 }
 
-export async function startTrial(days = 7): Promise<PremiumState> {
-  const now = Date.now();
-  const trialEndsAt = now + days * 24 * 60 * 60 * 1000;
-  const next = buildActiveLocalState("trial", trialEndsAt);
-  return applyStoreState(next);
-}
-
 export async function setPremiumActive(source: PremiumSource = "code"): Promise<PremiumState> {
   if (source === "none" || source === null) {
     return clearPremium();
   }
   const safeSource = toSource(source) ?? "code";
-  const next = buildActiveLocalState(safeSource, null);
+  const next = buildActiveLocalState(safeSource);
   return applyStoreState(next);
 }
 

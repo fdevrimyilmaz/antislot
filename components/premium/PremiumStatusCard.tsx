@@ -5,7 +5,6 @@ import { StyleSheet, Text, View } from "react-native";
 
 const STATUS_TONES = {
   active: { background: "#D1FADF", text: "#027A48" },
-  trial: { background: "#FEF0C7", text: "#B54708" },
   inactive: { background: "#FEE4E2", text: "#B42318" },
   neutral: { background: "#F2F4F7", text: "#667085" },
 } as const;
@@ -28,9 +27,6 @@ type PremiumStatusCardProps = {
   inactiveBadge?: string;
   inactiveValue?: string;
   inactiveHint?: string;
-  trialBadge?: string;
-  trialValue?: string;
-  trialHint?: (days: number) => string;
   planLabels?: Partial<Record<PremiumSource, string>>;
   activeFallbackLabel?: string;
   activeValue?: (planLabel: string) => string;
@@ -57,9 +53,6 @@ export function PremiumStatusCard({
   inactiveBadge = "Kapalı",
   inactiveValue = "Premium erişimi kapalı",
   inactiveHint = "Koruma seviyesini yükselt - kilidi aç.",
-  trialBadge = "Deneme",
-  trialValue = "Premium deneme aktif",
-  trialHint = (days) => `${days} gün deneme kaldı`,
   planLabels,
   activeFallbackLabel = "Aktif",
   activeValue = (planLabel) => `${planLabel} Premium aktif`,
@@ -69,11 +62,12 @@ export function PremiumStatusCard({
 }: PremiumStatusCardProps) {
   const defaultPlanLabels: Record<PremiumSource, string> = {
     subscription_monthly: "Aylık",
+    subscription_quarterly: "3 Aylık",
+    subscription_semiannual: "6 Aylık",
     subscription_yearly: "Yıllık",
     lifetime: "Süresiz",
     code: "Kod",
     admin: "Admin",
-    trial: "Deneme",
   };
   const resolvedPlanLabels = { ...defaultPlanLabels, ...planLabels };
 
@@ -102,16 +96,6 @@ export function PremiumStatusCard({
         value: inactiveValue,
         hint: inactiveHint,
         tone: "inactive" as const,
-      };
-    }
-
-    if (state.source === "trial" && state.trialEndsAt) {
-      const days = Math.max(0, Math.ceil((state.trialEndsAt - Date.now()) / (1000 * 60 * 60 * 24)));
-      return {
-        badge: trialBadge,
-        value: trialValue,
-        hint: trialHint(days),
-        tone: "trial" as const,
       };
     }
 

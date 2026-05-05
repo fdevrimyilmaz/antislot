@@ -34,12 +34,13 @@ export type IapDiagnostics = {
   message?: string;
 };
 
-export type IapPlanId = "monthly" | "yearly" | "lifetime";
+export type IapPlanId = "monthly" | "quarterly" | "semiannual" | "yearly";
 
 export const PRODUCT_IDS = {
   monthly: "antislot_premium_monthly",
+  quarterly: "antislot_premium_quarterly",
+  semiannual: "antislot_premium_semiannual",
   yearly: "antislot_premium_yearly",
-  lifetime: "antislot_premium_lifetime",
 } as const;
 
 export type IapOffer = {
@@ -60,17 +61,19 @@ export type IapOffersResult = {
   message?: string;
 };
 
-const SUBSCRIPTION_IDS = [PRODUCT_IDS.monthly, PRODUCT_IDS.yearly];
-const PRODUCT_IDS_LIST = [PRODUCT_IDS.lifetime];
+const SUBSCRIPTION_IDS = [PRODUCT_IDS.monthly, PRODUCT_IDS.quarterly, PRODUCT_IDS.semiannual, PRODUCT_IDS.yearly];
+const PRODUCT_IDS_LIST: string[] = [];
 const PLAN_BY_SKU: Record<string, IapPlanId> = {
   [PRODUCT_IDS.monthly]: "monthly",
+  [PRODUCT_IDS.quarterly]: "quarterly",
+  [PRODUCT_IDS.semiannual]: "semiannual",
   [PRODUCT_IDS.yearly]: "yearly",
-  [PRODUCT_IDS.lifetime]: "lifetime",
 };
 const EMPTY_OFFERS: Record<IapPlanId, IapOffer | null> = {
   monthly: null,
+  quarterly: null,
+  semiannual: null,
   yearly: null,
-  lifetime: null,
 };
 
 let connectionReady = false;
@@ -253,9 +256,15 @@ async function fetchProducts(): Promise<IapResult> {
     };
 
     if (typeof iapAny.fetchProducts === "function") {
+      const subsPromise = SUBSCRIPTION_IDS.length > 0
+        ? iapAny.fetchProducts({ skus: SUBSCRIPTION_IDS, type: "subs" })
+        : Promise.resolve([]);
+      const productsPromise = PRODUCT_IDS_LIST.length > 0
+        ? iapAny.fetchProducts({ skus: PRODUCT_IDS_LIST, type: "in-app" })
+        : Promise.resolve([]);
       const [subsResult, productsResult] = await Promise.all([
-        iapAny.fetchProducts({ skus: SUBSCRIPTION_IDS, type: "subs" }),
-        iapAny.fetchProducts({ skus: PRODUCT_IDS_LIST, type: "in-app" }),
+        subsPromise,
+        productsPromise,
       ]);
       subscriptions = Array.isArray(subsResult) ? subsResult : [];
       products = Array.isArray(productsResult) ? productsResult : [];
@@ -270,7 +279,7 @@ async function fetchProducts(): Promise<IapResult> {
         }
       }
 
-      if (typeof iapAny.getProducts === "function") {
+      if (typeof iapAny.getProducts === "function" && PRODUCT_IDS_LIST.length > 0) {
         try {
           products = await (iapAny as { getProducts: (arg: { skus: string[] }) => Promise<unknown[]> })
             .getProducts({ skus: PRODUCT_IDS_LIST });
@@ -522,12 +531,16 @@ export async function purchaseMonthly(): Promise<IapResult> {
   return purchaseSku(PRODUCT_IDS.monthly, "subscription");
 }
 
-export async function purchaseYearly(): Promise<IapResult> {
-  return purchaseSku(PRODUCT_IDS.yearly, "subscription");
+export async function purchaseQuarterly(): Promise<IapResult> {
+  return purchaseSku(PRODUCT_IDS.quarterly, "subscription");
 }
 
-export async function purchaseLifetime(): Promise<IapResult> {
-  return purchaseSku(PRODUCT_IDS.lifetime, "product");
+export async function purchaseSemiannual(): Promise<IapResult> {
+  return purchaseSku(PRODUCT_IDS.semiannual, "subscription");
+}
+
+export async function purchaseYearly(): Promise<IapResult> {
+  return purchaseSku(PRODUCT_IDS.yearly, "subscription");
 }
 
 export async function restorePurchases(): Promise<IapResult> {
