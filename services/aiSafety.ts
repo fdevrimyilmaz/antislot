@@ -201,9 +201,6 @@ function normalizeSafetyLocale(locale?: SafetyLocale): SupportedLocale {
   return resolveUiLanguage(locale as SupportedLanguage);
 }
 
-const getLocaleConfig = (locale?: SafetyLocale): LocaleConfig =>
-  LOCALE_CONFIG[normalizeSafetyLocale(locale)] ?? LOCALE_CONFIG[DEFAULT_LOCALE];
-
 const normalizeText = (text: string, localeConfig: LocaleConfig): string =>
   text.trim().toLocaleLowerCase(localeConfig.normalizeLocale);
 
@@ -248,6 +245,9 @@ const buildRegenerationHint = (locale: SupportedLocale): string =>
   locale === "tr"
     ? "Onceden verdigin cevabi tekrar etme. Bu sefer daha farkli, daha somut ve yeni 3 adim ver."
     : "Do not repeat the previous reply. Give a clearly different answer with 3 new practical steps.";
+
+const prefersDirectGemini = (): boolean =>
+  (process.env.EXPO_PUBLIC_AI_DIRECT_FIRST || "").trim().toLowerCase() === "true";
 
 const summarizeFocus = (text: string): string => {
   const compact = text.replace(/\s+/g, " ").trim();
@@ -374,7 +374,7 @@ async function requestGeminiDirect(
       }
 
       const reply = (data?.candidates ?? [])
-        .flatMap((candidate: { content?: { parts?: Array<{ text?: string }> } }) =>
+        .flatMap((candidate: { content?: { parts?: { text?: string }[] } }) =>
           candidate?.content?.parts ?? []
         )
         .map((part: { text?: string }) => part.text || "")
@@ -485,24 +485,42 @@ export async function safeAiReply(
   const coachingContext = buildChatCoachingContext(trimmed, locale, flags);
 
   let reply: string;
-  try {
-    reply = await postChatWithContext(
-      [
-        ...history,
-        { role: "user", content: trimmed },
-      ],
-      coachingContext,
-      { signal: context?.signal }
-    );
-  } catch {
+  const remotePayload: { role: "user" | "assistant"; content: string }[] = [
+    ...history,
+    { role: "user", content: trimmed },
+  ];
+
+  if (prefersDirectGemini()) {
     try {
       reply = await requestGeminiDirect(localeConfig, history, trimmed, context?.signal);
     } catch {
-      return {
-        text: buildLocalCoachReply(trimmed, flags, locale, localeConfig.normalizeLocale),
-        flags,
-        source: "local_fallback",
-      };
+      try {
+        reply = await postChatWithContext(remotePayload, coachingContext, {
+          signal: context?.signal,
+        });
+      } catch {
+        return {
+          text: buildLocalCoachReply(trimmed, flags, locale, localeConfig.normalizeLocale),
+          flags,
+          source: "local_fallback",
+        };
+      }
+    }
+  } else {
+    try {
+      reply = await postChatWithContext(remotePayload, coachingContext, {
+        signal: context?.signal,
+      });
+    } catch {
+      try {
+        reply = await requestGeminiDirect(localeConfig, history, trimmed, context?.signal);
+      } catch {
+        return {
+          text: buildLocalCoachReply(trimmed, flags, locale, localeConfig.normalizeLocale),
+          flags,
+          source: "local_fallback",
+        };
+      }
     }
   }
 

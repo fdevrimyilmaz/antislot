@@ -17,6 +17,7 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.antislot.app",
+        "EXPO_PUBLIC_AI_DIRECT_FIRST": "true",
         "EXPO_PUBLIC_SENTRY_ENV": "staging",
         "EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW": "false"
       }
@@ -30,6 +31,7 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.antislot.app",
+        "EXPO_PUBLIC_AI_DIRECT_FIRST": "true",
         "EXPO_PUBLIC_SENTRY_ENV": "production",
         "EXPO_PUBLIC_PREMIUM_FREE_FOR_NOW": "false",
         "EXPO_PUBLIC_ENABLE_IAP": "true",

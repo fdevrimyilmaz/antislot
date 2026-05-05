@@ -407,14 +407,7 @@ export default function AiScreen() {
         ]);
         return;
       }
-
-      if (!hasAiFeature && messagesToday >= FREE_DAILY_LIMIT) {
-        Alert.alert(copy.limitTitle, copy.limitDescription, [
-          { text: copy.close, style: "cancel" },
-          { text: copy.unlock, onPress: () => router.push("/premium") },
-        ]);
-        return;
-      }
+      const freeLimitReached = !hasAiFeature && messagesToday >= FREE_DAILY_LIMIT;
 
       const createdAt = Date.now();
       const userMessage: AiMessage = {
@@ -435,6 +428,22 @@ export default function AiScreen() {
       try {
         await runProactiveIntervention(content);
         await saveAiMessages(nextMessages);
+
+        if (freeLimitReached) {
+          if (mountedRef.current) {
+            setSafetyNotice(copy.limitDescription);
+          }
+
+          const replyAt = Date.now();
+          const assistantMessage: AiMessage = {
+            id: `${replyAt}-assistant`,
+            role: "assistant",
+            content: copy.fallbackReply,
+            createdAt: replyAt,
+          };
+          await persistMessages([...nextMessages, assistantMessage]);
+          return;
+        }
 
         const usage = await incrementAiUsage();
         if (mountedRef.current) {
@@ -482,7 +491,6 @@ export default function AiScreen() {
       copy.connectionError,
       copy.fallbackReply,
       copy.limitDescription,
-      copy.limitTitle,
       copy.localFallbackNotice,
       copy.premiumLockedDescription,
       copy.premiumLockedTitle,

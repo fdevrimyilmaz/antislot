@@ -59,7 +59,7 @@ export async function postChat(messages: ChatMessage[], options?: PostChatOption
       signal: options?.signal,
     },
     {
-      retries: 1,
+      retries: 0,
       timeoutMs: 15000,
       signal: options?.signal,
       context: "POST /v1/chat",
@@ -98,7 +98,7 @@ export async function postChatWithContext(
       signal: options?.signal,
     },
     {
-      retries: 1,
+      retries: 0,
       timeoutMs: 15000,
       signal: options?.signal,
       context: "POST /v1/chat",
