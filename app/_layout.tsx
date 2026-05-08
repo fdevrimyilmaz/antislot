@@ -191,6 +191,8 @@ function RootLayoutContent() {
               contentStyle: { backgroundColor: APP_BG, opacity: 1 },
               // Prevent iOS background dimming when opening screens
               gestureEnabled: true,
+              // Avoid showing route-segment names like "(tabs)" in iOS back labels.
+              headerBackButtonDisplayMode: 'minimal',
               // Keep card-style presentation to avoid default modal dim overlay
               ...(Platform.OS === 'ios' && {
                 presentation: 'card',
@@ -238,6 +240,69 @@ function RootLayoutContent() {
                 headerShown: false,
                 presentation: 'card',
               }} 
+            />
+            <Stack.Screen
+              name="progress"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="diary"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="blocker"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="sos"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="support"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="mindfulness"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="facts"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="sms-filter"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
+              name="native-modules-test"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
             />
             <Stack.Screen
               name="privacy"

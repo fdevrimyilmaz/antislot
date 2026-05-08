@@ -5,8 +5,8 @@
 
 export const PRODUCT_IDS = {
   monthly: "antislot_premium_monthly",
-  quarterly: "antislot_premium_quarterly",
-  semiannual: "antislot_premium_semiannual",
+  quarterly: "antislot_premium_3m",
+  semiannual: "antislot_premium_6m",
   yearly: "antislot_premium_yearly",
 } as const;
 
