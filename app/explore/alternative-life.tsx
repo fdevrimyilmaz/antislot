@@ -3,7 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ScenarioId = "education" | "security" | "health" | "relationships";
@@ -13,6 +13,7 @@ type TriggerIntensity = 1 | 2 | 3;
 type AllocationMap = Record<ScenarioId, number>;
 type ChecklistMap = Record<string, boolean>;
 type WeeklyPlanMap = Record<WeekdayId, boolean>;
+type WeeklyMissionChecks = Record<string, boolean>;
 type TriggerEntry = {
   id: string;
   label: string;
@@ -46,6 +47,7 @@ type StoredAlternativeLifeState = {
   riskWindow?: RiskWindowId;
   checkInCount?: number;
   lastCheckInAt?: number | null;
+  weeklyMissionChecks?: WeeklyMissionChecks;
   triggerDraft?: string;
   triggerIntensity?: number;
   triggerLogs?: TriggerEntry[];
@@ -239,6 +241,7 @@ export default function AlternativeLifeScreen() {
   const [riskWindow, setRiskWindow] = useState<RiskWindowId>(DEFAULT_RISK_WINDOW);
   const [checkInCount, setCheckInCount] = useState(0);
   const [lastCheckInAt, setLastCheckInAt] = useState<number | null>(null);
+  const [weeklyMissionChecks, setWeeklyMissionChecks] = useState<WeeklyMissionChecks>({});
   const [triggerDraft, setTriggerDraft] = useState("");
   const [triggerIntensity, setTriggerIntensity] = useState<TriggerIntensity>(2);
   const [triggerLogs, setTriggerLogs] = useState<TriggerEntry[]>([]);
@@ -281,6 +284,9 @@ export default function AlternativeLifeScreen() {
         }
         if (typeof parsed.checkInCount === "number" && Number.isFinite(parsed.checkInCount) && parsed.checkInCount >= 0) {
           setCheckInCount(Math.floor(parsed.checkInCount));
+        }
+        if (parsed.weeklyMissionChecks && typeof parsed.weeklyMissionChecks === "object") {
+          setWeeklyMissionChecks(parsed.weeklyMissionChecks);
         }
         setTriggerLogs(normalizeTriggerLogs(parsed.triggerLogs));
         if (typeof parsed.triggerDraft === "string") {
@@ -357,6 +363,7 @@ export default function AlternativeLifeScreen() {
             riskWindow,
             checkInCount,
             lastCheckInAt,
+            weeklyMissionChecks,
             triggerDraft,
             triggerIntensity,
             triggerLogs,
@@ -391,6 +398,7 @@ export default function AlternativeLifeScreen() {
     riskWindow,
     checkInCount,
     lastCheckInAt,
+    weeklyMissionChecks,
     triggerDraft,
     triggerIntensity,
     triggerLogs,
@@ -515,6 +523,44 @@ export default function AlternativeLifeScreen() {
   );
 
   const selectedRiskWindow = riskWindowOptions.find((option) => option.id === riskWindow) ?? riskWindowOptions[3];
+  const weeklyMissions = useMemo(() => {
+    const activeDays = WEEKDAY_IDS.filter((dayId) => weeklyPlan[dayId]);
+    const scenarioSteps = isTr ? primaryScenario.planTr : primaryScenario.planEn;
+    const scenarioTitle = isTr ? primaryScenario.titleTr : primaryScenario.titleEn;
+
+    return activeDays.map((dayId, index) => {
+      const scenarioStep = scenarioSteps[index % scenarioSteps.length] ?? selectedRiskWindow.action;
+      const action = index % 2 === 0 ? selectedRiskWindow.action : scenarioStep;
+      const id = `${dayId}:${riskWindow}:${primaryScenario.id}:${index}`;
+      return {
+        id,
+        dayLabel: weekDayLabels[dayId],
+        title: isTr
+          ? `${weekDayLabels[dayId]} mikro gorev - ${scenarioTitle}`
+          : `${weekDayLabels[dayId]} micro mission - ${scenarioTitle}`,
+        action,
+      };
+    });
+  }, [
+    isTr,
+    primaryScenario.id,
+    primaryScenario.planEn,
+    primaryScenario.planTr,
+    primaryScenario.titleEn,
+    primaryScenario.titleTr,
+    riskWindow,
+    selectedRiskWindow.action,
+    weekDayLabels,
+    weeklyPlan,
+  ]);
+
+  const weeklyMissionCompletedCount = weeklyMissions.reduce(
+    (count, mission) => count + (weeklyMissionChecks[mission.id] ? 1 : 0),
+    0
+  );
+  const weeklyMissionRatio =
+    weeklyMissions.length > 0 ? weeklyMissionCompletedCount / weeklyMissions.length : 0;
+
   const unresolvedTriggerCount = triggerLogs.filter((entry) => !entry.resolved).length;
   const avgTriggerIntensity = triggerLogs.length
     ? Math.round((triggerLogs.reduce((sum, entry) => sum + entry.intensity, 0) / triggerLogs.length) * 10) / 10
@@ -762,6 +808,64 @@ export default function AlternativeLifeScreen() {
       : "Plan is balanced. Next key move: complete this week tasks.";
   }, [allocatedAmount, budget, isTr, months, remainingAllocationPercent]);
 
+  const planShareText = useMemo(() => {
+    const weeklySummary =
+      weeklyMissions.length > 0
+        ? weeklyMissions.map((mission) => `- ${mission.dayLabel}: ${mission.action}`).join("\n")
+        : isTr
+          ? "- Haftalik aktif gun secilmedi"
+          : "- No active weekly days selected";
+    const motivationSummary =
+      motivationNote.trim().length > 0
+        ? motivationNote.trim()
+        : isTr
+          ? "Kumarsiz guvenli hayat secimi"
+          : "No-gambling safety choice";
+
+    if (isTr) {
+      return [
+        "AntiSlot Alternatif Hayat Ozeti",
+        `Butce: ${formatMoney(budget)}`,
+        `Sure: ${months} ay`,
+        `Birincil alan: ${primaryScenario.titleTr}`,
+        `Haftalik gorev tamamlama: ${weeklyMissionCompletedCount}/${weeklyMissions.length}`,
+        `Toparlanma skoru: ${recoveryScore}`,
+        `Disiplin skoru: ${disciplineScore}`,
+        `Tetikleyici baski skoru: ${triggerPressureScore}`,
+        `Motivasyon notu: ${motivationSummary}`,
+        "Haftalik mikro gorevler:",
+        weeklySummary,
+      ].join("\n");
+    }
+
+    return [
+      "AntiSlot Alternative Life Summary",
+      `Budget: ${formatMoney(budget)}`,
+      `Timeline: ${months} months`,
+      `Primary area: ${primaryScenario.titleEn}`,
+      `Weekly mission completion: ${weeklyMissionCompletedCount}/${weeklyMissions.length}`,
+      `Recovery score: ${recoveryScore}`,
+      `Discipline score: ${disciplineScore}`,
+      `Trigger pressure score: ${triggerPressureScore}`,
+      `Motivation note: ${motivationSummary}`,
+      "Weekly micro missions:",
+      weeklySummary,
+    ].join("\n");
+  }, [
+    budget,
+    disciplineScore,
+    formatMoney,
+    isTr,
+    months,
+    motivationNote,
+    primaryScenario.titleEn,
+    primaryScenario.titleTr,
+    recoveryScore,
+    triggerPressureScore,
+    weeklyMissionCompletedCount,
+    weeklyMissions,
+  ]);
+
   const setBudgetFromNumber = (value: number) => {
     const next = clampBudget(value);
     setBudget(next);
@@ -795,6 +899,33 @@ export default function AlternativeLifeScreen() {
 
   const toggleWeekday = (id: WeekdayId) => {
     setWeeklyPlan((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleWeeklyMission = (missionId: string) => {
+    setWeeklyMissionChecks((prev) => ({ ...prev, [missionId]: !prev[missionId] }));
+  };
+
+  const resetWeeklyMissions = () => {
+    if (weeklyMissions.length === 0) return;
+    const keys = new Set(weeklyMissions.map((mission) => mission.id));
+    setWeeklyMissionChecks((prev) => {
+      const next: WeeklyMissionChecks = {};
+      for (const [key, value] of Object.entries(prev)) {
+        if (!keys.has(key)) next[key] = value;
+      }
+      return next;
+    });
+  };
+
+  const sharePlanSummary = async () => {
+    try {
+      await Share.share({ message: planShareText });
+    } catch {
+      Alert.alert(
+        isTr ? "Paylasim basarisiz" : "Share failed",
+        isTr ? "Plan ozeti paylasilamadi." : "Plan summary could not be shared."
+      );
+    }
   };
 
   const setMotivationTemplate = (value: string) => {
@@ -885,6 +1016,7 @@ export default function AlternativeLifeScreen() {
             setRiskWindow(DEFAULT_RISK_WINDOW);
             setCheckInCount(0);
             setLastCheckInAt(null);
+            setWeeklyMissionChecks({});
             setTriggerDraft("");
             setTriggerIntensity(2);
             setTriggerLogs([]);
@@ -1217,6 +1349,81 @@ export default function AlternativeLifeScreen() {
               {isTr ? "Otomatik aksiyon" : "Auto action"}
             </Text>
             <Text style={[styles.metricPillValue, { color: colors.text }]}>{selectedRiskWindow.action}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {isTr ? "Haftalik mikro gorev otomasyonu" : "Weekly micro mission automation"}
+          </Text>
+          <Text style={[styles.commitmentText, { color: colors.textSecondary }]}>
+            {isTr
+              ? "Secili gunler icin otomatik gorevler olusturulur. Tamamladikca ritim puanin guclenir."
+              : "Auto missions are created for selected days. Completion strengthens your rhythm score."}
+          </Text>
+
+          <View style={[styles.progressTrack, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <View style={[styles.progressFill, { backgroundColor: colors.primary, width: `${weeklyMissionRatio * 100}%` }]} />
+          </View>
+          <Text style={[styles.progressMeta, { color: colors.textSecondary }]}>
+            {isTr
+              ? `${weeklyMissionCompletedCount}/${weeklyMissions.length} mikro gorev tamamlandi`
+              : `${weeklyMissionCompletedCount}/${weeklyMissions.length} micro missions completed`}
+          </Text>
+
+          {weeklyMissions.length === 0 ? (
+            <Text style={[styles.progressMeta, { color: colors.textSecondary }]}>
+              {isTr
+                ? "Mikro gorev olusmasi icin once haftalik aktif gun sec."
+                : "Select active weekly days first to generate micro missions."}
+            </Text>
+          ) : (
+            <View style={styles.missionList}>
+              {weeklyMissions.map((mission) => {
+                const done = Boolean(weeklyMissionChecks[mission.id]);
+                return (
+                  <TouchableOpacity
+                    key={mission.id}
+                    style={[styles.missionItem, { borderColor: colors.border, backgroundColor: colors.background }]}
+                    onPress={() => toggleWeeklyMission(mission.id)}
+                  >
+                    <View style={styles.missionTop}>
+                      <View
+                        style={[
+                          styles.missionDayChip,
+                          done
+                            ? { borderColor: colors.primary, backgroundColor: colors.primary }
+                            : { borderColor: colors.border, backgroundColor: colors.card },
+                        ]}
+                      >
+                        <Text style={[styles.missionDayText, { color: done ? "#FFFFFF" : colors.textSecondary }]}>
+                          {mission.dayLabel}
+                        </Text>
+                      </View>
+                      <Text style={[styles.missionTitle, { color: colors.text }]}>{mission.title}</Text>
+                    </View>
+                    <Text style={[styles.missionAction, { color: colors.textSecondary }]}>{mission.action}</Text>
+                    <Text style={[styles.progressMeta, { color: done ? colors.primary : colors.textSecondary, marginBottom: 0 }]}>
+                      {done ? (isTr ? "Durum: Tamamlandi" : "Status: Completed") : isTr ? "Durum: Bekliyor" : "Status: Pending"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <View style={styles.commitmentActions}>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={sharePlanSummary}>
+              <Text style={styles.primaryBtnText}>{isTr ? "Plani paylas" : "Share plan"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+              onPress={resetWeeklyMissions}
+            >
+              <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>
+                {isTr ? "Gorevleri sifirla" : "Reset missions"}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -1783,6 +1990,44 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     paddingHorizontal: 10,
     paddingVertical: 10,
+  },
+  missionList: {
+    gap: 8,
+    marginBottom: 10,
+  },
+  missionItem: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  missionTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  missionDayChip: {
+    borderWidth: 1,
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  missionDayText: {
+    fontSize: 10,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  missionTitle: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  missionAction: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: Fonts.body,
+    marginBottom: 6,
   },
   sprintList: {
     gap: 8,

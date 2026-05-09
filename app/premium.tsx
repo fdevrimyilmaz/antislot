@@ -23,6 +23,7 @@ import {
   purchaseSemiannual,
   purchaseYearly,
   restorePurchases as iapRestore,
+  type IapCode,
   type IapOffer,
   type IapResult,
 } from "@/services/iap";
@@ -30,7 +31,7 @@ import { activatePremium } from "@/services/premiumApi";
 import { usePremiumStore } from "@/store/premiumStore";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, type Href } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Linking,
@@ -96,6 +97,8 @@ const COPY = {
     restoreNotFound: "Geri yuklenecek satin alim bulunamadi.",
     restoreSuccess: "Satin alimlar geri yuklendi.",
     restoreNoVerifiable: "Dogrulanabilir satin alim bulunamadi.",
+    networkFailed:
+      "Sunucu baglantisi kurulamadi. API adresini ve internet baglantini kontrol edip tekrar dene.",
     premiumActiveTitle: "Premium aktif",
     premiumActiveBody: "Erisim kodu dogrulandi.",
     invalidCodeTitle: "Gecersiz kod",
@@ -189,6 +192,8 @@ const COPY = {
     restoreNotFound: "No purchases found.",
     restoreSuccess: "Purchases restored.",
     restoreNoVerifiable: "No verifiable purchase found.",
+    networkFailed:
+      "Unable to reach server. Check API URL and your internet connection, then try again.",
     premiumActiveTitle: "Premium active",
     premiumActiveBody: "Access code verified.",
     invalidCodeTitle: "Invalid code",
@@ -283,6 +288,28 @@ function formatMicrosCurrency(micros: number, currency: string, locale: string):
   }
 }
 
+function toFriendlyErrorMessage(
+  error: unknown,
+  fallback: string,
+  networkFallback: string
+): string {
+  const raw = error instanceof Error ? error.message.trim() : String(error ?? "").trim();
+  if (!raw) return fallback;
+
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("network request failed") ||
+    lower.includes("failed to fetch") ||
+    lower.includes("fetch failed") ||
+    lower.includes("request_aborted") ||
+    lower.includes("aborterror")
+  ) {
+    return networkFallback;
+  }
+
+  return raw;
+}
+
 export default function PremiumScreen() {
   const router = useRouter();
   const canGoBack = typeof router.canGoBack === "function" ? router.canGoBack() : false;
@@ -297,6 +324,24 @@ export default function PremiumScreen() {
   const clearPremium = usePremiumStore((s) => s.clearPremium);
 
   const [iapOffers, setIapOffers] = useState<Record<PlanId, IapOffer | null>>(EMPTY_OFFERS);
+  const [iapOfferError, setIapOfferError] = useState<{ code: IapCode | null; message: string | null }>({
+    code: null,
+    message: null,
+  });
+
+  const loadIapOffers = useCallback(async () => {
+    const offers = await getIapOffers(true);
+    if (offers.ok) {
+      setIapOffers(offers.offers);
+      setIapOfferError({ code: null, message: null });
+      return;
+    }
+    setIapOffers({ ...EMPTY_OFFERS });
+    setIapOfferError({
+      code: offers.code ?? null,
+      message: offers.message ?? null,
+    });
+  }, []);
 
   useEffect(() => {
     hydrate();
@@ -304,23 +349,14 @@ export default function PremiumScreen() {
 
   useEffect(() => {
     if (isPremiumFree) return;
-    let active = true;
     attachIapLifecycle();
-
-    const loadIap = async () => {
-      const offers = await getIapOffers(true);
-      if (!active) return;
-      setIapOffers(offers.ok ? offers.offers : { ...EMPTY_OFFERS });
-    };
-
-    loadIap();
+    loadIapOffers().catch(() => {});
 
     return () => {
-      active = false;
       detachIapLifecycle();
       endConnection().catch(() => {});
     };
-  }, []);
+  }, [loadIapOffers]);
 
   const activePlanId = resolvePlanId(premiumState.source);
 
@@ -343,6 +379,17 @@ export default function PremiumScreen() {
   }, [iapOffers.monthly, iapOffers.yearly, locale]);
 
   const planItems = useMemo(() => {
+    const unavailableLabel =
+      iapOfferError.code === "disabled"
+        ? copy.iapDisabled
+        : copy.planCards.comingSoonLabel;
+    const unavailableSubLabel =
+      iapOfferError.code === "disabled"
+        ? copy.iapDisabled
+        : iapOfferError.code === "not_ready"
+          ? copy.storeNotReady
+          : copy.planCards.comingSoonSubLabel;
+
     return copy.planCards.plans.map((plan) => {
       const resolvedPlan = plan as {
         id: PlanId;
@@ -368,9 +415,9 @@ export default function PremiumScreen() {
       }
 
       if (!storeOfferReady) {
-        badge = copy.planCards.comingSoonLabel;
-        valueNote = copy.planCards.comingSoonSubLabel;
-        ctaLabel = copy.planCards.comingSoonLabel;
+        badge = unavailableLabel;
+        valueNote = unavailableSubLabel;
+        ctaLabel = unavailableLabel;
         disabled = true;
       }
 
@@ -385,10 +432,10 @@ export default function PremiumScreen() {
         ctaLabel,
         highlight: !!resolvedPlan.highlight,
         disabled,
-        disabledLabel: copy.planCards.comingSoonSubLabel,
+        disabledLabel: unavailableSubLabel,
       };
     });
-  }, [copy.planCards, iapOffers, pricingInsight]);
+  }, [copy, iapOfferError.code, iapOffers, pricingInsight]);
 
   const handleApplyCode = async (code: string) => {
     try {
@@ -431,7 +478,10 @@ export default function PremiumScreen() {
       await syncWithServer();
       Alert.alert(copy.successTitle, copy.premiumUnlocked);
     } catch (error: unknown) {
-      Alert.alert(copy.actionFailed, error instanceof Error ? error.message : copy.genericError);
+      Alert.alert(
+        copy.actionFailed,
+        toFriendlyErrorMessage(error, copy.genericError, copy.networkFailed)
+      );
     }
   };
   const handleRestore = async () => {
@@ -446,7 +496,10 @@ export default function PremiumScreen() {
             Alert.alert(copy.restoreTitle, active ? copy.restoreServerActive : copy.restoreServerNone);
             return;
           } catch {
-            Alert.alert(copy.restoreFailedTitle, result.message ?? copy.restoreUnavailable);
+            Alert.alert(
+              copy.restoreFailedTitle,
+              result.message ?? copy.networkFailed
+            );
             return;
           }
         }
@@ -481,13 +534,35 @@ export default function PremiumScreen() {
         await syncWithServer();
         const active = usePremiumStore.getState().state.isActive;
         Alert.alert(copy.restoreTitle, active ? copy.restoreServerActive : copy.restoreNoVerifiable);
-      } catch {
-        Alert.alert(copy.restoreTitle, copy.restoreNoVerifiable);
+      } catch (error: unknown) {
+        const message = toFriendlyErrorMessage(error, copy.restoreNoVerifiable, copy.networkFailed);
+        Alert.alert(copy.restoreTitle, message || copy.restoreNoVerifiable);
       }
     } catch (error: unknown) {
-      Alert.alert(copy.restoreFailedTitle, error instanceof Error ? error.message : copy.genericError);
+      Alert.alert(
+        copy.restoreFailedTitle,
+        toFriendlyErrorMessage(error, copy.genericError, copy.networkFailed)
+      );
     }
   };
+
+  const handleSystemRefresh = useCallback(async () => {
+    await Promise.allSettled([syncWithServer(), loadIapOffers()]);
+  }, [loadIapOffers, syncWithServer]);
+
+  const normalizedSyncError = syncError
+    ? toFriendlyErrorMessage(new Error(syncError), copy.genericError, copy.networkFailed)
+    : null;
+
+  const systemStatusError =
+    normalizedSyncError ??
+    (iapOfferError.code === "disabled"
+      ? copy.iapDisabled
+      : iapOfferError.code === "not_ready"
+        ? copy.storeNotReady
+        : iapOfferError.code === "store_unavailable"
+          ? (iapOfferError.message ?? copy.storeUnavailable)
+          : null);
 
   const liveSupportLocked = !(isPremiumActive || hasFeature("live_support"));
 
@@ -614,8 +689,8 @@ export default function PremiumScreen() {
 
           <PremiumSystemStatus
             lastSync={lastSync}
-            syncError={syncError}
-            onSync={syncWithServer}
+            syncError={systemStatusError}
+            onSync={handleSystemRefresh}
             locale={locale}
             lastSyncPrefix={copy.system.lastSyncPrefix}
             noSyncLabel={copy.system.noSyncLabel}

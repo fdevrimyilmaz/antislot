@@ -255,6 +255,36 @@ async function fetchProducts(): Promise<IapResult> {
       getProducts?: ((arg: { skus: string[] }) => Promise<unknown[]>) | ((arg: string[]) => Promise<unknown[]>);
     };
 
+    const loadViaLegacyGetters = async (): Promise<{ subscriptions: unknown[]; products: unknown[] }> => {
+      let subs: unknown[] = [];
+      let prods: unknown[] = [];
+
+      if (typeof iapAny.getSubscriptions === "function") {
+        try {
+          subs = await (iapAny as { getSubscriptions: (arg: { skus: string[] }) => Promise<unknown[]> })
+            .getSubscriptions({ skus: SUBSCRIPTION_IDS });
+        } catch {
+          subs = await (iapAny as { getSubscriptions: (arg: string[]) => Promise<unknown[]> })
+            .getSubscriptions(SUBSCRIPTION_IDS);
+        }
+      }
+
+      if (typeof iapAny.getProducts === "function" && PRODUCT_IDS_LIST.length > 0) {
+        try {
+          prods = await (iapAny as { getProducts: (arg: { skus: string[] }) => Promise<unknown[]> })
+            .getProducts({ skus: PRODUCT_IDS_LIST });
+        } catch {
+          prods = await (iapAny as { getProducts: (arg: string[]) => Promise<unknown[]> })
+            .getProducts(PRODUCT_IDS_LIST);
+        }
+      }
+
+      return {
+        subscriptions: Array.isArray(subs) ? subs : [],
+        products: Array.isArray(prods) ? prods : [],
+      };
+    };
+
     if (typeof iapAny.fetchProducts === "function") {
       const subsPromise = SUBSCRIPTION_IDS.length > 0
         ? iapAny.fetchProducts({ skus: SUBSCRIPTION_IDS, type: "subs" })
@@ -268,26 +298,18 @@ async function fetchProducts(): Promise<IapResult> {
       ]);
       subscriptions = Array.isArray(subsResult) ? subsResult : [];
       products = Array.isArray(productsResult) ? productsResult : [];
-    } else {
-      if (typeof iapAny.getSubscriptions === "function") {
-        try {
-          subscriptions = await (iapAny as { getSubscriptions: (arg: { skus: string[] }) => Promise<unknown[]> })
-            .getSubscriptions({ skus: SUBSCRIPTION_IDS });
-        } catch {
-          subscriptions = await (iapAny as { getSubscriptions: (arg: string[]) => Promise<unknown[]> })
-            .getSubscriptions(SUBSCRIPTION_IDS);
-        }
-      }
 
-      if (typeof iapAny.getProducts === "function" && PRODUCT_IDS_LIST.length > 0) {
-        try {
-          products = await (iapAny as { getProducts: (arg: { skus: string[] }) => Promise<unknown[]> })
-            .getProducts({ skus: PRODUCT_IDS_LIST });
-        } catch {
-          products = await (iapAny as { getProducts: (arg: string[]) => Promise<unknown[]> })
-            .getProducts(PRODUCT_IDS_LIST);
-        }
+      // Some iOS runtimes return empty from fetchProducts despite valid products.
+      // Fall back to legacy getters before declaring not_ready.
+      if (subscriptions.length + products.length === 0) {
+        const legacy = await loadViaLegacyGetters();
+        subscriptions = legacy.subscriptions;
+        products = legacy.products;
       }
+    } else {
+      const legacy = await loadViaLegacyGetters();
+      subscriptions = legacy.subscriptions;
+      products = legacy.products;
     }
 
     const total = subscriptions.length + products.length;

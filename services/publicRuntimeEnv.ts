@@ -13,7 +13,7 @@ let hasValidated = false;
 
 function isProductionMobileRuntime(): boolean {
   const isDevRuntime = typeof __DEV__ !== "undefined" ? __DEV__ : false;
-  return !isDevRuntime && process.env.NODE_ENV === "production";
+  return !isDevRuntime;
 }
 
 function requireNonEmptyEnv(key: string): string {
