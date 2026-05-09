@@ -7,6 +7,8 @@ type ClientMessage = {
   role?: string;
   content?: string;
 };
+type ChatRole = "system" | "user" | "assistant";
+type ChatMessage = { role: ChatRole; content: string };
 
 const SYSTEM_PROMPT = [
   "Sen YAPAY ANTİ adlı, Türkçe konuşan bir sohbet asistanısın.",
@@ -27,6 +29,14 @@ app.use(express.json({ limit: "1mb" }));
 
 const openai = new OpenAI({ apiKey });
 
+app.get("/", (_req, res) => {
+  return res.status(200).json({ ok: true, service: "antislot-chat-server" });
+});
+
+app.get("/health", (_req, res) => {
+  return res.status(200).json({ status: "ok", service: "antislot-chat-server" });
+});
+
 app.post("/chat", async (req, res) => {
   if (!apiKey) {
     return res.status(500).json({ error: "OPENAI_API_KEY eksik" });
@@ -39,8 +49,8 @@ app.post("/chat", async (req, res) => {
 
   const sanitized = (messages as ClientMessage[])
     .filter((item) => item && typeof item.content === "string" && typeof item.role === "string")
-    .map((item) => ({ role: item.role as string, content: item.content as string }))
-    .filter((item) => ["user", "assistant", "system"].includes(item.role));
+    .map((item) => ({ role: item.role as ChatRole, content: item.content as string }))
+    .filter((item): item is ChatMessage => ["user", "assistant", "system"].includes(item.role));
 
   if (sanitized.length === 0) {
     return res.status(400).json({ error: "messages alanı boş olamaz" });

@@ -42,6 +42,16 @@ const AI_SYSTEM_PROMPT =
   "Kumar oynama stratejileri, bahis, kazanma taktikleri veya kumar nasil oynanir gibi icerik vermezsin. " +
   "Yanitin 3-6 maddelik, kisa ve net olsun; en sonda bir takip sorusu sor.";
 
+fastify.get('/', async (_request, reply) => {
+  reply.header('Cache-Control', 'no-store');
+  return reply.send({ ok: true, service: 'antislot-backend', health: '/v1/health' });
+});
+
+fastify.get('/health', async (_request, reply) => {
+  reply.header('Cache-Control', 'no-store');
+  return reply.send({ status: 'ok', service: 'antislot-backend' });
+});
+
 /**
  * GET /v1/health
  * Sağlık kontrolü uç noktası
