@@ -21,6 +21,7 @@ const SYSTEM_PROMPT = [
 
 const app = express();
 const port = Number(process.env.PORT) || 3001;
+const host = process.env.HOST || "0.0.0.0";
 const apiKey = process.env.OPENAI_API_KEY || "";
 const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
@@ -75,6 +76,6 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`AI chat server running on http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`AI chat server running on http://${host}:${port}`);
 });
