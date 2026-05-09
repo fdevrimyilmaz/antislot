@@ -5,7 +5,7 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { BlocklistEntry, BlocklistPattern } from '../../services/gambling-blocker/domain-matcher';
+import { BlocklistEntry, BlocklistPattern } from './types/domain-matcher';
 
 export class BlocklistManager {
   private blocklistFile: string;

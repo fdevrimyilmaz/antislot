@@ -180,7 +180,7 @@ fastify.post('/v1/ai/chat', async (request, reply) => {
       return reply.code(502).send({ error: 'AI_UPSTREAM_ERROR' });
     }
 
-    const data = await aiResponse.json();
+    const data: any = await aiResponse.json();
     const replyText = data?.choices?.[0]?.message?.content?.trim();
 
     if (!replyText) {
