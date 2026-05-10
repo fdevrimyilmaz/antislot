@@ -61,7 +61,7 @@ export class SMSClassifier {
       matchedKeywords.push(...scamMatches);
       keywordScore += 0.8 * scamMatches.length;
       reasons.push(`Matched ${scamMatches.length} scam keyword(s)`);
-      if (category === SpamCategory.NORMAL || category === SpamCategory.ADVERTISEMENT) {
+      if (category === SpamCategory.NORMAL) {
         category = SpamCategory.SCAM;
       }
     }

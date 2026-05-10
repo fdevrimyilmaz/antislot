@@ -132,7 +132,12 @@ export default function Support() {
               {resource.website && (
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={() => Linking.openURL(resource.website)}
+                  onPress={() => {
+                    const website = resource.website;
+                    if (website) {
+                      Linking.openURL(website);
+                    }
+                  }}
                 >
                   <Text style={styles.secondaryButtonText}>Web Sitesi</Text>
                 </TouchableOpacity>

@@ -11,7 +11,7 @@ export async function getLanguage(): Promise<Language> {
   if (lang === "en") {
     await SecureStore.setItemAsync(KEY, "tr");
   }
-  // Varsayılan dil Türkçe
+  // Default language is Turkish.
   return "tr";
 }
 

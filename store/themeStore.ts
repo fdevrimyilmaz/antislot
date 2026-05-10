@@ -1,15 +1,34 @@
 import * as SecureStore from "expo-secure-store";
 
-export type Theme = "twitter-blue" | "black" | "white";
+export type Theme =
+  | "white"
+  | "twitter-blue"
+  | "black"
+  | "sunset"
+  | "forest"
+  | "midnight";
 
 const KEY = "antislot_theme";
 
+const SUPPORTED_THEMES: Theme[] = [
+  "white",
+  "twitter-blue",
+  "black",
+  "sunset",
+  "forest",
+  "midnight",
+];
+
+function isTheme(value: string | null): value is Theme {
+  if (!value) return false;
+  return SUPPORTED_THEMES.includes(value as Theme);
+}
+
 export async function getTheme(): Promise<Theme> {
-  const theme = await SecureStore.getItemAsync(KEY);
-  if (theme === "twitter-blue" || theme === "black" || theme === "white") {
-    return theme as Theme;
+  const stored = await SecureStore.getItemAsync(KEY);
+  if (isTheme(stored)) {
+    return stored;
   }
-  // Tema ayarlı değilse varsayılan beyaz
   return "white";
 }
 

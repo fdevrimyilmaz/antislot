@@ -7,15 +7,23 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { clearPremium, getPremiumState, setPremiumActive, startTrial, type PremiumState } from "@/store/premiumStore";
+import { ThemeTexture } from "@/components/theme-texture";
+import { type Theme } from "@/store/themeStore";
+import {
+  clearPremium,
+  getPremiumState,
+  setPremiumActive,
+  startTrial,
+  type PremiumState,
+} from "@/store/premiumStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 
 const ACCESS_CODES = ["ANTISLOT2026", "BETA2026"];
@@ -24,11 +32,67 @@ const GAMBLING_CARD_IMAGE =
   "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=900&q=80";
 
 const PREMIUM_BENEFITS = [
-  "Premium farkındalık seansları",
-  "Yapay ANTİ'de premium ipuçları",
-  "Derinleştirilmiş destek planları",
-  "Reklamsız, odaklı deneyim",
+  "Premium farkindalik seanslari",
+  "Yapay ANTI'de premium ipuclari",
+  "Derinlestirilmis destek planlari",
+  "Reklamsiz, odakli deneyim",
 ];
+
+const BASE_CHART_VALUES = [20, 34, 47, 62, 78, 90];
+
+const THEME_ICONS: Record<
+  Theme,
+  { hero: string; spark: string; support: string; code: string; chart: string; guard: string }
+> = {
+  white: {
+    hero: "👑",
+    spark: "✨",
+    support: "🤝",
+    code: "🔐",
+    chart: "📈",
+    guard: "🛡️",
+  },
+  "twitter-blue": {
+    hero: "🚀",
+    spark: "💠",
+    support: "🛰️",
+    code: "🔷",
+    chart: "📊",
+    guard: "🛡️",
+  },
+  black: {
+    hero: "🖤",
+    spark: "✦",
+    support: "🤍",
+    code: "🔒",
+    chart: "📉",
+    guard: "🧱",
+  },
+  sunset: {
+    hero: "🌅",
+    spark: "🔥",
+    support: "🧡",
+    code: "🪙",
+    chart: "📈",
+    guard: "🛡️",
+  },
+  forest: {
+    hero: "🌿",
+    spark: "🍃",
+    support: "🤲",
+    code: "🌲",
+    chart: "📊",
+    guard: "🛡️",
+  },
+  midnight: {
+    hero: "🌌",
+    spark: "💫",
+    support: "🧠",
+    code: "🔮",
+    chart: "📈",
+    guard: "🛡️",
+  },
+};
 
 const STATUS_TONES = {
   active: { background: "#D1FADF", text: "#027A48" },
@@ -40,8 +104,10 @@ const STATUS_TONES = {
 export default function PremiumScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const { colors } = useTheme();
+  const { theme, colors } = useTheme();
+  const icons = THEME_ICONS[theme];
   const { userAddictions } = useUserAddictionsStore();
+
   const [premiumState, setPremiumState] = useState<PremiumState | null>(null);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(true);
@@ -64,16 +130,16 @@ export default function PremiumScreen() {
     if (loading) {
       return {
         badge: "Kontrol",
-        value: "Premium durumu yükleniyor...",
+        value: "Premium durumu yukleniyor...",
         hint: null,
         tone: "neutral",
       } as const;
     }
     if (!premiumState?.isActive) {
       return {
-        badge: "Kapalı",
-        value: "Premium erişimi kapalı",
-        hint: "Premium ile kilitli seansları ve ek önerileri aç.",
+        badge: "Kapali",
+        value: "Premium erisimi kapali",
+        hint: "Premium ile kilitli seanslari ve ek onerileri ac.",
         tone: "inactive",
       } as const;
     }
@@ -81,25 +147,45 @@ export default function PremiumScreen() {
       return {
         badge: "Deneme",
         value: "Premium deneme aktif",
-        hint: `${remainingDays} gün deneme kaldı`,
+        hint: `${remainingDays} gun deneme kaldi`,
         tone: "trial",
       } as const;
     }
     return {
       badge: "Aktif",
-      value: "Premium erişimi açık",
-      hint: "Erişim kodu ile etkin.",
+      value: "Premium erisimi acik",
+      hint: "Erisim kodu ile etkin.",
       tone: "active",
     } as const;
   }, [loading, premiumState, remainingDays]);
 
-  const statusTone = STATUS_TONES[statusMeta.tone];
-  const canApplyCode = code.trim().length > 0;
   const isPremiumActive = !!premiumState?.isActive;
+  const canApplyCode = code.trim().length > 0;
   const gamblingLocked = !isPremiumActive;
+  const statusTone = STATUS_TONES[statusMeta.tone];
+
+  const premiumScore = useMemo(() => {
+    if (loading) return 15;
+    if (!isPremiumActive) return 28;
+    if (premiumState?.source === "trial") return 72;
+    return 94;
+  }, [loading, isPremiumActive, premiumState]);
+
+  const growthSeries = useMemo(
+    () =>
+      BASE_CHART_VALUES.map((base, index) => {
+        const dynamic = Math.min(100, Math.max(8, Math.round(base * (premiumScore / 88))));
+        return {
+          key: `bar-${index}`,
+          label: `W${index + 1}`,
+          value: dynamic,
+        };
+      }),
+    [premiumScore]
+  );
 
   const handleLiveSupport = () => {
-    const subject = encodeURIComponent("Premium Canlı Destek");
+    const subject = encodeURIComponent("Premium Canli Destek");
     Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}`);
   };
 
@@ -110,20 +196,20 @@ export default function PremiumScreen() {
   const handleStartTrial = async () => {
     const state = await startTrial(7);
     setPremiumState(state);
-    Alert.alert("Deneme Başladı", "Premium denemeniz 7 gün boyunca aktif.");
+    Alert.alert("Deneme Basladi", "Premium denemeniz 7 gun boyunca aktif.");
   };
 
   const handleApplyCode = async () => {
     const normalized = code.trim().toUpperCase();
     if (!normalized) return;
     if (!ACCESS_CODES.includes(normalized)) {
-      Alert.alert("Geçersiz Kod", "Lütfen geçerli bir erişim kodu girin.");
+      Alert.alert("Gecersiz Kod", "Lutfen gecerli bir erisim kodu girin.");
       return;
     }
     const state = await setPremiumActive("code");
     setPremiumState(state);
     setCode("");
-    Alert.alert("Premium Aktif", "Erişim kodu doğrulandı.");
+    Alert.alert("Premium Aktif", "Erisim kodu dogrulandi.");
   };
 
   const handleClear = async () => {
@@ -138,57 +224,92 @@ export default function PremiumScreen() {
       end={{ x: 1, y: 1 }}
       style={styles.gradientContainer}
     >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.content}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <Text style={[styles.backButtonText, { color: colors.text }]}>{t.back}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.iconContainer}>
-            <LinearGradient
-              colors={["#FFD700", "#FFA500", "#FF8C00"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.premiumIcon}
-            >
-              <Text style={styles.crownIcon}>👑</Text>
-            </LinearGradient>
+          <View style={styles.headerRow}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+              <Text style={[styles.backButtonText, { color: colors.text }]}>{t.back}</Text>
+            </TouchableOpacity>
+            <View style={[styles.headerChip, { backgroundColor: colors.primary + "1A" }]}>
+              <Text style={[styles.headerChipText, { color: colors.primary }]}>
+                {icons.guard} Premium
+              </Text>
+            </View>
           </View>
 
-          <Text style={[styles.title, { color: colors.text }]}>Premium</Text>
-          
-          <Text style={[styles.subtitle, { color: colors.text + "CC" }]}>
-            Kişiselleştirilmiş destek ve ek seanslara erişin
-          </Text>
+          <LinearGradient
+            colors={colors.heroGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroIconWrap}>
+              <Text style={styles.heroIcon}>{icons.hero}</Text>
+            </View>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle}>Premium Kontrol Merkezi</Text>
+              <Text style={styles.heroSubtitle}>
+                Skor: {premiumScore}% · Acik ozellik: {isPremiumActive ? PREMIUM_BENEFITS.length : 0}/
+                {PREMIUM_BENEFITS.length}
+              </Text>
+            </View>
+          </LinearGradient>
+
+          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {icons.chart} Premium Buyume Grafigi
+              </Text>
+              <Text style={[styles.sectionMeta, { color: colors.primary }]}>{premiumScore}%</Text>
+            </View>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+              Erisim durumuna gore premium kullanim gucunuzun haftalik dagilimi.
+            </Text>
+            <View style={styles.chartRow}>
+              {growthSeries.map((bar) => (
+                <View key={bar.key} style={styles.chartCol}>
+                  <View style={[styles.chartTrack, { backgroundColor: colors.cardBorder }]}>
+                    <LinearGradient
+                      colors={[colors.primary, colors.accent]}
+                      start={{ x: 0, y: 1 }}
+                      end={{ x: 0, y: 0 }}
+                      style={[styles.chartFill, { height: `${bar.value}%` }]}
+                    />
+                  </View>
+                  <Text style={[styles.chartLabel, { color: colors.textMuted }]}>{bar.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
 
           <View
             style={[
               styles.sectionCard,
               styles.statusCard,
-              { backgroundColor: colors.card, borderColor: colors.text + "1A" },
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
             ]}
           >
             <View style={styles.statusRow}>
-              <Text style={[styles.statusLabel, { color: colors.text + "99" }]}>Durum</Text>
+              <Text style={[styles.statusLabel, { color: colors.textMuted }]}>Durum</Text>
               <View style={[styles.statusBadge, { backgroundColor: statusTone.background }]}>
                 <Text style={[styles.statusBadgeText, { color: statusTone.text }]}>{statusMeta.badge}</Text>
               </View>
             </View>
             <Text style={[styles.statusValue, { color: colors.text }]}>{statusMeta.value}</Text>
             {statusMeta.hint ? (
-              <Text style={[styles.statusHint, { color: colors.text + "80" }]}>{statusMeta.hint}</Text>
+              <Text style={[styles.statusHint, { color: colors.textMuted }]}>{statusMeta.hint}</Text>
             ) : null}
           </View>
 
-          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.text + "1A" }]}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Premium ile açılanlar</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {icons.spark} Premium ile acilanlar
+            </Text>
             <View style={styles.featuresContainer}>
               {PREMIUM_BENEFITS.map((benefit) => (
                 <View key={benefit} style={styles.feature}>
-                  <Text style={styles.featureIcon}>✨</Text>
+                  <Text style={styles.featureIcon}>{icons.spark}</Text>
                   <Text style={[styles.featureText, { color: colors.text }]}>{benefit}</Text>
                 </View>
               ))}
@@ -211,35 +332,37 @@ export default function PremiumScreen() {
               >
                 <View style={styles.gamblingImageTint} />
                 <LinearGradient
-                  colors={["rgba(0, 0, 0, 0.12)", "rgba(0, 0, 0, 0.4)"]}
+                  colors={["rgba(0, 0, 0, 0.12)", "rgba(0, 0, 0, 0.42)"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.gamblingCardOverlay}
                 >
                   <Text style={styles.gamblingCardTitle}>Kumar</Text>
-                  <Text style={styles.gamblingCardSubtitle}>Dürtü yönetimi</Text>
+                  <Text style={styles.gamblingCardSubtitle}>Durtu yonetimi</Text>
                 </LinearGradient>
                 {gamblingLocked ? (
                   <View style={styles.gamblingLockOverlay}>
                     <Text style={styles.gamblingLockTitle}>Premium gerekli</Text>
-                    <Text style={styles.gamblingLockSubtitle}>Premium ile açılır</Text>
+                    <Text style={styles.gamblingLockSubtitle}>Premium ile acilir</Text>
                   </View>
                 ) : null}
               </ImageBackground>
             </TouchableOpacity>
           ) : null}
 
-          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.text + "1A" }]}>
+          <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.liveSupportHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.primary }]}>Canlı Destek</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {icons.support} Canli Destek
+              </Text>
               <View style={[styles.liveSupportBadge, { backgroundColor: colors.primary + "18" }]}>
                 <Text style={[styles.liveSupportBadgeText, { color: colors.primary }]}>Premium</Text>
               </View>
             </View>
-            <Text style={[styles.sectionSubtitle, { color: colors.text + "99" }]}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
               {isPremiumActive
-                ? "Premium kullanıcılarına özel canlı destek hattına yaz."
-                : "Premium alarak canlı destek ayrıcalığını aç."}
+                ? "Premium kullanicilarina ozel canli destek hatti."
+                : "Premium alarak canli destek ayricaligini ac."}
             </Text>
             <TouchableOpacity
               style={[
@@ -250,7 +373,7 @@ export default function PremiumScreen() {
               onPress={handleLiveSupport}
               disabled={!isPremiumActive}
             >
-              <Text style={styles.liveSupportButtonText}>Canlı Sohbete Başla</Text>
+              <Text style={styles.liveSupportButtonText}>Canli Sohbete Basla</Text>
             </TouchableOpacity>
           </View>
 
@@ -261,42 +384,45 @@ export default function PremiumScreen() {
             disabled={isPremiumActive}
           >
             <LinearGradient
-              colors={["#FFD700", "#FFA500", "#FF8C00"]}
+              colors={[colors.warning, "#F59E0B", colors.accent]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.premiumButtonGradient}
             >
               <Text style={styles.premiumButtonText}>
-                {isPremiumActive ? "Premium Aktif" : "7 Gün Deneme Başlat"}
+                {isPremiumActive ? "Premium Aktif" : "7 Gun Deneme Baslat"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
+
           {isPremiumActive ? (
             <TouchableOpacity
               style={[
                 styles.secondaryButton,
                 styles.resetButton,
-                { backgroundColor: colors.card, borderColor: colors.text + "1A" },
+                { backgroundColor: colors.card, borderColor: colors.cardBorder },
               ]}
               onPress={handleClear}
             >
-              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Premium Sıfırla</Text>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>Premium Sifirla</Text>
             </TouchableOpacity>
           ) : null}
 
-          <View style={[styles.sectionCard, styles.codeCard, { backgroundColor: colors.card, borderColor: colors.text + "1A" }]}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Erişim Kodu</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.text + "99" }]}>
-              Beta erişim kodunuz varsa girerek Premium&apos;u etkinleştirebilirsiniz.
+          <View style={[styles.sectionCard, styles.codeCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {icons.code} Erisim Kodu
+            </Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+              Beta erisim kodunuz varsa girerek premiumu etkinlestirebilirsiniz.
             </Text>
             <View style={styles.codeRow}>
               <TextInput
                 style={[
                   styles.codeInput,
-                  { backgroundColor: colors.card, color: colors.text, borderColor: colors.text + "1A" },
+                  { backgroundColor: colors.card, color: colors.text, borderColor: colors.cardBorder },
                 ]}
-                placeholder="Erişim kodu"
-                placeholderTextColor={colors.text + "80"}
+                placeholder="Erisim kodu"
+                placeholderTextColor={colors.textMuted}
                 value={code}
                 onChangeText={setCode}
                 autoCapitalize="characters"
@@ -304,7 +430,7 @@ export default function PremiumScreen() {
               <TouchableOpacity
                 style={[
                   styles.secondaryButton,
-                  { backgroundColor: colors.card, borderColor: colors.text + "1A" },
+                  { backgroundColor: colors.card, borderColor: colors.cardBorder },
                   !canApplyCode && styles.disabledButton,
                 ]}
                 onPress={handleApplyCode}
@@ -315,16 +441,16 @@ export default function PremiumScreen() {
             </View>
           </View>
 
-          <View style={[styles.sectionCard, styles.contactCard, { backgroundColor: colors.card, borderColor: colors.text + "1A" }]}>
-            <Text style={[styles.sectionTitle, { color: colors.primary }]}>Yardım</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.text + "99" }]}>
-              Soruların için bize yaz: support@antislot.app
+          <View style={[styles.sectionCard, styles.contactCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Yardim</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+              Sorularin icin bize yaz: support@antislot.app
             </Text>
             <TouchableOpacity
-              style={[styles.secondaryButton, { backgroundColor: colors.card, borderColor: colors.text + "1A" }]}
+              style={[styles.secondaryButton, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
               onPress={handleSupportEmail}
             >
-              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>E-posta Gönder</Text>
+              <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>E-posta Gonder</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -341,55 +467,120 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
+    padding: 22,
     paddingBottom: 40,
     alignItems: "center",
   },
+  headerRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  headerChip: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  headerChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   backButton: {
     alignSelf: "flex-start",
-    marginBottom: 20,
   },
   backButtonText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "600",
   },
-  iconContainer: {
-    marginBottom: 24,
+  heroCard: {
+    width: "100%",
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  premiumIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  heroIconWrap: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 12,
+    marginRight: 14,
   },
-  crownIcon: {
-    fontSize: 64,
+  heroIcon: {
+    fontSize: 34,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    marginBottom: 12,
-    textAlign: "center",
-    letterSpacing: 0.5,
+  heroTextWrap: {
+    flex: 1,
   },
-  subtitle: {
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 32,
-    lineHeight: 24,
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: "#FFFFFF",
+    opacity: 0.9,
+    fontSize: 13,
+    lineHeight: 18,
   },
   sectionCard: {
     width: "100%",
     borderRadius: 18,
-    padding: 18,
-    marginBottom: 16,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionMeta: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  chartRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  chartCol: {
+    flex: 1,
+    alignItems: "center",
+  },
+  chartTrack: {
+    height: 92,
+    width: "100%",
+    borderRadius: 10,
+    padding: 4,
+    justifyContent: "flex-end",
+  },
+  chartFill: {
+    width: "100%",
+    borderRadius: 8,
+    minHeight: 10,
+  },
+  chartLabel: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "600",
   },
   statusCard: {
     gap: 8,
@@ -416,34 +607,34 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   statusHint: {
-    marginTop: 6,
+    marginTop: 2,
     fontSize: 12,
   },
   featuresContainer: {
     width: "100%",
-    marginTop: 10,
-    gap: 14,
+    marginTop: 8,
+    gap: 12,
   },
   feature: {
     flexDirection: "row",
     alignItems: "center",
   },
   featureIcon: {
-    fontSize: 22,
-    marginRight: 12,
+    fontSize: 18,
+    marginRight: 10,
   },
   featureText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 21,
   },
   gamblingCard: {
     width: "100%",
     height: 140,
     borderRadius: 20,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 14,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
@@ -472,12 +663,27 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#FFFFFF",
-    textShadowColor: "rgba(0, 0, 0, 0.35)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   gamblingCardSubtitle: {
     fontSize: 13,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "600",
+  },
+  gamblingLockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 12,
+  },
+  gamblingLockTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 4,
+  },
+  gamblingLockSubtitle: {
+    fontSize: 12,
     color: "rgba(255, 255, 255, 0.9)",
     fontWeight: "600",
   },
@@ -506,67 +712,36 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "700",
   },
-  gamblingLockOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
-  gamblingLockTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 4,
-  },
-  gamblingLockSubtitle: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "600",
-  },
   premiumButton: {
     width: "100%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#FFD700",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.16,
     shadowRadius: 16,
-    elevation: 10,
+    elevation: 8,
   },
   premiumButtonDisabled: {
     opacity: 0.75,
   },
   premiumButtonGradient: {
-    paddingVertical: 18,
-    paddingHorizontal: 32,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
   },
   premiumButtonText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
-    letterSpacing: 1,
-    textShadowColor: "rgba(0, 0, 0, 0.3)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    letterSpacing: 0.4,
   },
   codeCard: {
     marginTop: 4,
   },
   contactCard: {
     marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 12,
   },
   codeRow: {
     flexDirection: "row",

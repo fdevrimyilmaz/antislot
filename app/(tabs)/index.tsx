@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { type Href, router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { isOnboardingDone, hasWelcomeBeenShown, setWelcomeShown } from "@/store/onboardingFlag";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useTheme } from "@/contexts/ThemeContext";
+import { THEME_OPTIONS, useTheme } from "@/contexts/ThemeContext";
 import { useProgressStore } from "@/store/progressStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 
@@ -72,10 +72,15 @@ export default function HomeScreen() {
     })();
   }, []);
 
+  const activeThemeOption = useMemo(
+    () => THEME_OPTIONS.find((option) => option.id === theme) ?? THEME_OPTIONS[0],
+    [theme]
+  );
+
   const homePalette = {
-    background: "#F4F9FF",
-    title: "#111827",
-    subtitle: "#7D8790",
+    background: colors.background,
+    title: colors.text,
+    subtitle: colors.textMuted,
   };
 
   const monthLabels = ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"];
@@ -83,7 +88,15 @@ export default function HomeScreen() {
   const calendarMonth = monthLabels[calendarDate.getMonth()] ?? monthLabels[0];
   const calendarDay = calendarDate.getDate();
 
-  const cards = useMemo(
+  const cards = useMemo<
+    {
+      key: string;
+      title: string;
+      subtitle?: string;
+      route: Href;
+      image: string;
+    }[]
+  >(
     () => [
       {
         key: "therapy",
@@ -121,8 +134,8 @@ export default function HomeScreen() {
       },
       {
         key: "facts",
-        title: "Gerçekler",
-        subtitle: "Online kumarın gerçek yüzü",
+        title: "Haberler",
+        subtitle: "Kumar haberleri ve guncel gelismeler",
         route: "/facts",
         image: IMAGE_SOURCES.facts,
       },
@@ -208,54 +221,35 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <Text style={[styles.themeText, { color: colors.text }]}>
-                {theme === "twitter-blue" ? "🔵 Twitter Mavisi" : theme === "black" ? "⚫ Siyah" : "⚪ Beyaz"} ▾
+                {activeThemeOption.emoji} {activeThemeOption.label} v
               </Text>
             </TouchableOpacity>
             
             {showThemePicker && (
               <View style={[styles.themeDropdown, { backgroundColor: colors.card }]}>
-                <TouchableOpacity
-                  style={[
-                    styles.themeOption,
-                    theme === "twitter-blue" && { backgroundColor: "#1DA1F220" },
-                  ]}
-                  onPress={() => {
-                    setTheme("twitter-blue");
-                    setShowThemePicker(false);
-                  }}
-                >
-                  <Text style={[styles.themeOptionText, { color: colors.text }, theme === "twitter-blue" && { color: "#1DA1F2", fontWeight: "600" }]}>
-                    🔵 Twitter Mavisi
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.themeOption,
-                    theme === "black" && { backgroundColor: "#00000020" },
-                  ]}
-                  onPress={() => {
-                    setTheme("black");
-                    setShowThemePicker(false);
-                  }}
-                >
-                  <Text style={[styles.themeOptionText, { color: colors.text }, theme === "black" && { color: "#000000", fontWeight: "600" }]}>
-                    ⚫ Siyah
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.themeOption,
-                    theme === "white" && { backgroundColor: colors.primary + "20" },
-                  ]}
-                  onPress={() => {
-                    setTheme("white");
-                    setShowThemePicker(false);
-                  }}
-                >
-                  <Text style={[styles.themeOptionText, { color: colors.text }, theme === "white" && { color: colors.primary, fontWeight: "600" }]}>
-                    ⚪ Beyaz
-                  </Text>
-                </TouchableOpacity>
+                {THEME_OPTIONS.map((option) => {
+                  const selected = option.id === theme;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[styles.themeOption, selected && { backgroundColor: colors.primary + "14" }]}
+                      onPress={() => {
+                        setTheme(option.id);
+                        setShowThemePicker(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.themeOptionText,
+                          { color: colors.text },
+                          selected && { color: colors.primary, fontWeight: "700" },
+                        ]}
+                      >
+                        {option.emoji} {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -283,7 +277,7 @@ export default function HomeScreen() {
   // Onboarding bittiyse: gerçek ana menü (ızgara)
   return (
     <LinearGradient
-      colors={[homePalette.background, homePalette.background]}
+      colors={colors.backgroundGradient}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.homeContainer}
@@ -296,7 +290,7 @@ export default function HomeScreen() {
       >
         <View style={styles.titleSection}>
           <LinearGradient
-            colors={["#0F172A", "#1D4C72", "#2A5F8F"]}
+            colors={colors.heroGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.homeTitleBadge}

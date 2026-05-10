@@ -118,7 +118,7 @@ export default function PrivacyDataScreen() {
             <Text style={styles.linkLabel}>{t.privacyDataTerms}</Text>
             <Text style={styles.linkArrow}>→</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/disclaimer")}>
+          <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/limitations")}>
             <Text style={styles.linkLabel}>{t.privacyDataImportantInfo}</Text>
             <Text style={styles.linkArrow}>→</Text>
           </TouchableOpacity>

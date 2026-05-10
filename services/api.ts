@@ -10,6 +10,10 @@ type ChatResponse = {
   reply: string;
 };
 
+type PostChatOptions = {
+  signal?: AbortSignal;
+};
+
 const DEV_HOST_FALLBACK = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
 const getDevHost = (): string => {
@@ -32,12 +36,16 @@ const DEFAULT_API_URL = process.env.EXPO_PUBLIC_API_URL
 
 const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
 
-export async function postChat(messages: ChatMessage[]): Promise<string> {
+export async function postChat(
+  messages: ChatMessage[],
+  options: PostChatOptions = {}
+): Promise<string> {
   const baseUrl = normalizeBaseUrl(DEFAULT_API_URL);
   const response = await fetch(`${baseUrl}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
+    signal: options.signal,
   });
 
   if (!response.ok) {

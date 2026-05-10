@@ -62,6 +62,8 @@
       ],
       "expo-secure-store",
       "expo-font",
+      "expo-notifications",
+      "react-native-iap",
       "@sentry/react-native"
     ],
     "experiments": {

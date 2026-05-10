@@ -1,3 +1,5 @@
+import type { Href } from "expo-router";
+
 export type SupportTopicSection = {
   title: string;
   body: string;
@@ -6,7 +8,7 @@ export type SupportTopicSection = {
 
 export type SupportTopicAction = {
   label: string;
-  route?: string;
+  route?: Href;
   externalUrl?: string;
 };
 
@@ -18,7 +20,7 @@ export type SupportTopic = {
   tags: string[];
   accent: string;
   background: string;
-  route: string;
+  route: Href;
   sections: SupportTopicSection[];
   actions?: SupportTopicAction[];
 };
@@ -32,7 +34,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["dürtü", "nefes", "acil"],
     accent: "#1D4C72",
     background: "#EAF3FF",
-    route: "/support-topic/urge-control",
+    route: { pathname: "/support-topic/[id]", params: { id: "urge-control" } },
     sections: [
       {
         title: "90 Saniyelik Kural",
@@ -66,7 +68,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["kriz", "plan", "acil"],
     accent: "#D06B5C",
     background: "#FFF0EE",
-    route: "/support-topic/crisis-plan",
+    route: { pathname: "/support-topic/[id]", params: { id: "crisis-plan" } },
     sections: [
       {
         title: "Kırmızı Bayraklar",
@@ -100,7 +102,10 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["finans", "koruma", "plan"],
     accent: "#3B75B8",
     background: "#EDF4FF",
-    route: "/support-topic/financial-guardrails",
+    route: {
+      pathname: "/support-topic/[id]",
+      params: { id: "financial-guardrails" },
+    },
     sections: [
       {
         title: "Önleyici Adımlar",
@@ -134,7 +139,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["tetikleyici", "farkındalık", "plan"],
     accent: "#6C63FF",
     background: "#F0EFFF",
-    route: "/support-topic/trigger-mapping",
+    route: { pathname: "/support-topic/[id]", params: { id: "trigger-mapping" } },
     sections: [
       {
         title: "Tetikleyicileri Tanı",
@@ -168,7 +173,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["destek", "iletişim", "plan"],
     accent: "#2E7D6B",
     background: "#E7F6F0",
-    route: "/support-topic/support-network",
+    route: { pathname: "/support-topic/[id]", params: { id: "support-network" } },
     sections: [
       {
         title: "Kimlere Ulaşabilirsin?",
@@ -202,7 +207,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     tags: ["günlük", "yazı", "farkındalık"],
     accent: "#9C6ADE",
     background: "#F6F0FF",
-    route: "/support-topic/journal-prompts",
+    route: { pathname: "/support-topic/[id]", params: { id: "journal-prompts" } },
     sections: [
       {
         title: "3 Dakikalık Yazı",

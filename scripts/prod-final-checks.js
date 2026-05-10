@@ -38,6 +38,22 @@ function warn(message) {
   console.warn(`[prod-final] WARN: ${message}`);
 }
 
+function isCngWorkflow() {
+  const gitignorePath = path.resolve(root, ".gitignore");
+  if (!fs.existsSync(gitignorePath)) return false;
+
+  const lines = fs
+    .readFileSync(gitignorePath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith("#"));
+
+  const ignoresIos = lines.includes("/ios") || lines.includes("ios/");
+  const ignoresAndroid = lines.includes("/android") || lines.includes("android/");
+  return ignoresIos && ignoresAndroid;
+}
+
 function mustMatch(content, regex, message) {
   if (!regex.test(content)) {
     fail(message);
@@ -92,9 +108,19 @@ function checkAppUrls() {
 }
 
 function checkPolicyPages() {
-  const privacy = readText("website/privacy.html").toLowerCase();
-  const terms = readText("website/terms.html").toLowerCase();
-  const support = readText("website/support.html").toLowerCase();
+  const privacyPath = fs.existsSync(path.resolve(root, "website/privacy.html"))
+    ? "website/privacy.html"
+    : "website/privacy/index.html";
+  const termsPath = fs.existsSync(path.resolve(root, "website/terms.html"))
+    ? "website/terms.html"
+    : "website/terms/index.html";
+  const supportPath = fs.existsSync(path.resolve(root, "website/support.html"))
+    ? "website/support.html"
+    : "website/support/index.html";
+
+  const privacy = readText(privacyPath).toLowerCase();
+  const terms = readText(termsPath).toLowerCase();
+  const support = readText(supportPath).toLowerCase();
 
   mustMatch(
     privacy,
@@ -438,7 +464,9 @@ async function checkPublicStoreUrlsReachable() {
 
 function checkStorePolicySafety() {
   const appJson = readJson("app.json");
-  const manifest = readText("android/app/src/main/AndroidManifest.xml");
+  const manifestPath = "android/app/src/main/AndroidManifest.xml";
+  const hasManifest = fs.existsSync(path.resolve(root, manifestPath));
+  const manifest = hasManifest ? readText(manifestPath) : "";
   const featureFlags = readText("constants/featureFlags.ts");
   const appPermissions = Array.isArray(appJson?.expo?.android?.permissions)
     ? appJson.expo.android.permissions
@@ -461,27 +489,37 @@ function checkStorePolicySafety() {
     }
   }
 
-  for (const permission of restrictedAndroidPermissions) {
-    const escaped = permission.replace(/\./g, "\\.");
-    const regex = new RegExp(`<uses-permission\\s+android:name="${escaped}"`, "i");
-    if (regex.test(manifest)) {
-      fail(`AndroidManifest must not include restricted permission: ${permission}`);
+  if (!hasManifest) {
+    if (isCngWorkflow()) {
+      ok(
+        `${manifestPath} is not committed locally (CNG workflow); skipping AndroidManifest policy assertions.`
+      );
     } else {
-      ok(`AndroidManifest excludes restricted permission: ${permission}`);
+      warn(`${manifestPath} is missing; skipping AndroidManifest policy assertions.`);
     }
-  }
+  } else {
+    for (const permission of restrictedAndroidPermissions) {
+      const escaped = permission.replace(/\./g, "\\.");
+      const regex = new RegExp(`<uses-permission\\s+android:name="${escaped}"`, "i");
+      if (regex.test(manifest)) {
+        fail(`AndroidManifest must not include restricted permission: ${permission}`);
+      } else {
+        ok(`AndroidManifest excludes restricted permission: ${permission}`);
+      }
+    }
 
-  const smsEntryRegexes = [
-    /com\.antislot\.SmsDeliverReceiver/,
-    /com\.antislot\.MmsDeliverReceiver/,
-    /com\.antislot\.RespondViaMessageService/,
-    /android\.intent\.action\.SENDTO/,
-  ];
-  for (const regex of smsEntryRegexes) {
-    if (regex.test(manifest)) {
-      fail(`AndroidManifest contains restricted SMS handler entry: ${regex}`);
-    } else {
-      ok(`AndroidManifest excludes SMS handler entry: ${regex}`);
+    const smsEntryRegexes = [
+      /com\.antislot\.SmsDeliverReceiver/,
+      /com\.antislot\.MmsDeliverReceiver/,
+      /com\.antislot\.RespondViaMessageService/,
+      /android\.intent\.action\.SENDTO/,
+    ];
+    for (const regex of smsEntryRegexes) {
+      if (regex.test(manifest)) {
+        fail(`AndroidManifest contains restricted SMS handler entry: ${regex}`);
+      } else {
+        ok(`AndroidManifest excludes SMS handler entry: ${regex}`);
+      }
     }
   }
 

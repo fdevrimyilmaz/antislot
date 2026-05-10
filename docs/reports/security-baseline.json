@@ -1,29 +1,88 @@
 {
-  "generatedAt": "2026-03-09T22:25:34.373Z",
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-10T00:27:49.385Z",
+  "generator": {
+    "nodeVersion": "v24.13.0",
+    "npmVersion": "11.6.2"
+  },
+  "policy": {
+    "trackedSeverities": [
+      "critical",
+      "high",
+      "moderate",
+      "low"
+    ],
+    "maxBaselineAgeDays": 14,
+    "enforceZeroVulns": false
+  },
   "workspaces": {
     "app": {
       "info": 0,
       "low": 0,
-      "moderate": 0,
+      "moderate": 4,
       "high": 0,
       "critical": 0,
-      "total": 0
+      "total": 4,
+      "lockfileSha256": "e7555a4d98b9578111103479b32d5500a662c1ef79bdf8c33a9c2f50d2d97238",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [],
+        "moderate": [
+          "moderate|@expo/cli|dependency:@expo/metro-config",
+          "moderate|@expo/metro-config|dependency:postcss",
+          "moderate|expo|dependency:@expo/cli",
+          "moderate|expo|dependency:@expo/metro-config",
+          "moderate|postcss|advisory:1117015"
+        ],
+        "low": []
+      }
     },
     "backend": {
       "info": 0,
-      "low": 8,
+      "low": 0,
       "moderate": 0,
-      "high": 0,
+      "high": 5,
       "critical": 0,
-      "total": 8
+      "total": 5,
+      "lockfileSha256": "3ee584ba0124d9eeeb70dbfb9d1f81a965f691b789bb093cc4b899957fcaadf7",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [
+          "high|@fastify/ajv-compiler|dependency:fast-uri",
+          "high|@fastify/fast-json-stringify-compiler|dependency:fast-json-stringify",
+          "high|fast-json-stringify|dependency:fast-uri",
+          "high|fast-uri|advisory:1117870",
+          "high|fast-uri|advisory:1117884",
+          "high|fastify|advisory:1112876",
+          "high|fastify|advisory:1112877",
+          "high|fastify|advisory:1115367",
+          "high|fastify|dependency:@fastify/ajv-compiler",
+          "high|fastify|dependency:@fastify/fast-json-stringify-compiler",
+          "high|fastify|dependency:fast-json-stringify"
+        ],
+        "moderate": [],
+        "low": []
+      }
     },
     "server": {
       "info": 0,
-      "low": 8,
+      "low": 1,
       "moderate": 0,
-      "high": 0,
+      "high": 1,
       "critical": 0,
-      "total": 8
+      "total": 2,
+      "lockfileSha256": "449f820758bc3358ea5dc24b1de7bee33f70c74c1129d8dc9b6383e9762bbe92",
+      "trackedFingerprints": {
+        "critical": [],
+        "high": [
+          "high|path-to-regexp|advisory:1115573",
+          "high|path-to-regexp|advisory:1115582"
+        ],
+        "moderate": [],
+        "low": [
+          "low|qs|advisory:1113161"
+        ]
+      }
     }
   }
 }

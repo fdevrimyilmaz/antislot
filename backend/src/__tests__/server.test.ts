@@ -1,28 +1,24 @@
 /**
- * API Sunucusu için Birim Testleri
+ * Unit tests for backend API server.
  */
 
 import { fastify, blocklistStorage, patternsStorage } from '../server';
+import { config } from '../config';
 import { verifySignature } from '../utils/signature';
 
-describe('API Sunucusu', () => {
+describe('API Server', () => {
   beforeAll(async () => {
-    // Testlerden önce depolamayı başlat
     await blocklistStorage.initialize();
     await patternsStorage.initialize();
-    
-    // Test alanı ekle
-    await blocklistStorage.addDomain('test-bet.com', 'Test alan adı');
+    await blocklistStorage.addDomain('test-bet.com', 'Test domain');
   });
 
   afterAll(async () => {
-    // Temizlik
     await blocklistStorage.removeDomain('test-bet.com').catch(() => {});
-    // Fastify'yi burada kapatma - tekil (singleton) kullanılıyor
   });
 
   describe('GET /v1/health', () => {
-    it('sağlık durumunu döndürmeli', async () => {
+    it('returns health payload', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/health'
@@ -30,7 +26,7 @@ describe('API Sunucusu', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      
+
       expect(body).toHaveProperty('status', 'ok');
       expect(body).toHaveProperty('timestamp');
       expect(body).toHaveProperty('version');
@@ -38,7 +34,7 @@ describe('API Sunucusu', () => {
       expect(body).toHaveProperty('blocklistCount');
       expect(body).toHaveProperty('patternsVersion');
       expect(body).toHaveProperty('patternsCount');
-      
+
       expect(typeof body.timestamp).toBe('number');
       expect(typeof body.blocklistVersion).toBe('number');
       expect(typeof body.blocklistCount).toBe('number');
@@ -46,7 +42,7 @@ describe('API Sunucusu', () => {
   });
 
   describe('GET /v1/blocklist', () => {
-    it('imzalı engel listesini döndürmeli', async () => {
+    it('returns signed blocklist', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/blocklist'
@@ -54,23 +50,22 @@ describe('API Sunucusu', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      
+
       expect(body).toHaveProperty('version');
       expect(body).toHaveProperty('updatedAt');
       expect(body).toHaveProperty('domains');
       expect(body).toHaveProperty('signature');
-      
+
       expect(Array.isArray(body.domains)).toBe(true);
       expect(typeof body.signature).toBe('string');
       expect(body.signature.length).toBeGreaterThan(0);
-      
-      // İmzayı doğrula
+
       const { signature, ...payload } = body;
       const isValid = verifySignature(payload, signature);
       expect(isValid).toBe(true);
     });
 
-    it('Cache-Control başlığını içermeli', async () => {
+    it('returns cache headers', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/blocklist'
@@ -80,7 +75,7 @@ describe('API Sunucusu', () => {
       expect(response.headers['cache-control']).toContain('max-age');
     });
 
-    it('ETag başlığını içermeli', async () => {
+    it('returns ETag', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/blocklist'
@@ -90,18 +85,16 @@ describe('API Sunucusu', () => {
       expect(response.headers['etag']).toMatch(/^"[a-f0-9]{16}"$/);
     });
 
-    it('If-None-Match eşleştiğinde 304 Not Modified dönmeli', async () => {
-      // ETag almak için ilk istek
-      const firstResponse = await fastify.inject({
+    it('returns 304 when if-none-match matches', async () => {
+      const first = await fastify.inject({
         method: 'GET',
         url: '/v1/blocklist'
       });
-      
-      const etag = firstResponse.headers['etag'];
+
+      const etag = first.headers['etag'];
       expect(etag).toBeDefined();
 
-      // If-None-Match ile ikinci istek
-      const secondResponse = await fastify.inject({
+      const second = await fastify.inject({
         method: 'GET',
         url: '/v1/blocklist',
         headers: {
@@ -109,12 +102,12 @@ describe('API Sunucusu', () => {
         }
       });
 
-      expect(secondResponse.statusCode).toBe(304);
+      expect(second.statusCode).toBe(304);
     });
   });
 
   describe('GET /v1/patterns', () => {
-    it('imzalı kalıpları döndürmeli', async () => {
+    it('returns signed patterns', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/patterns'
@@ -122,21 +115,19 @@ describe('API Sunucusu', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
-      
+
       expect(body).toHaveProperty('version');
       expect(body).toHaveProperty('updatedAt');
       expect(body).toHaveProperty('patterns');
       expect(body).toHaveProperty('signature');
-      
+
       expect(Array.isArray(body.patterns)).toBe(true);
       expect(typeof body.signature).toBe('string');
-      
-      // İmzayı doğrula
+
       const { signature, ...payload } = body;
       const isValid = verifySignature(payload, signature);
       expect(isValid).toBe(true);
-      
-      // Kalıp yapısını doğrula
+
       if (body.patterns.length > 0) {
         const pattern = body.patterns[0];
         expect(pattern).toHaveProperty('pattern');
@@ -146,7 +137,7 @@ describe('API Sunucusu', () => {
       }
     });
 
-    it('Cache-Control başlığını içermeli', async () => {
+    it('returns cache-control', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/patterns'
@@ -155,13 +146,78 @@ describe('API Sunucusu', () => {
       expect(response.headers['cache-control']).toBeDefined();
     });
 
-    it('ETag başlığını içermeli', async () => {
+    it('returns ETag', async () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/v1/patterns'
       });
 
       expect(response.headers['etag']).toBeDefined();
+    });
+  });
+
+  describe('POST /chat and /v1/ai/chat', () => {
+    const originalFetch = global.fetch;
+    const originalProvider = config.aiProvider;
+    const originalGeminiApiKey = config.geminiApiKey;
+    const originalGeminiModel = config.geminiModel;
+
+    beforeAll(() => {
+      (config as { aiProvider: string }).aiProvider = 'gemini';
+      (config as { geminiApiKey: string }).geminiApiKey = 'test-gemini-key';
+      (config as { geminiModel: string }).geminiModel = 'gemini-2.5-flash';
+    });
+
+    afterAll(() => {
+      global.fetch = originalFetch;
+      (config as { aiProvider: string }).aiProvider = originalProvider;
+      (config as { geminiApiKey: string }).geminiApiKey = originalGeminiApiKey;
+      (config as { geminiModel: string }).geminiModel = originalGeminiModel;
+    });
+
+    it('accepts messages[] format on /chat', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'Merhaba, buradayim.' }] } }]
+        })
+      } as any);
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/chat',
+        payload: {
+          messages: [{ role: 'user', content: 'Merhaba' }]
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.reply).toContain('Merhaba');
+      expect(body.provider).toBe('gemini');
+    });
+
+    it('accepts legacy format on /v1/ai/chat', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'Nefes al, sakinles.' }] } }]
+        })
+      } as any);
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/ai/chat',
+        payload: {
+          message: 'Kaygiliyim',
+          history: [{ role: 'assistant', content: 'Yanindayim.' }]
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.reply).toContain('sakinles');
+      expect(body.provider).toBe('gemini');
     });
   });
 });

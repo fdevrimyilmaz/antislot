@@ -4,13 +4,12 @@ import { Platform } from "react-native";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const tint = Colors[colorScheme ?? "light"].tint;
+  const { colors } = useTheme();
+  const tint = colors.primary;
   const { t } = useLanguage();
   const router = useRouter();
 
@@ -21,11 +20,12 @@ export default function TabLayout() {
 
         // ✅ Sekme çubuğu görünümünü stabilize ediyoruz (iOS üst üste binme/bulanıklık etkisini keser)
         tabBarActiveTintColor: tint,
-        tabBarInactiveTintColor: "#8A8A8A",
+        tabBarInactiveTintColor: colors.textMuted,
 
         // ✅ Sekme çubuğu arka planını tamamen opak yap (iOS bulanıklık/üst üste binme etkisini keser)
         tabBarStyle: {
-          backgroundColor: "#FFFFFF",
+          backgroundColor: colors.card,
+          borderTopColor: colors.cardBorder,
           borderTopWidth: 0,
           elevation: 0, // Android gölge kapat
           // iOS'ta bulanıklık/şeffaflık gibi şeyler yüzünden içerik soluk görünmesin

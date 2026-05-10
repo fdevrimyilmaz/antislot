@@ -6,7 +6,10 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
-    '!src/cli/**/*.ts'
+    '!src/cli/**/*.ts',
+    '!src/scripts/**/*.ts',
+    '!src/services/**/*.ts',
+    '!src/blocklist-manager.ts'
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

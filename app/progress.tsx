@@ -1,8 +1,7 @@
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo } from "react";
 import {
   Alert,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,432 +9,325 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { useProgressStore } from "@/store/progressStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 import { useUser } from "@/contexts/UserContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
-// Progress shows per-addiction metrics and reset actions.
+const MILESTONES = [7, 14, 30, 60, 90, 180, 365] as const;
+const WEEKDAY_LABELS = ["Pzt", "Sal", "Car", "Per", "Cum", "Cmt", "Paz"] as const;
+
+function getNextMilestone(days: number): number {
+  const next = MILESTONES.find((value) => value > days);
+  if (next) return next;
+  return Math.ceil((days + 1) / 30) * 30;
+}
 
 export default function Progress() {
-  const [showIntro, setShowIntro] = useState(true);
   const { userAddictions, hydrated } = useUserAddictionsStore();
   const { uid } = useUser();
+  const { colors } = useTheme();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const resetProgress = useProgressStore((state) => state.reset);
   const progressHydrated = useProgressStore((state) => state.hydrated);
 
+  const nextMilestone = useMemo(
+    () => getNextMilestone(Math.max(0, gamblingFreeDays)),
+    [gamblingFreeDays]
+  );
+  const previousMilestone = useMemo(
+    () => MILESTONES.slice().reverse().find((value) => value <= gamblingFreeDays) ?? 0,
+    [gamblingFreeDays]
+  );
+  const milestoneSpan = Math.max(1, nextMilestone - previousMilestone);
+  const milestoneProgress = Math.min(
+    1,
+    Math.max(0, (gamblingFreeDays - previousMilestone) / milestoneSpan)
+  );
+
+  const weeklySeries = useMemo(
+    () =>
+      WEEKDAY_LABELS.map((label, index) => {
+        const daysFromToday = WEEKDAY_LABELS.length - 1 - index;
+        const completed = gamblingFreeDays > daysFromToday;
+        return {
+          label,
+          completed,
+          height: completed ? 26 + index * 8 : 12,
+        };
+      }),
+    [gamblingFreeDays]
+  );
+
+  const completedWeeklyBars = weeklySeries.filter((item) => item.completed).length;
+  const weeklyScore = Math.round((completedWeeklyBars / WEEKDAY_LABELS.length) * 100);
+
   const handleReset = () => {
     if (!uid) {
-      Alert.alert("Hata", "Kullanıcı bulunamadı.");
+      Alert.alert("Hata", "Kullanici bulunamadi.");
       return;
     }
-    Alert.alert("İlerlemeyi Sıfırla", "Bu işlem seçili bağımlılık sayacını sıfırlar.", [
-      { text: "İptal", style: "cancel" },
-      {
-        text: "Sıfırla",
-        style: "destructive",
-        onPress: () => resetProgress(uid),
-      },
-    ]);
+    Alert.alert(
+      "Ilerlemeyi Sifirla",
+      "Bu islem secili bagimlilik sayacini sifirlar.",
+      [
+        { text: "Iptal", style: "cancel" },
+        {
+          text: "Sifirla",
+          style: "destructive",
+          onPress: () => resetProgress(uid),
+        },
+      ]
+    );
   };
 
   if (!hydrated || !progressHydrated) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loader}>
-          <Text>Yükleniyor...</Text>
-        </View>
+      <SafeAreaView style={[styles.loader, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.textMuted }}>Yukleniyor...</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.title}>İlerleme</Text>
-        <Text style={styles.subtitle}>Kumar için ilerlemeyi takip et.</Text>
-
-        <View style={styles.card}>
-          <View style={styles.iconWrapper}>
-            <Text style={styles.icon}>🏆</Text>
-          </View>
-          <Text style={styles.cardTitle}>Yolculuğunuzu İzleyin</Text>
-          <Text style={styles.cardText}>
-            Seçtiğiniz bağımlılıkların her biri için ayrı ilerleme kartlarıyla motivasyonunuzu
-            koruyun ve gelişiminizi görün.
-          </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kumar İlerlemesi</Text>
-          {!userAddictions.gambling ? (
-            <Text style={styles.emptyText}>Henüz seçim yok.</Text>
-          ) : (
-            <View style={styles.progressCard}>
-              <View style={styles.progressRow}>
-                <View>
-                  <Text style={styles.progressTitle}>Kumar</Text>
-                  <Text style={styles.progressLabel}>Temiz Gün</Text>
-                </View>
-                <Text style={styles.progressValue}>{gamblingFreeDays}</Text>
-              </View>
-              <TouchableOpacity style={styles.progressResetBtn} onPress={handleReset}>
-                <Text style={styles.resetText}>Sıfırla</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Giriş Modali */}
-      <Modal
-        visible={showIntro}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowIntro(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setShowIntro(false)}
-            >
-              <Text style={styles.closeText}>✕</Text>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Text style={[styles.backText, { color: colors.primary }]}>← Geri</Text>
             </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>Ilerleme Paneli</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+              Grafiklerle guclendirilmis toparlanma gorunumu
+            </Text>
+          </View>
 
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>🏆</Text>
+          <LinearGradient
+            colors={colors.heroGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroLeft}>
+              <View style={[styles.streakOuter, { borderColor: "rgba(255,255,255,0.28)" }]}>
+                <View style={[styles.streakInner, { backgroundColor: "rgba(255,255,255,0.14)" }]}>
+                  <Text style={styles.streakValue}>{gamblingFreeDays}</Text>
+                  <Text style={styles.streakLabel}>Temiz Gun</Text>
+                </View>
+              </View>
             </View>
 
-            <Text style={styles.modalTitle}>İlerleme</Text>
-            <Text style={styles.modalSubtitle}>Bağımlılık bazında ilerleme kartları</Text>
-
-            <Text style={styles.modalDescription}>
-              Seçtiğiniz bağımlılıkların her biri için ayrı metrikler göreceksiniz. Bu kartlar
-              motivasyonunuzu takip etmenize yardımcı olur.
-            </Text>
-
-            <View style={styles.modalTip}>
-              <Text style={styles.modalTipLabel}>İpucu:</Text>
-              <Text style={styles.modalTipText}>
-                Gelişiminizi destek ağınızla paylaşmak motive edici olabilir.
+            <View style={styles.heroRight}>
+              <Text style={styles.heroMetricTitle}>Haftalik Momentum</Text>
+              <Text style={styles.heroMetricValue}>{weeklyScore}%</Text>
+              <Text style={styles.heroMetricHint}>
+                Son 7 gunun {completedWeeklyBars} gunu aktif streak icinde.
               </Text>
             </View>
+          </LinearGradient>
 
-            <TouchableOpacity
-              style={styles.modalNextBtn}
-              onPress={() => setShowIntro(false)}
-            >
-              <Text style={styles.modalNextText}>İleri →</Text>
-            </TouchableOpacity>
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>7 Gunluk Gorsel Grafik</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+              Her bar son 7 gun icindeki streak durumunu gosterir.
+            </Text>
+            <View style={styles.chartRow}>
+              {weeklySeries.map((item) => (
+                <View key={item.label} style={styles.chartColumn}>
+                  <View style={[styles.chartTrack, { backgroundColor: colors.cardBorder }]}>
+                    <LinearGradient
+                      colors={
+                        item.completed
+                          ? [colors.primary, colors.accent]
+                          : [colors.cardBorder, colors.cardBorder]
+                      }
+                      start={{ x: 0, y: 1 }}
+                      end={{ x: 0, y: 0 }}
+                      style={[styles.chartFill, { height: item.height }]}
+                    />
+                  </View>
+                  <Text style={[styles.chartLabel, { color: colors.textMuted }]}>{item.label}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.milestoneHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Kilometre Taslari</Text>
+              <Text style={[styles.milestoneBadge, { color: colors.primary }]}>
+                Hedef {nextMilestone} gun
+              </Text>
+            </View>
+            <Text style={[styles.sectionSubtitle, { color: colors.textMuted }]}>
+              Bir sonraki hedefe yaklasma oraniniz: %{Math.round(milestoneProgress * 100)}
+            </Text>
+
+            <View style={[styles.milestoneTrack, { backgroundColor: colors.cardBorder }]}>
+              <LinearGradient
+                colors={[colors.primary, colors.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.milestoneFill, { width: `${Math.max(4, milestoneProgress * 100)}%` }]}
+              />
+            </View>
+
+            <View style={styles.milestoneLabels}>
+              <Text style={[styles.milestoneLabel, { color: colors.textMuted }]}>{previousMilestone}g</Text>
+              <Text style={[styles.milestoneLabel, { color: colors.textMuted }]}>{nextMilestone}g</Text>
+            </View>
+          </View>
+
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Kumar Ilerlemesi</Text>
+            {!userAddictions.gambling ? (
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>Henuz secim yok.</Text>
+            ) : (
+              <View style={[styles.progressCard, { backgroundColor: colors.background, borderColor: colors.cardBorder }]}>
+                <View style={styles.progressRow}>
+                  <View>
+                    <Text style={[styles.progressTitle, { color: colors.text }]}>Kumar</Text>
+                    <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Temiz gun sayaci</Text>
+                  </View>
+                  <Text style={[styles.progressValue, { color: colors.primary }]}>{gamblingFreeDays}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.progressResetBtn, { backgroundColor: colors.danger }]}
+                  onPress={handleReset}
+                >
+                  <Text style={styles.resetText}>Sayaci Sifirla</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F9FF",
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  backBtn: {
-    alignSelf: "flex-start",
-  },
-  backText: {
-    fontSize: 16,
-    color: "#1D4C72",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "900",
-    marginBottom: 8,
-    color: "#222",
-  },
-  subtitle: {
-    fontSize: 18,
-    color: "#666",
-    marginBottom: 24,
-  },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
+  content: { padding: 22, paddingBottom: 36, gap: 16 },
+  header: { marginBottom: 4 },
+  backBtn: { alignSelf: "flex-start", marginBottom: 10 },
+  backText: { fontSize: 16, fontWeight: "600" },
+  title: { fontSize: 29, fontWeight: "900", marginBottom: 8 },
+  subtitle: { fontSize: 14, lineHeight: 20 },
+  heroCard: {
+    borderRadius: 22,
+    padding: 18,
+    flexDirection: "row",
     alignItems: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 7,
+  },
+  heroLeft: { marginRight: 16 },
+  streakOuter: {
+    width: 122,
+    height: 122,
+    borderRadius: 61,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  streakInner: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  streakValue: { color: "#FFFFFF", fontSize: 34, fontWeight: "900" },
+  streakLabel: { color: "#FFFFFF", fontSize: 12, fontWeight: "700", opacity: 0.95 },
+  heroRight: { flex: 1 },
+  heroMetricTitle: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", opacity: 0.9 },
+  heroMetricValue: { color: "#FFFFFF", fontSize: 32, fontWeight: "900", marginVertical: 4 },
+  heroMetricHint: { color: "#FFFFFF", fontSize: 12, lineHeight: 18, opacity: 0.9 },
+  section: {
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    elevation: 2,
   },
-  iconWrapper: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#FFF9E6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  icon: {
-    fontSize: 50,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 12,
-    color: "#222",
-    textAlign: "center",
-  },
-  cardText: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  tipBox: {
-    backgroundColor: "#F0F9FF",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: "#1D4C72",
-  },
-  tipLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 8,
-    color: "#1D4C72",
-  },
-  tipText: {
-    fontSize: 15,
-    color: "#333",
-    lineHeight: 22,
-  },
-  statsGrid: {
+  sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 6 },
+  sectionSubtitle: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  chartRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 8,
+    marginTop: 2,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
+  chartColumn: { alignItems: "center", flex: 1 },
+  chartTrack: {
+    height: 96,
+    width: "100%",
+    borderRadius: 10,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    padding: 4,
+  },
+  chartFill: {
+    width: "100%",
+    borderRadius: 8,
+  },
+  chartLabel: { marginTop: 8, fontSize: 11, fontWeight: "600" },
+  milestoneHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    marginBottom: 2,
   },
-  statNumber: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 8,
+  milestoneBadge: { fontSize: 12, fontWeight: "700" },
+  milestoneTrack: {
+    height: 14,
+    borderRadius: 999,
+    overflow: "hidden",
+    marginTop: 4,
   },
-  statLabel: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
+  milestoneFill: { height: "100%", minWidth: 14, borderRadius: 999 },
+  milestoneLabels: {
+    marginTop: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
-  reviewBtn: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    flex: 1,
-  },
-  reviewText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#1D4C72",
-    marginBottom: 12,
-  },
+  milestoneLabel: { fontSize: 12, fontWeight: "600" },
   progressCard: {
-    backgroundColor: "#F8FAFC",
     borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
+    borderWidth: 1,
   },
   progressRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  progressTitle: { fontSize: 15, fontWeight: "800", color: "#222" },
-  progressLabel: { fontSize: 12, color: "#666", marginTop: 4 },
-  progressValue: { fontSize: 28, fontWeight: "900", color: "#1D4C72" },
-  progressHint: { fontSize: 12, color: "#777", marginTop: 10 },
-  emptyText: { fontSize: 13, color: "#999", fontStyle: "italic" },
+  progressTitle: { fontSize: 15, fontWeight: "800" },
+  progressLabel: { fontSize: 12, marginTop: 3 },
+  progressValue: { fontSize: 30, fontWeight: "900" },
   progressResetBtn: {
-    backgroundColor: "#D06B5C",
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 12,
   },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  detailLabel: { fontSize: 14, color: "#666" },
-  detailValue: { fontSize: 14, fontWeight: "700", color: "#222" },
-  input: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  secondaryBtn: {
-    backgroundColor: "#E8F0F8",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  secondaryText: { color: "#1D4C72", fontWeight: "700" },
-  actionsRow: { flexDirection: "row", gap: 12, marginBottom: 8 },
-  resetBtn: {
-    backgroundColor: "#D06B5C",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    flex: 1,
-  },
-  resetText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
-  // Modal stilleri
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  closeBtn: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  closeText: {
-    fontSize: 24,
-    color: "#999",
-    fontWeight: "300",
-  },
-  modalIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#FFF9E6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalIconEmoji: {
-    fontSize: 60,
-  },
-  modalTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#444",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 20,
-  },
-  modalTip: {
-    backgroundColor: "#F0F9FF",
-    borderRadius: 12,
-    padding: 16,
-    width: "100%",
-    marginBottom: 24,
-  },
-  modalTipLabel: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 6,
-    color: "#1D4C72",
-  },
-  modalTipText: {
-    fontSize: 14,
-    color: "#333",
-    lineHeight: 20,
-  },
-  modalNextBtn: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    width: "100%",
-    alignItems: "center",
-  },
-  modalNextText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-  },
+  resetText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  emptyText: { fontSize: 13, fontStyle: "italic" },
 });

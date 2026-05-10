@@ -1,0 +1,27 @@
+{
+  "assets": [
+    {
+      "id": "app_icon",
+      "path": "assets/images/icon.png",
+      "required": true
+    },
+    {
+      "id": "ios_screenshot_placeholder",
+      "path": "store-metadata/assets/ios/6.7/screenshot-1.png",
+      "required": false,
+      "manual": true
+    },
+    {
+      "id": "android_screenshot_placeholder",
+      "path": "store-metadata/assets/android/phone/screenshot-1.png",
+      "required": false,
+      "manual": true
+    },
+    {
+      "id": "android_feature_graphic",
+      "path": "store-metadata/assets/android/feature-graphic.png",
+      "required": false,
+      "manual": true
+    }
+  ]
+}

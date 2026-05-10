@@ -1,10 +1,11 @@
-// Optional Sentry import
-import Sentry from "@sentry/react-native";
+import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { canSendCrashReports, canSendTelemetry, markTelemetryEventSent } from "@/services/privacy";
 
-let routingInstrumentation: any = new Sentry.ReactNavigationInstrumentation();
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+});
 
 let initialized = false;
 
@@ -51,12 +52,14 @@ export const initMonitoring = (): void => {
       0.0
     ),
     integrations: [
-      new Sentry.ReactNativeTracing({
-        routingInstrumentation,
-        enableNativeFramesTracking: true,
+      navigationIntegration,
+      Sentry.reactNativeTracingIntegration({
+        enableHTTPTimings: true,
+        traceFetch: true,
+        traceXHR: false,
       }),
     ],
-    beforeSend(event: any, hint: any) {
+    beforeSend(event: any) {
       // Check crash reporting preference before sending
       if (!canSendCrashReports()) {
         // Don't send crash reports if user has disabled crash reporting
@@ -73,8 +76,8 @@ export const initMonitoring = (): void => {
 export const registerNavigationContainer = (
   navigationRef: any
 ): void => {
-  if (routingInstrumentation && navigationRef) {
-    routingInstrumentation.registerNavigationContainer(navigationRef);
+  if (navigationRef) {
+    navigationIntegration.registerNavigationContainer(navigationRef);
   }
 };
 

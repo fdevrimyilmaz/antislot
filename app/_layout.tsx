@@ -35,7 +35,6 @@ function RootLayoutContent() {
             screenOptions={{
               contentStyle: { backgroundColor: '#F4F9FF', opacity: 1 },
               // iOS'ta modal açıldığında arka planın kararmasını engelle
-              animationEnabled: true,
               gestureEnabled: true,
               // React Navigation'ın varsayılan arka plan karartmasını kapat
               ...(Platform.OS === 'ios' && {
