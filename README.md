@@ -13,6 +13,11 @@
 - Feature flags:
   - `EXPO_PUBLIC_ENABLE_IAP` (default: `false`)
   - `EXPO_PUBLIC_ENABLE_NOTIFICATIONS` (default: `false`)
+  - iOS IAP SKUs when IAP is enabled:
+    - `EXPO_PUBLIC_IAP_IOS_MONTHLY_SKU`
+    - `EXPO_PUBLIC_IAP_IOS_QUARTERLY_SKU`
+    - `EXPO_PUBLIC_IAP_IOS_SEMIANNUAL_SKU`
+    - `EXPO_PUBLIC_IAP_IOS_ANNUAL_SKU`
 - Production (EAS):
   - Configure the same `EXPO_PUBLIC_*` values in EAS environment variables.
   - Do not place secrets (HMAC keys, API tokens) in `EXPO_PUBLIC_*`; keep them server-side.

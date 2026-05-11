@@ -85,6 +85,13 @@ function RootLayoutContent() {
               }} 
             />
             <Stack.Screen
+              name="money-protection"
+              options={{
+                headerShown: false,
+                presentation: "card",
+              }}
+            />
+            <Stack.Screen
               name="privacy"
               options={{
                 headerShown: false,

@@ -1,76 +1,33 @@
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { useTheme } from "@/contexts/ThemeContext";
 import { ThemeTexture } from "@/components/theme-texture";
-import { fetchGamblingNewsBySource, type NewsItem } from "@/services/news";
+import { useTheme } from "@/contexts/ThemeContext";
+import { GAMBLING_FACTS } from "./data/gamblingFacts";
 
-type SourceGroups = {
-  sondakika: NewsItem[];
-  milliyet: NewsItem[];
-};
+const FACTS_PER_PAGE = 8;
 
-const SOURCE_LINKS = {
-  sondakika: "https://www.sondakika.com/kumar/",
-  milliyet: "https://www.milliyet.com.tr/haberleri/sanal-kumar",
-} as const;
+function paginateFacts(facts: readonly string[], pageSize: number): string[][] {
+  const pages: string[][] = [];
+  for (let i = 0; i < facts.length; i += pageSize) {
+    pages.push(facts.slice(i, i + pageSize));
+  }
+  return pages;
+}
 
-export default function NewsScreen() {
+export default function FactsScreen() {
   const { colors } = useTheme();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [groups, setGroups] = useState<SourceGroups>({
-    sondakika: [],
-    milliyet: [],
-  });
+  const pages = useMemo(() => paginateFacts(GAMBLING_FACTS, FACTS_PER_PAGE), []);
+  const [pageIndex, setPageIndex] = useState(0);
 
-  const hasAnyNews = useMemo(
-    () => groups.sondakika.length > 0 || groups.milliyet.length > 0,
-    [groups]
-  );
+  const clampedIndex = Math.min(Math.max(pageIndex, 0), Math.max(pages.length - 1, 0));
+  const currentFacts = pages[clampedIndex] ?? [];
+  const currentHeroFact = currentFacts[0] ?? "Gercekler netlesince kararlar da netlesir.";
 
-  const loadNews = useCallback(async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-    setError(null);
-
-    try {
-      const data = await fetchGamblingNewsBySource();
-      setGroups(data);
-      if (data.sondakika.length === 0 && data.milliyet.length === 0) {
-        setError("Haberler su an alinmadi. Lutfen tekrar dene.");
-      }
-    } catch {
-      setError("Haberler yuklenirken baglanti sorunu olustu.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadNews();
-  }, [loadNews]);
-
-  const openUrl = async (url: string) => {
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) return;
-    await Linking.openURL(url);
-  };
+  const canGoBack = clampedIndex > 0;
+  const canGoNext = clampedIndex < pages.length - 1;
 
   return (
     <LinearGradient
@@ -81,158 +38,127 @@ export default function NewsScreen() {
     >
       <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={[styles.backText, { color: colors.text }]}>← Geri</Text>
-          </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>HABERLER</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            Kumar ve sanal kumar guncel haberleri
-          </Text>
-        </View>
-
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-            onPress={() => loadNews(true)}
-            disabled={refreshing || loading}
-          >
-            <Text style={styles.actionBtnText}>{refreshing ? "Yenileniyor..." : "Yenile"}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <View style={styles.loader}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loaderText, { color: colors.textMuted }]}>Haberler yukleniyor...</Text>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+              <Text style={[styles.backText, { color: colors.text }]}>{"<- Geri"}</Text>
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>GERCEKLER</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>Online kumarin gercek yuzu.</Text>
           </View>
-        ) : (
-          <ScrollView contentContainerStyle={styles.list}>
-            {error ? <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text> : null}
 
-            <NewsSection
-              title="SonDakika"
-              sourceUrl={SOURCE_LINKS.sondakika}
-              items={groups.sondakika}
-              colors={colors}
-              onOpenUrl={openUrl}
-            />
+          <LinearGradient
+            colors={colors.heroGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <Text style={styles.heroLabel}>Gercekler Modulu</Text>
+            <Text style={styles.heroText}>{currentHeroFact}</Text>
+          </LinearGradient>
 
-            <NewsSection
-              title="Milliyet"
-              sourceUrl={SOURCE_LINKS.milliyet}
-              items={groups.milliyet}
-              colors={colors}
-              onOpenUrl={openUrl}
-            />
-
-            {!hasAnyNews ? (
-              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                Kaynaklardan haber bulunamadi. Biraz sonra tekrar dene.
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Bugunun Gercekleri</Text>
+              <Text style={[styles.sectionCount, { color: colors.primary }]}>
+                {clampedIndex + 1}/{pages.length}
               </Text>
-            ) : null}
-          </ScrollView>
-        )}
+            </View>
+
+            {currentFacts.map((fact, factIndex) => {
+              const absoluteNumber = clampedIndex * FACTS_PER_PAGE + factIndex + 1;
+              return (
+                <View key={`fact-${absoluteNumber}`} style={[styles.factCard, { borderColor: colors.cardBorder }]}>
+                  <Text style={[styles.factNumber, { color: colors.accent }]}>#{absoluteNumber}</Text>
+                  <Text style={[styles.factText, { color: colors.text }]}>{fact}</Text>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={styles.paginationRow}>
+            <TouchableOpacity
+              style={[styles.navBtn, { backgroundColor: canGoBack ? colors.primary : colors.cardBorder }]}
+              disabled={!canGoBack}
+              onPress={() => setPageIndex((value) => Math.max(0, value - 1))}
+            >
+              <Text style={styles.navBtnText}>Onceki</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.navBtn, { backgroundColor: canGoNext ? colors.primary : colors.cardBorder }]}
+              disabled={!canGoNext}
+              onPress={() => setPageIndex((value) => Math.min(pages.length - 1, value + 1))}
+            >
+              <Text style={styles.navBtnText}>Sonraki</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
 }
 
-function NewsSection({
-  title,
-  sourceUrl,
-  items,
-  colors,
-  onOpenUrl,
-}: {
-  title: string;
-  sourceUrl: string;
-  items: NewsItem[];
-  colors: {
-    card: string;
-    cardBorder: string;
-    text: string;
-    textMuted: string;
-    primary: string;
-    accent: string;
-  };
-  onOpenUrl: (url: string) => Promise<void>;
-}) {
-  return (
-    <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
-        <TouchableOpacity onPress={() => onOpenUrl(sourceUrl)}>
-          <Text style={[styles.sourceLink, { color: colors.primary }]}>Kaynak Sayfasi</Text>
-        </TouchableOpacity>
-      </View>
-
-      {items.length === 0 ? (
-        <Text style={[styles.sectionEmpty, { color: colors.textMuted }]}>
-          Bu kaynaktan su an haber alinmadi.
-        </Text>
-      ) : (
-        items.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            onPress={() => onOpenUrl(item.url)}
-            style={[styles.card, { borderColor: colors.cardBorder }]}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
-            {item.description ? (
-              <Text style={[styles.cardDescription, { color: colors.textMuted }]} numberOfLines={3}>
-                {item.description}
-              </Text>
-            ) : null}
-            <View style={styles.cardFooter}>
-              <Text style={[styles.cardSource, { color: colors.accent }]}>{item.sourceLabel}</Text>
-              <Text style={[styles.cardAction, { color: colors.primary }]}>Habere Git →</Text>
-            </View>
-          </TouchableOpacity>
-        ))
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   gradientContainer: { flex: 1 },
-  container: { flex: 1, paddingHorizontal: 20 },
-  header: { paddingTop: 8, paddingBottom: 8 },
+  container: { flex: 1 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 30, gap: 14 },
+  header: { marginBottom: 2 },
   backBtn: { alignSelf: "flex-start", marginBottom: 8 },
   backText: { fontSize: 16, fontWeight: "600" },
   title: { fontSize: 30, fontWeight: "900", marginBottom: 4 },
   subtitle: { fontSize: 14, lineHeight: 20 },
-  actions: { marginTop: 8, marginBottom: 8, alignItems: "flex-start" },
-  actionBtn: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  actionBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-  loader: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  loaderText: { fontSize: 13 },
-  list: { paddingBottom: 26, gap: 14 },
-  errorText: { fontSize: 13, fontWeight: "600", marginTop: 2 },
-  section: { borderRadius: 16, borderWidth: 1, padding: 14 },
+  heroCard: {
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  heroLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.88)",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    letterSpacing: 0.8,
+  },
+  heroText: { color: "#FFFFFF", fontSize: 18, fontWeight: "800", lineHeight: 26 },
+  section: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    gap: 10,
+  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
-    gap: 10,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "800" },
-  sourceLink: { fontSize: 12, fontWeight: "700" },
-  sectionEmpty: { fontSize: 13 },
-  card: {
+  sectionTitle: { fontSize: 17, fontWeight: "800" },
+  sectionCount: { fontSize: 12, fontWeight: "700" },
+  factCard: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
-    marginBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.32)",
+    backgroundColor: "rgba(255,255,255,0.28)",
+    gap: 6,
   },
-  cardTitle: { fontSize: 15, fontWeight: "700", lineHeight: 21 },
-  cardDescription: { fontSize: 13, lineHeight: 19, marginTop: 6 },
-  cardFooter: { marginTop: 8, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardSource: { fontSize: 12, fontWeight: "700" },
-  cardAction: { fontSize: 12, fontWeight: "700" },
-  emptyText: { textAlign: "center", fontSize: 13, marginTop: 8 },
+  factNumber: { fontSize: 12, fontWeight: "800" },
+  factText: { fontSize: 14, lineHeight: 20, fontWeight: "600" },
+  paginationRow: {
+    marginTop: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  navBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  navBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

@@ -24,8 +24,9 @@ import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 const IMAGE_SOURCES = {
   hero: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1400&q=80",
   therapy: "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=900&q=80",
+  moneyProtection: "https://images.unsplash.com/photo-1554224155-1696413565d3?auto=format&fit=crop&w=900&q=80",
   mindfulness: "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=900&q=80",
-  sos: "https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?auto=format&fit=crop&w=900&q=80",
+  smsFilter: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=80",
   progress: "https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=900&q=80",
   support: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=900&q=80",
   diary: "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=900&q=80",
@@ -36,9 +37,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [done, setDone] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
-  const { t } = useLanguage();
+  const { t, language, setLanguage: setAppLanguage } = useLanguage();
   const { theme, setTheme, colors } = useTheme();
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
   const { hydrated } = useUserAddictionsStore();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const progressHydrated = useProgressStore((state) => state.hydrated);
@@ -76,6 +78,11 @@ export default function HomeScreen() {
     () => THEME_OPTIONS.find((option) => option.id === theme) ?? THEME_OPTIONS[0],
     [theme]
   );
+  const languageOptions = useMemo(() => [{ id: "tr" as const, label: "Turkce" }], []);
+  const activeLanguageLabel = useMemo(
+    () => languageOptions.find((option) => option.id === language)?.label ?? "Turkce",
+    [language, languageOptions]
+  );
 
   const homePalette = {
     background: colors.background,
@@ -100,64 +107,62 @@ export default function HomeScreen() {
     () => [
       {
         key: "therapy",
-        title: t.therapy,
-        subtitle: t.therapySubtitle,
+        title: "Durtu Destegi",
+        subtitle: "Yonlendirmeli mudahaleler",
         route: "/therapy",
         image: IMAGE_SOURCES.therapy,
       },
       {
-        key: "mindfulness",
-        title: t.mindfulness,
-        subtitle: t.mindfulnessSubtitle,
-        route: "/mindfulness",
-        image: IMAGE_SOURCES.mindfulness,
-      },
-      {
-        key: "sos",
-        title: t.sos,
-        subtitle: t.sosSubtitle,
-        route: "/sos",
-        image: IMAGE_SOURCES.sos,
-      },
-      {
-        key: "progress",
-        title: t.progress,
-        subtitle: t.progressSubtitle,
-        route: "/progress",
-        image: IMAGE_SOURCES.progress,
+        key: "money-protection",
+        title: "Para Koruma",
+        subtitle: "Bugun param guvende mi?",
+        route: "/money-protection" as Href,
+        image: IMAGE_SOURCES.moneyProtection,
       },
       {
         key: "support",
-        title: t.support,
+        title: "Destek Seanslari",
+        subtitle: "Yonlendirmeli",
         route: "/support",
         image: IMAGE_SOURCES.support,
       },
       {
+        key: "mindfulness",
+        title: "Farkindalik",
+        subtitle: "Seanslar",
+        route: "/mindfulness",
+        image: IMAGE_SOURCES.mindfulness,
+      },
+      {
+        key: "progress",
+        title: "Ilerleme",
+        subtitle: "Simdi incele",
+        route: "/progress",
+        image: IMAGE_SOURCES.progress,
+      },
+      {
+        key: "sms-filter",
+        title: "SMS Engelleme",
+        subtitle: "Istenmeyen ve dolandiricilik",
+        route: "/sms-filter" as Href,
+        image: IMAGE_SOURCES.smsFilter,
+      },
+      {
         key: "facts",
-        title: "Haberler",
-        subtitle: "Kumar haberleri ve guncel gelismeler",
+        title: "Gercekler",
+        subtitle: "Online kumarin gercek yuzu",
         route: "/facts",
         image: IMAGE_SOURCES.facts,
       },
       {
         key: "diary",
-        title: t.diary,
+        title: "Gunluk",
+        subtitle: "Yansit, kaydet, guclen",
         route: "/diary",
         image: IMAGE_SOURCES.diary,
       },
     ],
-    [
-      t.diary,
-      t.mindfulness,
-      t.mindfulnessSubtitle,
-      t.progress,
-      t.progressSubtitle,
-      t.sos,
-      t.sosSubtitle,
-      t.support,
-      t.therapy,
-      t.therapySubtitle,
-    ]
+    []
   );
 
   if (loading || !hydrated || !progressHydrated) {
@@ -307,6 +312,62 @@ export default function HomeScreen() {
               </Text>
             </View>
           </LinearGradient>
+        </View>
+
+        <View style={styles.languageContainer}>
+          <TouchableOpacity
+            style={[
+              styles.languageBox,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+            onPress={() => setShowLanguagePicker((value) => !value)}
+            activeOpacity={0.85}
+          >
+            <View style={styles.languageMeta}>
+              <Text style={[styles.languageLabel, { color: colors.textMuted }]}>Uygulama Dili</Text>
+              <Text style={[styles.languageValue, { color: colors.text }]}>{activeLanguageLabel}</Text>
+            </View>
+            <Text style={[styles.languageChevron, { color: colors.textMuted }]}>
+              {showLanguagePicker ? "^" : "v"}
+            </Text>
+          </TouchableOpacity>
+
+          {showLanguagePicker ? (
+            <View
+              style={[
+                styles.languageDropdown,
+                { backgroundColor: colors.card, borderColor: colors.cardBorder },
+              ]}
+            >
+              {languageOptions.map((option, index) => {
+                const selected = option.id === language;
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    style={[
+                      styles.languageOption,
+                      index === languageOptions.length - 1 && styles.languageOptionLast,
+                      selected && { backgroundColor: colors.primary + "14" },
+                    ]}
+                    onPress={async () => {
+                      await setAppLanguage(option.id);
+                      setShowLanguagePicker(false);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.languageOptionText,
+                        { color: colors.text },
+                        selected && { color: colors.primary, fontWeight: "800" },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.gambleFreeCard}>
@@ -614,6 +675,69 @@ const styles = StyleSheet.create({
   titleSection: {
     alignItems: "center",
     marginBottom: 20,
+  },
+  languageContainer: {
+    marginBottom: 18,
+    position: "relative",
+    zIndex: 20,
+  },
+  languageBox: {
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  languageMeta: {
+    gap: 2,
+  },
+  languageLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  languageValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  languageChevron: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  languageDropdown: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  languageOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+  },
+  languageOptionLast: {
+    borderBottomWidth: 0,
+  },
+  languageOptionText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   homeTitleBadge: {
     paddingVertical: 8,

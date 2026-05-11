@@ -3,7 +3,6 @@ import {
   clearPremium,
   getPremiumState,
   setPremiumActive,
-  startTrial,
   type PremiumState,
 } from "@/store/premiumStore";
 
@@ -13,7 +12,6 @@ type PremiumContextValue = {
   isPremium: boolean;
   refresh: () => Promise<void>;
   activateCode: () => Promise<void>;
-  activateTrial: (days?: number) => Promise<void>;
   clear: () => Promise<void>;
 };
 
@@ -57,10 +55,6 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
       refresh,
       activateCode: async () => {
         const next = await setPremiumActive("code");
-        setState(next);
-      },
-      activateTrial: async (days = 7) => {
-        const next = await startTrial(days);
         setState(next);
       },
       clear: async () => {

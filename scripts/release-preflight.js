@@ -9,6 +9,10 @@ const HINTS = {
   EXPO_TOKEN: "GitHub Secret (Actions)",
   EXPO_PUBLIC_API_URL: "EAS Secret (project) + GitHub Secret for CI preflight",
   EXPO_PUBLIC_SENTRY_DSN: "EAS Secret (project) + GitHub Secret for CI preflight",
+  EXPO_PUBLIC_IAP_IOS_MONTHLY_SKU: "EAS Secret (project) / mobile env",
+  EXPO_PUBLIC_IAP_IOS_QUARTERLY_SKU: "EAS Secret (project) / mobile env",
+  EXPO_PUBLIC_IAP_IOS_SEMIANNUAL_SKU: "EAS Secret (project) / mobile env",
+  EXPO_PUBLIC_IAP_IOS_ANNUAL_SKU: "EAS Secret (project) / mobile env",
   OPENAI_API_KEY: "Server runtime secret manager / deploy env",
   GEMINI_API_KEY: "Server runtime secret manager / deploy env",
   SENTRY_DSN: "Server runtime secret manager / deploy env",
@@ -521,6 +525,14 @@ function main() {
       enforce: strict,
       hint: "activation code UI should remain disabled in IAP-only release",
     });
+
+    const mobileIapEnabled = parseBooleanLike(process.env.EXPO_PUBLIC_ENABLE_IAP || "");
+    if (mobileIapEnabled) {
+      checkEnv("EXPO_PUBLIC_IAP_IOS_MONTHLY_SKU", { enforce: strict });
+      checkEnv("EXPO_PUBLIC_IAP_IOS_QUARTERLY_SKU", { enforce: strict });
+      checkEnv("EXPO_PUBLIC_IAP_IOS_SEMIANNUAL_SKU", { enforce: strict });
+      checkEnv("EXPO_PUBLIC_IAP_IOS_ANNUAL_SKU", { enforce: strict });
+    }
   }
 
   if (target === "full" || target === "backend") {

@@ -1,6 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 
-export type PremiumSource = "none" | "trial" | "code";
+export type PremiumSource = "none" | "code" | "iap";
 
 export type PremiumState = {
   isActive: boolean;
@@ -18,10 +18,7 @@ const DEFAULT_STATE: PremiumState = {
 };
 
 function normalizeState(state: PremiumState): PremiumState {
-  if (state.source !== "trial" || !state.trialEndsAt) {
-    return state;
-  }
-  if (Date.now() <= state.trialEndsAt) {
+  if (state.source === "none" || state.source === "code" || state.source === "iap") {
     return state;
   }
   return { ...DEFAULT_STATE };
@@ -45,18 +42,6 @@ export async function getPremiumState(): Promise<PremiumState> {
     console.error("Premium durumu yüklenirken hata:", error);
     return { ...DEFAULT_STATE };
   }
-}
-
-export async function startTrial(days = 7): Promise<PremiumState> {
-  const now = Date.now();
-  const next: PremiumState = {
-    isActive: true,
-    trialEndsAt: now + days * 24 * 60 * 60 * 1000,
-    activatedAt: now,
-    source: "trial",
-  };
-  await saveState(next);
-  return next;
 }
 
 export async function setPremiumActive(source: PremiumSource = "code"): Promise<PremiumState> {

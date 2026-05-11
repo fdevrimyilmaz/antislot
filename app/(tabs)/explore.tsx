@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { type Href, router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   ScrollView,
@@ -10,8 +10,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SUPPORT_TOPICS } from "../data/supportTopics";
-
-// Explore tab includes quick access to settings.
 
 export default function ExploreScreen() {
   const [query, setQuery] = useState("");
@@ -28,33 +26,24 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Destek Konuları</Text>
-        <Text style={styles.subtitle}>Kısa, pratik ve uygulanabilir destek içerikleri.</Text>
+        <Text style={styles.title}>Kesfet</Text>
+        <Text style={styles.subtitle}>Modulleri kesfet, etkilesim kur.</Text>
 
         <View style={styles.searchBox}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Konu ara (ör. dürtü, kriz, destek)"
+            placeholder="Konu ara (or. durtu, kriz, destek)"
             value={query}
             onChangeText={setQuery}
           />
         </View>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={[styles.actionButton, styles.actionPrimary]} onPress={() => router.push("/sos")}>
-            <Text style={styles.actionPrimaryText}>SOS</Text>
-          </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionButton, styles.actionSecondary]}
-            onPress={() => router.push("/support")}
+            style={[styles.actionButton, styles.actionPrimary]}
+            onPress={() => router.push("/news" as Href)}
           >
-            <Text style={styles.actionSecondaryText}>Destek Ağı</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.actionSecondary]}
-            onPress={() => router.push("/diary")}
-          >
-            <Text style={styles.actionSecondaryText}>Günlük</Text>
+            <Text style={styles.actionPrimaryText}>Haberler</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.actionSecondary]}
@@ -87,12 +76,12 @@ export default function ExploreScreen() {
                 </View>
               ))}
             </View>
-            <Text style={[styles.topicAction, { color: topic.accent }]}>Detayları Gör →</Text>
+            <Text style={[styles.topicAction, { color: topic.accent }]}>{"Detaylari Gor ->"}</Text>
           </TouchableOpacity>
         ))}
 
         {filteredTopics.length === 0 && (
-          <Text style={styles.emptyText}>Aradığınız konuda içerik bulunamadı.</Text>
+          <Text style={styles.emptyText}>Aradiginiz konuda icerik bulunamadi.</Text>
         )}
       </ScrollView>
     </SafeAreaView>

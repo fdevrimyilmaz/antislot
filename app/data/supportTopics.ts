@@ -56,7 +56,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
       },
     ],
     actions: [
-      { label: "SOS Aç", route: "/sos" },
+      { label: "Para Koruma", route: "/money-protection" },
       { label: "Farkındalık", route: "/mindfulness" },
     ],
   },
@@ -196,7 +196,7 @@ export const SUPPORT_TOPICS: SupportTopic[] = [
     ],
     actions: [
       { label: "Destek Ağı", route: "/support" },
-      { label: "SOS", route: "/sos" },
+      { label: "Haberler", route: "/news" as Href },
     ],
   },
   {
