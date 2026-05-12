@@ -1,20 +1,29 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { ThemeTexture } from "@/components/theme-texture";
-import { type Theme } from "@/store/themeStore";
+import { PremiumBarChart } from "@/components/ui/premium-bar-chart";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { safeAiReply } from "@/services/aiSafety";
+import { addBreadcrumb, reportError } from "@/services/monitoring";
+import { haptics } from "@/services/haptics";
 import {
   clearAiMessages,
   loadAiMessages,
   saveAiMessages,
   type AiMessage,
+  type AiMessageRole,
 } from "@/store/aiChatStore";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
-  ScrollView,
+  FlatList,
+  type ListRenderItem,
   StyleSheet,
   Text,
   TextInput,
@@ -24,26 +33,41 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const QUICK_PROMPTS = [
-  "Su an durtu cok yukseldi.",
-  "Kisa bir nefes egzersizi oner.",
-  "Bugun kendimi suclu hissediyorum.",
-  "Kriz plani hazirlamama yardim et.",
+  "Şu an dürtü çok yükseldi.",
+  "Kısa bir nefes egzersizi öner.",
+  "Bugün kendimi suçlu hissediyorum.",
+  "Kriz planı hazırlamama yardım et.",
 ];
 
 const FALLBACK_REPLY =
-  "Su an baglanti sorunu var. Yalniz degilsin. 10-15 saniye sonra tekrar dene. Bu sirada su icmek, kisa bir yuruyus veya ortam degistirmek durtuyu azaltabilir.";
+  "Şu an bağlantı sorunu var. Yalnız değilsin. 10-15 saniye sonra tekrar dene. Bu sırada su içmek, kısa bir yürüyüş veya ortam değiştirmek dürtüyü azaltabilir.";
 
 const AI_TIMEOUT_MS = 15000;
-const TREND_BASE = [20, 34, 46, 58, 70, 83];
+const ACTIVITY_DAYS = 7;
+const ACTIVITY_DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"] as const;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const THEME_ICONS: Record<Theme, { hero: string; chart: string; chip: string; focus: string }> = {
-  white: { hero: "🧠", chart: "📈", chip: "💬", focus: "🎯" },
-  "twitter-blue": { hero: "🛰️", chart: "📊", chip: "🔹", focus: "⚡" },
-  black: { hero: "🖤", chart: "📉", chip: "✦", focus: "🎯" },
-  sunset: { hero: "🔥", chart: "📈", chip: "🌤️", focus: "🎯" },
-  forest: { hero: "🌿", chart: "📊", chip: "🍃", focus: "🎯" },
-  midnight: { hero: "🌌", chart: "📈", chip: "💫", focus: "🎯" },
-};
+function startOfLocalDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function buildDailyActivity(messages: AiMessage[], now: number, days: number) {
+  const todayStart = startOfLocalDay(now);
+  const counts: number[] = new Array(days).fill(0);
+
+  for (const msg of messages) {
+    if (msg.role !== "user") continue;
+    const dayStart = startOfLocalDay(msg.createdAt);
+    const offset = Math.round((todayStart - dayStart) / MS_PER_DAY);
+    if (offset >= 0 && offset < days) {
+      counts[days - 1 - offset] += 1;
+    }
+  }
+
+  return counts;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -60,11 +84,64 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+type MessageBubbleProps = {
+  content: string;
+  role: AiMessageRole;
+};
+
+function MessageListSkeleton() {
+  return (
+    <View
+      style={styles.skeletonList}
+      accessible
+      accessibilityLabel="Sohbet yükleniyor"
+      accessibilityState={{ busy: true }}
+    >
+      <View style={[styles.skeletonBubble, styles.assistantBubble]}>
+        <Skeleton width="92%" height={12} />
+        <Skeleton width="68%" height={12} style={styles.skeletonLineGap} />
+      </View>
+      <View style={[styles.skeletonBubble, styles.userBubble]}>
+        <Skeleton width="80%" height={12} />
+      </View>
+      <View style={[styles.skeletonBubble, styles.assistantBubble]}>
+        <Skeleton width="88%" height={12} />
+        <Skeleton width="74%" height={12} style={styles.skeletonLineGap} />
+        <Skeleton width="56%" height={12} style={styles.skeletonLineGap} />
+      </View>
+    </View>
+  );
+}
+
+const MessageBubble = React.memo(function MessageBubble({ content, role }: MessageBubbleProps) {
+  const { colors } = useTheme();
+  const isUser = role === "user";
+  return (
+    <View
+      style={[
+        styles.messageBubble,
+        {
+          backgroundColor: isUser ? colors.primary : colors.card,
+          borderColor: isUser ? colors.primary : colors.cardBorder,
+        },
+        isUser ? styles.userBubble : styles.assistantBubble,
+      ]}
+      accessible
+      accessibilityLabel={`${isUser ? "Senin mesajın" : "Yapay ANTI yanıtı"}: ${content}`}
+    >
+      <Text
+        style={[styles.messageText, { color: isUser ? "#FFFFFF" : colors.text }]}
+      >
+        {content}
+      </Text>
+    </View>
+  );
+});
+
 export default function AiScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const { theme, colors } = useTheme();
-  const icons = THEME_ICONS[theme];
+  const { colors } = useTheme();
 
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -72,7 +149,7 @@ export default function AiScreen() {
   const [sending, setSending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const scrollRef = useRef<ScrollView | null>(null);
+  const listRef = useRef<FlatList<AiMessage> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -82,35 +159,50 @@ export default function AiScreen() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
-    }
-  }, [messages, loading]);
+  const handleContentSizeChange = useCallback(() => {
+    listRef.current?.scrollToEnd({ animated: true });
+  }, []);
 
-  const assistantCount = useMemo(
-    () => messages.filter((item) => item.role === "assistant").length,
-    [messages]
-  );
-  const userCount = useMemo(
-    () => messages.filter((item) => item.role === "user").length,
-    [messages]
+  const keyExtractor = useCallback((item: AiMessage) => item.id, []);
+
+  const renderMessage = useCallback<ListRenderItem<AiMessage>>(
+    ({ item }) => <MessageBubble content={item.content} role={item.role} />,
+    []
   );
 
-  const focusScore = useMemo(() => {
-    const raw = 28 + assistantCount * 6 + userCount * 3 + (sending ? 5 : 0);
-    return Math.max(20, Math.min(100, raw));
-  }, [assistantCount, userCount, sending]);
+  const dailyActivity = useMemo(() => {
+    const counts = buildDailyActivity(messages, Date.now(), ACTIVITY_DAYS);
+    const maxCount = counts.reduce((max, c) => Math.max(max, c), 0);
+    const todayWeekday = new Date().getDay();
 
-  const trendBars = useMemo(
-    () =>
-      TREND_BASE.map((base, index) => ({
-        key: `trend-${index}`,
-        label: `D${index + 1}`,
-        value: Math.min(100, Math.max(10, Math.round(base * (focusScore / 82)))),
-      })),
-    [focusScore]
-  );
+    return counts.map((count, index) => {
+      const dayOffset = ACTIVITY_DAYS - 1 - index;
+      const weekday = (todayWeekday - dayOffset + 7) % 7;
+      const labelIndex = (weekday + 6) % 7;
+      const ratio = maxCount > 0 ? count / maxCount : 0;
+      const value = count === 0 ? 0 : Math.max(12, Math.round(ratio * 100));
+      return {
+        key: `day-${index}`,
+        label: ACTIVITY_DAY_LABELS[labelIndex],
+        value,
+        inactive: count === 0,
+        valueLabel: count > 0 ? String(count) : "0",
+        count,
+      };
+    });
+  }, [messages]);
+
+  const todayCount = dailyActivity[dailyActivity.length - 1]?.count ?? 0;
+  const weeklyTotal = dailyActivity.reduce((sum, item) => sum + item.count, 0);
+  const averageReference = useMemo(() => {
+    const max = dailyActivity.reduce((m, d) => Math.max(m, d.count), 0);
+    if (max === 0) return undefined;
+    const avg = weeklyTotal / dailyActivity.length;
+    return {
+      value: (avg / max) * 100,
+      label: `Ort. ${avg < 10 ? avg.toFixed(1) : avg.toFixed(0)}`,
+    };
+  }, [dailyActivity, weeklyTotal]);
 
   const handleSend = async (preset?: string) => {
     if (loading || sending) return;
@@ -134,6 +226,8 @@ export default function AiScreen() {
     await saveAiMessages(nextMessages);
 
     setSending(true);
+    haptics.tapLight();
+    addBreadcrumb("ai.chat", "send", { length: content.length });
 
     try {
       const { text } = await withTimeout(
@@ -152,13 +246,20 @@ export default function AiScreen() {
       const updatedMessages = [...nextMessages, assistantMessage];
       setMessages(updatedMessages);
       await saveAiMessages(updatedMessages);
-    } catch (error: any) {
-      const uiError =
-        error?.message === "timeout"
-          ? "AI yaniti gecikti (timeout). Internetini kontrol edip tekrar dene."
-          : "Su an AI'ye baglanamiyorum. Biraz sonra tekrar deneyelim.";
+    } catch (error: unknown) {
+      const isTimeout = error instanceof Error && error.message === "timeout";
+      const uiError = isTimeout
+        ? "AI yanıtı gecikti (timeout). İnternetini kontrol edip tekrar dene."
+        : "Şu an AI'ye bağlanamıyorum. Biraz sonra tekrar deneyelim.";
 
       setErrorMessage(uiError);
+      haptics.error();
+      reportError(error, {
+        scope: "ai.chat",
+        level: "warning",
+        tags: { reason: isTimeout ? "timeout" : "upstream" },
+        extra: { messageLength: content.length },
+      });
 
       const replyAt = Date.now();
       const assistantMessage: AiMessage = {
@@ -177,8 +278,9 @@ export default function AiScreen() {
   };
 
   const handleClear = () => {
-    Alert.alert("Sohbeti Temizle", "Tum sohbet gecmisi silinecek.", [
-      { text: "Iptal", style: "cancel" },
+    haptics.warning();
+    Alert.alert("Sohbeti Temizle", "Tüm sohbet geçmişi silinecek.", [
+      { text: "İptal", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
@@ -186,6 +288,7 @@ export default function AiScreen() {
           await clearAiMessages();
           setMessages([]);
           setErrorMessage(null);
+          haptics.success();
         },
       },
     ]);
@@ -201,97 +304,81 @@ export default function AiScreen() {
       <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
       <SafeAreaView style={styles.container}>
         <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel={t.back}
+          >
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
             <Text style={[styles.backButtonText, { color: colors.text }]}>{t.back}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleClear}>
+          <TouchableOpacity
+            onPress={handleClear}
+            accessibilityRole="button"
+            accessibilityLabel="Sohbeti temizle"
+            style={styles.clearButton}
+          >
+            <Ionicons name="trash-outline" size={16} color={colors.primary} />
             <Text style={[styles.clearText, { color: colors.primary }]}>Sohbeti temizle</Text>
           </TouchableOpacity>
         </View>
 
-        <LinearGradient
-          colors={colors.heroGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
+        <Card variant="hero" style={styles.heroCard}>
           <View style={styles.heroIconWrap}>
-            <Text style={styles.heroIcon}>{icons.hero}</Text>
+            <Ionicons name="sparkles" size={26} color="#FFFFFF" />
           </View>
           <View style={styles.heroTextWrap}>
-            <Text style={styles.heroTitle}>Yapay ANTI Destek</Text>
-            <Text style={styles.heroSubtitle}>
-              {icons.focus} Fokus: {focusScore}% · AI yaniti: {assistantCount}
+            <Text style={styles.heroTitle} accessibilityRole="header">
+              Yapay ANTI Destek
+            </Text>
+            <Text
+              style={styles.heroSubtitle}
+              accessibilityLabel={`Bugün ${todayCount} mesaj, son 7 günde toplam ${weeklyTotal} mesaj`}
+            >
+              Bugün: {todayCount} · Son 7 gün: {weeklyTotal}
             </Text>
           </View>
-        </LinearGradient>
+        </Card>
 
-        <View style={[styles.graphCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <View style={styles.graphHeader}>
-            <Text style={[styles.graphTitle, { color: colors.text }]}>
-              {icons.chart} Duygu Stabilite Trendi
-            </Text>
-            <Text style={[styles.graphMeta, { color: colors.primary }]}>{focusScore}%</Text>
-          </View>
-          <Text style={[styles.graphSubtitle, { color: colors.textMuted }]}>
-            Mesaj akisina gore destek momentumunuzun gorsel ozet grafigi.
-          </Text>
-          <View style={styles.chartRow}>
-            {trendBars.map((bar) => (
-              <View key={bar.key} style={styles.chartCol}>
-                <View style={[styles.chartTrack, { backgroundColor: colors.cardBorder }]}>
-                  <LinearGradient
-                    colors={[colors.primary, colors.accent]}
-                    start={{ x: 0, y: 1 }}
-                    end={{ x: 0, y: 0 }}
-                    style={[styles.chartFill, { height: `${bar.value}%` }]}
-                  />
-                </View>
-                <Text style={[styles.chartLabel, { color: colors.textMuted }]}>{bar.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+        <Card style={styles.graphCard}>
+          <SectionHeader
+            title="Sohbet Aktivitesi"
+            icon="pulse"
+            subtitle="Son 7 günde gönderdiğiniz mesaj sayısının günlük dağılımı."
+            meta={`${weeklyTotal} mesaj`}
+          />
+          <PremiumBarChart
+            data={dailyActivity}
+            colors={colors}
+            chartHeight={118}
+            referenceLine={averageReference}
+          />
+        </Card>
 
-        <ScrollView
-          ref={scrollRef}
+        <FlatList
+          ref={listRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.messages}
           style={styles.messagesContainer}
           showsVerticalScrollIndicator={false}
-        >
-          {loading ? (
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>Yukleniyor...</Text>
-          ) : messages.length === 0 ? (
-            <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-              Bir sey paylasarak baslayabilirsin.
-            </Text>
-          ) : (
-            messages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageBubble,
-                  {
-                    backgroundColor:
-                      message.role === "user" ? colors.primary : colors.card,
-                    borderColor:
-                      message.role === "user" ? colors.primary : colors.cardBorder,
-                  },
-                  message.role === "user" ? styles.userBubble : styles.assistantBubble,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.messageText,
-                    { color: message.role === "user" ? "#FFFFFF" : colors.text },
-                  ]}
-                >
-                  {message.content}
-                </Text>
-              </View>
-            ))
-          )}
-        </ScrollView>
+          onContentSizeChange={handleContentSizeChange}
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          windowSize={11}
+          removeClippedSubviews
+          ListEmptyComponent={
+            loading ? (
+              <MessageListSkeleton />
+            ) : (
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                Bir şey paylaşarak başlayabilirsin.
+              </Text>
+            )
+          }
+        />
 
         <View style={styles.quickRow}>
           {QUICK_PROMPTS.map((prompt) => (
@@ -304,16 +391,40 @@ export default function AiScreen() {
               ]}
               onPress={() => handleSend(prompt)}
               disabled={loading || sending}
+              accessibilityRole="button"
+              accessibilityLabel={prompt}
+              accessibilityState={{ disabled: loading || sending }}
             >
-              <Text style={[styles.quickChipText, { color: colors.primary }]}>
-                {icons.chip} {prompt}
-              </Text>
+              <Ionicons
+                name="chatbox-ellipses-outline"
+                size={12}
+                color={colors.primary}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+              <Text style={[styles.quickChipText, { color: colors.primary }]}>{prompt}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {sending && <Text style={[styles.statusText, { color: colors.textMuted }]}>Yanit hazirlaniyor...</Text>}
-        {!!errorMessage && <Text style={[styles.errorText, { color: colors.danger }]}>{errorMessage}</Text>}
+        {sending && (
+          <Text
+            style={[styles.statusText, { color: colors.textMuted }]}
+            accessibilityLiveRegion="polite"
+            accessibilityRole="text"
+          >
+            Yanıt hazırlanıyor...
+          </Text>
+        )}
+        {!!errorMessage && (
+          <Text
+            style={[styles.errorText, { color: colors.danger }]}
+            accessibilityLiveRegion="assertive"
+            accessibilityRole="alert"
+          >
+            {errorMessage}
+          </Text>
+        )}
 
         <View style={styles.inputRow}>
           <TextInput
@@ -326,14 +437,16 @@ export default function AiScreen() {
             value={input}
             onChangeText={setInput}
             multiline
+            accessibilityLabel="Mesaj girişi"
           />
-          <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: colors.primary }, (loading || sending) && styles.sendButtonDisabled]}
+          <Button
+            title={sending ? "Gönderiliyor" : "Gönder"}
             onPress={() => handleSend()}
             disabled={loading || sending}
-          >
-            <Text style={styles.sendButtonText}>{sending ? "Gonderiliyor..." : "Gonder"}</Text>
-          </TouchableOpacity>
+            loading={sending}
+            variant="primary"
+            leftIcon="send"
+          />
         </View>
       </SafeAreaView>
     </LinearGradient>
@@ -355,34 +468,37 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
     alignSelf: "flex-start",
   },
   backButtonText: {
     fontSize: 17,
     fontWeight: "600",
   },
+  clearButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
   clearText: {
     fontSize: 13,
     fontWeight: "600",
   },
   heroCard: {
-    borderRadius: 18,
-    padding: 14,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
   },
   heroIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-  },
-  heroIcon: {
-    fontSize: 30,
   },
   heroTextWrap: {
     flex: 1,
@@ -399,56 +515,7 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
   graphCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 14,
     marginBottom: 12,
-  },
-  graphHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  graphTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  graphMeta: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  graphSubtitle: {
-    marginTop: 6,
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  chartRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 7,
-  },
-  chartCol: {
-    flex: 1,
-    alignItems: "center",
-  },
-  chartTrack: {
-    height: 74,
-    width: "100%",
-    borderRadius: 8,
-    padding: 3,
-    justifyContent: "flex-end",
-  },
-  chartFill: {
-    width: "100%",
-    borderRadius: 6,
-    minHeight: 8,
-  },
-  chartLabel: {
-    marginTop: 5,
-    fontSize: 10,
-    fontWeight: "600",
   },
   messagesContainer: {
     flex: 1,
@@ -478,6 +545,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  skeletonList: {
+    paddingVertical: 6,
+  },
+  skeletonBubble: {
+    padding: 12,
+    borderRadius: 14,
+    marginBottom: 10,
+    maxWidth: "86%",
+    minWidth: "55%",
+  },
+  skeletonLineGap: {
+    marginTop: 6,
+  },
   quickRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -486,6 +566,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   quickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 999,
@@ -520,18 +603,5 @@ const styles = StyleSheet.create({
     minHeight: 44,
     maxHeight: 120,
     borderWidth: 1,
-  },
-  sendButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-  },
-  sendButtonDisabled: {
-    opacity: 0.7,
-  },
-  sendButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 14,
   },
 });

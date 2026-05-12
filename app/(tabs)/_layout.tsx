@@ -1,15 +1,29 @@
 import { Tabs, useRouter } from "expo-router";
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { HapticTab } from "@/components/haptic-tab";
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
+type TabIconProps = {
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  color: string;
+  focused: boolean;
+};
+
+function TabIcon({ name, color, focused }: TabIconProps) {
+  return (
+    <View style={styles.iconWrap}>
+      <Ionicons name={name} size={focused ? 26 : 24} color={color} />
+      {focused ? <View style={[styles.activeDot, { backgroundColor: color }]} /> : null}
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const { colors } = useTheme();
-  const tint = colors.primary;
   const { t } = useLanguage();
   const router = useRouter();
 
@@ -17,31 +31,20 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-
-        // ✅ Sekme çubuğu görünümünü stabilize ediyoruz (iOS üst üste binme/bulanıklık etkisini keser)
-        tabBarActiveTintColor: tint,
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-
-        // ✅ Sekme çubuğu arka planını tamamen opak yap (iOS bulanıklık/üst üste binme etkisini keser)
+        tabBarLabelStyle: styles.tabLabel,
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.cardBorder,
-          borderTopWidth: 0,
-          elevation: 0, // Android gölge kapat
-          // iOS'ta bulanıklık/şeffaflık gibi şeyler yüzünden içerik soluk görünmesin
+          borderTopWidth: StyleSheet.hairlineWidth,
+          elevation: 0,
           shadowOpacity: 0,
           opacity: 1,
           height: Platform.OS === "ios" ? 88 : 64,
           paddingBottom: Platform.OS === "ios" ? 24 : 8,
           paddingTop: 8,
-          // iOS'ta bulanıklık efektini tamamen kapatmak için
-          ...(Platform.OS === "ios" && {
-            // Bulanıklık/şeffaflık efektlerini kapat
-            borderTopColor: "#FFFFFF",
-          }),
         },
-
-        // ✅ Sekme çubuğu butonu sende var, aynen bırakıyoruz
         tabBarButton: HapticTab,
       }}
     >
@@ -49,8 +52,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: t.home,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="house.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={focused ? "home" : "home-outline"} color={color} focused={focused} />
           ),
         }}
       />
@@ -59,8 +62,12 @@ export default function TabLayout() {
         name="premium-placeholder"
         options={{
           title: t.premium,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="crown.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon
+              name={focused ? "diamond" : "diamond-outline"}
+              color={color}
+              focused={focused}
+            />
           ),
         }}
         listeners={{
@@ -75,8 +82,12 @@ export default function TabLayout() {
         name="ai-placeholder"
         options={{
           title: t.ai,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="brain.head.profile" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon
+              name={focused ? "sparkles" : "sparkles-outline"}
+              color={color}
+              focused={focused}
+            />
           ),
         }}
         listeners={{
@@ -91,8 +102,12 @@ export default function TabLayout() {
         name="explore"
         options={{
           title: t.explore,
-          tabBarIcon: ({ color }) => (
-            <IconSymbol size={28} name="paperplane.fill" color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon
+              name={focused ? "compass" : "compass-outline"}
+              color={color}
+              focused={focused}
+            />
           ),
         }}
       />
@@ -108,3 +123,21 @@ export default function TabLayout() {
   );
 }
 
+const styles = StyleSheet.create({
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  activeDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
+});

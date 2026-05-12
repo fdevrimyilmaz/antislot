@@ -10,6 +10,14 @@ import { LanguageProvider } from '@/contexts/LanguageContext';
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider, useUser } from '@/contexts/UserContext';
 import { useProgressStore } from '@/store/progressStore';
+import { ToastProvider } from '@/components/ui/toast';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { initMonitoring } from '@/services/monitoring';
+
+// Initialize Sentry once at module-load time. The helper is a no-op when
+// EXPO_PUBLIC_SENTRY_DSN is missing (dev/test) or when the user has not opted
+// into crash reporting via the privacy store, so this is safe to call eagerly.
+initMonitoring();
 
 // Root layout.
 export const unstable_settings = {
@@ -30,6 +38,7 @@ function RootLayoutContent() {
   return (
     <CustomThemeProvider>
       <LanguageProvider>
+        <ToastProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack
             screenOptions={{
@@ -124,6 +133,7 @@ function RootLayoutContent() {
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>
+        </ToastProvider>
       </LanguageProvider>
     </CustomThemeProvider>
   );
@@ -131,8 +141,10 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <UserProvider>
-      <RootLayoutContent />
-    </UserProvider>
+    <ErrorBoundary scope="ui.root">
+      <UserProvider>
+        <RootLayoutContent />
+      </UserProvider>
+    </ErrorBoundary>
   );
 }

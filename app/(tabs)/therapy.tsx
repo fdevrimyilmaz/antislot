@@ -1,7 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,9 +8,25 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { completeSession, getSessionState, setSessionStep, startSession } from "@/store/sessionStore";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { useToast } from "@/components/ui/toast";
+import { haptics } from "@/services/haptics";
+import { reportError } from "@/services/monitoring";
+import {
+  completeSession,
+  getSessionState,
+  setSessionStep,
+  startSession,
+} from "@/store/sessionStore";
 import { incrementSessionsCompleted } from "@/store/progressStore";
-// Therapy content focuses on gambling.
 
 type Session = {
   id: string;
@@ -27,7 +42,8 @@ const THERAPY_SESSIONS: Session[] = [
     id: "cbt-foundations",
     title: "BDT Temelleri",
     duration: "15 dk",
-    description: "Düşünce, duygu ve davranışların kumar dürtüleriyle nasıl bağlantılı olduğunu öğrenin.",
+    description:
+      "Düşünce, duygu ve davranışların kumar dürtüleriyle nasıl bağlantılı olduğunu öğrenin.",
     goals: [
       "Yaygın düşünce tuzaklarını belirleyin",
       "Tetikleyicileri ve tepkileri haritalayın",
@@ -84,24 +100,26 @@ const THERAPY_SESSIONS: Session[] = [
   },
 ];
 
-const THERAPY_FOCUS_COPY = {
-  title: "Kumar odağı",
-  description: "Kumar dürtüsüyle başa çıkmak için yapılandırılmış terapi adımlarını takip edin.",
-};
-
 export default function Therapy() {
-  const [showIntro, setShowIntro] = useState(true);
+  const { colors } = useTheme();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [currentStep, setCurrentStepState] = useState(0);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
+
   useEffect(() => {
     (async () => {
-      const state = await getSessionState("therapy");
-      setCurrentSessionId(state.currentSessionId);
-      setCurrentStepState(state.currentStep);
-      setCompletedIds(state.completedSessionIds);
-      setLoading(false);
+      try {
+        const state = await getSessionState("therapy");
+        setCurrentSessionId(state.currentSessionId);
+        setCurrentStepState(state.currentStep);
+        setCompletedIds(state.completedSessionIds);
+      } catch (error) {
+        reportError(error, { scope: "therapy.load", level: "warning" });
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -109,310 +127,341 @@ export default function Therapy() {
     () => THERAPY_SESSIONS.find((s) => s.id === currentSessionId) || null,
     [currentSessionId]
   );
-  const focusCopy = THERAPY_FOCUS_COPY;
 
   const handleStart = async (sessionId: string) => {
-    const state = await startSession("therapy", sessionId);
-    setCurrentSessionId(state.currentSessionId);
-    setCurrentStepState(state.currentStep);
-  };
-
-  const handleResume = () => {
-    if (!currentSessionId) return;
-    setCurrentSessionId(currentSessionId);
+    haptics.tapMedium();
+    try {
+      const state = await startSession("therapy", sessionId);
+      setCurrentSessionId(state.currentSessionId);
+      setCurrentStepState(state.currentStep);
+    } catch (error) {
+      reportError(error, { scope: "therapy.start" });
+      haptics.error();
+      toast.error("Seans başlatılamadı.", "Hata");
+    }
   };
 
   const handleNext = async () => {
     if (!currentSession) return;
     const nextStep = currentStep + 1;
-    if (nextStep >= currentSession.steps.length) {
-      const state = await completeSession("therapy", currentSession.id);
-      setCurrentSessionId(state.currentSessionId);
+    haptics.tapLight();
+    try {
+      if (nextStep >= currentSession.steps.length) {
+        const state = await completeSession("therapy", currentSession.id);
+        setCurrentSessionId(state.currentSessionId);
+        setCurrentStepState(state.currentStep);
+        setCompletedIds(state.completedSessionIds);
+        await incrementSessionsCompleted();
+        haptics.success();
+        toast.success("Seans tamamlandı. Harika iş!", "Tamamlandı");
+        return;
+      }
+      const state = await setSessionStep("therapy", currentSession.id, nextStep);
       setCurrentStepState(state.currentStep);
-      setCompletedIds(state.completedSessionIds);
-      await incrementSessionsCompleted();
-      return;
+    } catch (error) {
+      reportError(error, { scope: "therapy.next" });
     }
-    const state = await setSessionStep("therapy", currentSession.id, nextStep);
-    setCurrentStepState(state.currentStep);
   };
 
   const handleBackStep = async () => {
-    if (!currentSession) return;
-    const nextStep = Math.max(0, currentStep - 1);
-    const state = await setSessionStep("therapy", currentSession.id, nextStep);
-    setCurrentStepState(state.currentStep);
+    if (!currentSession || currentStep === 0) return;
+    haptics.tapLight();
+    try {
+      const state = await setSessionStep("therapy", currentSession.id, Math.max(0, currentStep - 1));
+      setCurrentStepState(state.currentStep);
+    } catch (error) {
+      reportError(error, { scope: "therapy.back" });
+    }
   };
 
   const handleReset = async () => {
     if (!currentSession) return;
-    const state = await startSession("therapy", currentSession.id);
-    setCurrentSessionId(state.currentSessionId);
-    setCurrentStepState(state.currentStep);
+    haptics.warning();
+    try {
+      const state = await startSession("therapy", currentSession.id);
+      setCurrentSessionId(state.currentSessionId);
+      setCurrentStepState(state.currentStep);
+    } catch (error) {
+      reportError(error, { scope: "therapy.reset" });
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.title}>Terapi Seansları</Text>
-        <Text style={styles.focusLabel}>{focusCopy.title}</Text>
-
-        <View style={styles.card}>
-          <View style={styles.iconWrapper}>
-            <Text style={styles.icon}>🧠</Text>
-          </View>
-          <Text style={styles.cardTitle}>Yapılandırılmış Terapi Planı</Text>
-          <Text style={styles.cardText}>{focusCopy.description}</Text>
-        </View>
-
-        <View style={styles.sessionHeader}>
-          <Text style={styles.sectionTitle}>Seanslarınız</Text>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
           <TouchableOpacity
-            style={[styles.sessionAction, !currentSessionId && styles.disabled]}
-            disabled={!currentSessionId}
-            onPress={handleResume}
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
           >
-            <Text style={styles.sessionActionText}>Devam Et</Text>
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.backText, { color: colors.text }]}>Geri</Text>
           </TouchableOpacity>
-        </View>
 
-        {THERAPY_SESSIONS.map((session) => {
-          const isActive = currentSessionId === session.id;
-          const isComplete = completedIds.includes(session.id);
-          return (
-            <View key={session.id} style={[styles.sessionCard, isActive && styles.sessionCardActive]}>
-              <View style={styles.sessionRow}>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.sessionTitle}>{session.title}</Text>
-                  <Text style={styles.sessionMeta}>{session.duration} • {session.steps.length} adım</Text>
-                  <Text style={styles.sessionDesc}>{session.description}</Text>
-                  <View style={styles.sessionTags}>
+          <Card variant="hero" style={styles.heroCard}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="bulb" size={26} color="#FFFFFF" />
+            </View>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle} accessibilityRole="header">
+                Terapi Seansları
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Kumar dürtüsüyle başa çıkmak için yapılandırılmış, kısa rehberli adımlar.
+              </Text>
+            </View>
+          </Card>
+
+          {currentSession ? (
+            <Card style={styles.cardSpacing}>
+              <SectionHeader
+                title="Aktif Seans"
+                icon="play-circle"
+                meta={`Adım ${currentStep + 1}/${currentSession.steps.length}`}
+              />
+              <Text style={[styles.activeSessionTitle, { color: colors.text }]}>
+                {currentSession.title}
+              </Text>
+              <View
+                style={[
+                  styles.progressTrack,
+                  { backgroundColor: colors.cardBorder },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${((currentStep + 1) / currentSession.steps.length) * 100}%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.stepTitle, { color: colors.text }]}>
+                {currentSession.steps[currentStep]?.title}
+              </Text>
+              <Text style={[styles.stepBody, { color: colors.textMuted }]}>
+                {currentSession.steps[currentStep]?.body}
+              </Text>
+
+              <View style={styles.stepActions}>
+                <Button
+                  title="Geri"
+                  onPress={handleBackStep}
+                  disabled={currentStep === 0}
+                  variant="secondary"
+                  leftIcon="chevron-back"
+                />
+                <Button
+                  title="Yenile"
+                  onPress={handleReset}
+                  variant="secondary"
+                  leftIcon="refresh"
+                />
+                <Button
+                  title={
+                    currentStep + 1 >= currentSession.steps.length ? "Tamamla" : "İleri"
+                  }
+                  onPress={handleNext}
+                  variant="primary"
+                  rightIcon={
+                    currentStep + 1 >= currentSession.steps.length
+                      ? "checkmark"
+                      : "arrow-forward"
+                  }
+                  style={styles.nextBtn}
+                />
+              </View>
+            </Card>
+          ) : null}
+
+          <View style={styles.sessionList}>
+            {THERAPY_SESSIONS.map((session) => {
+              const isActive = currentSessionId === session.id;
+              const isComplete = completedIds.includes(session.id);
+              const tone: "active" | "trial" | "neutral" = isComplete
+                ? "active"
+                : isActive
+                ? "trial"
+                : "neutral";
+              const statusLabel = isComplete
+                ? "Tamamlandı"
+                : isActive
+                ? "Devam ediyor"
+                : "Yeni";
+              const buttonLabel = isComplete
+                ? "Yeniden Başlat"
+                : isActive
+                ? "Devam Et"
+                : "Başla";
+
+              return (
+                <Card key={session.id} style={styles.cardSpacing}>
+                  <View style={styles.sessionHeader}>
+                    <View style={styles.sessionTitleWrap}>
+                      <Text
+                        style={[styles.sessionTitle, { color: colors.text }]}
+                        accessibilityRole="header"
+                      >
+                        {session.title}
+                      </Text>
+                      <Text style={[styles.sessionMeta, { color: colors.textMuted }]}>
+                        {session.duration} · {session.steps.length} adım
+                      </Text>
+                    </View>
+                    <StatusBadge label={statusLabel} tone={tone} />
+                  </View>
+                  <Text style={[styles.sessionDesc, { color: colors.text }]}>
+                    {session.description}
+                  </Text>
+                  <View style={styles.goalList}>
                     {session.goals.map((goal) => (
-                      <View key={goal} style={styles.tag}>
-                        <Text style={styles.tagText}>{goal}</Text>
+                      <View key={goal} style={styles.goalRow}>
+                        <Ionicons name="checkmark-circle" size={14} color={colors.primary} />
+                        <Text style={[styles.goalText, { color: colors.textMuted }]}>
+                          {goal}
+                        </Text>
                       </View>
                     ))}
                   </View>
-                </View>
-                <View style={styles.sessionStatus}>
-                  <Text style={styles.statusText}>{isComplete ? "Tamamlandı" : isActive ? "Devam ediyor" : "Yeni"}</Text>
-                  <TouchableOpacity
-                    style={[styles.primaryButton, isComplete && styles.secondaryButton]}
+                  <Button
+                    title={buttonLabel}
                     onPress={() => handleStart(session.id)}
-                  >
-                    <Text style={[styles.primaryButtonText, isComplete && styles.secondaryButtonText]}>
-                      {isComplete ? "Yeniden Başlat" : isActive ? "Devam Et" : "Başla"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          );
-        })}
-
-        {currentSession && (
-          <View style={styles.stepCard}>
-            <Text style={styles.sectionTitle}>Geçerli Seans</Text>
-            <Text style={styles.stepTitle}>
-              {currentSession.title} • Adım {currentStep + 1}/{currentSession.steps.length}
-            </Text>
-            <Text style={styles.stepHeading}>{currentSession.steps[currentStep]?.title}</Text>
-            <Text style={styles.stepBody}>{currentSession.steps[currentStep]?.body}</Text>
-            <View style={styles.stepActions}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={handleBackStep} disabled={currentStep === 0}>
-                <Text style={styles.secondaryButtonText}>Geri</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={handleReset}>
-                <Text style={styles.secondaryButtonText}>Yeniden Başlat</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.primaryButton} onPress={handleNext}>
-                <Text style={styles.primaryButtonText}>
-                  {currentStep + 1 >= currentSession.steps.length ? "Tamamla" : "İleri"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                    disabled={loading}
+                    variant={isComplete ? "secondary" : "primary"}
+                    leftIcon={isComplete ? "refresh" : isActive ? "play" : "play-circle"}
+                    fullWidth
+                    style={styles.startBtn}
+                  />
+                </Card>
+              );
+            })}
           </View>
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={showIntro && !loading}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowIntro(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>🧠</Text>
-            </View>
-
-            <Text style={styles.modalTitle}>Terapi Yol Haritası</Text>
-            <Text style={styles.modalSubtitle}>{focusCopy.title} • Kısa, rehberli seanslar.</Text>
-
-            <View style={styles.modalList}>
-              <Text style={styles.modalListItem}>• BDT Temelleri ile başlayın</Text>
-              <Text style={styles.modalListItem}>• Dürtü Sörfü&apos;nü her gün uygulayın</Text>
-              <Text style={styles.modalListItem}>• Nüks Önleme planınızı oluşturun</Text>
-              <Text style={styles.modalListItem}>• Değerleri Yeniden Hatırlama&apos;yı haftalık gözden geçirin</Text>
-            </View>
-
-            <TouchableOpacity style={styles.modalNextBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.modalNextText}>Şimdi Başla</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  header: { marginBottom: 20 },
-  backBtn: { alignSelf: "flex-start" },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", marginBottom: 16, color: "#222" },
-  focusLabel: { fontSize: 14, fontWeight: "700", color: "#666", marginBottom: 12 },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
+  backButton: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#FFF3E0",
-    justifyContent: "center",
-    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
     marginBottom: 12,
   },
-  icon: { fontSize: 42 },
-  cardTitle: { fontSize: 20, fontWeight: "800", marginBottom: 10, color: "#222" },
-  cardText: { fontSize: 15, color: "#555", textAlign: "center", lineHeight: 22 },
+  backText: { fontSize: 17, fontWeight: "600" },
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  heroIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  heroTextWrap: { flex: 1 },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: "#FFFFFF",
+    opacity: 0.92,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  cardSpacing: { marginBottom: 14 },
+  activeSessionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: 14,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  stepBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  stepActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 14,
+  },
+  nextBtn: { flex: 1 },
+  sessionList: {},
   sessionHeader: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 8,
+  },
+  sessionTitleWrap: { flex: 1, minWidth: 0 },
+  sessionTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  sessionMeta: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  sessionDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  goalList: { gap: 6, marginBottom: 12 },
+  goalRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 8,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: "#1D4C72" },
-  sessionAction: {
-    backgroundColor: "#1D4C72",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  sessionActionText: { color: "#FFFFFF", fontWeight: "700" },
-  sessionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  sessionCardActive: { borderWidth: 2, borderColor: "#1D4C72" },
-  sessionRow: { flexDirection: "row", gap: 16 },
-  sessionInfo: { flex: 1 },
-  sessionTitle: { fontSize: 16, fontWeight: "800", color: "#222", marginBottom: 4 },
-  sessionMeta: { fontSize: 13, color: "#666", marginBottom: 6 },
-  sessionDesc: { fontSize: 14, color: "#444", marginBottom: 8 },
-  sessionTags: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  tag: { backgroundColor: "#E8F0F8", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  tagText: { fontSize: 11, color: "#1D4C72", fontWeight: "600" },
-  sessionStatus: { alignItems: "flex-end", gap: 8 },
-  statusText: { fontSize: 12, color: "#666", fontWeight: "700" },
-  primaryButton: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-  secondaryButton: {
-    backgroundColor: "#E8F0F8",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  secondaryButtonText: { color: "#1D4C72", fontWeight: "700" },
-  disabled: { opacity: 0.5 },
-  stepCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 20,
-    marginTop: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-  stepTitle: { fontSize: 14, fontWeight: "700", color: "#1D4C72", marginBottom: 6 },
-  stepHeading: { fontSize: 18, fontWeight: "800", color: "#222", marginBottom: 8 },
-  stepBody: { fontSize: 15, color: "#444", lineHeight: 22, marginBottom: 16 },
-  stepActions: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  modalOverlay: {
+  goalText: {
+    fontSize: 13,
+    lineHeight: 18,
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
   },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-  },
-  closeBtn: { position: "absolute", top: 16, right: 16 },
-  closeText: { fontSize: 24, color: "#999", fontWeight: "300" },
-  modalIcon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#FFF3E0",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalIconEmoji: { fontSize: 54 },
-  modalTitle: { fontSize: 24, fontWeight: "900", color: "#FF9800", marginBottom: 8 },
-  modalSubtitle: { fontSize: 14, color: "#555", textAlign: "center", marginBottom: 16 },
-  modalList: { width: "100%", marginBottom: 20 },
-  modalListItem: { fontSize: 14, color: "#333", marginBottom: 6 },
-  modalNextBtn: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    width: "100%",
-    alignItems: "center",
-  },
-  modalNextText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  startBtn: { marginTop: 4 },
 });

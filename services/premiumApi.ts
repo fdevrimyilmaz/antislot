@@ -74,3 +74,50 @@ export async function restorePremium(payload: RestorePayload): Promise<PremiumSe
 export async function syncPremium(payload: SyncPayload): Promise<PremiumServerResponse> {
   return postJson("/v1/premium/sync", payload);
 }
+
+export type RedeemErrorCode =
+  | "INVALID_CODE"
+  | "REDEEM_NOT_CONFIGURED"
+  | "NETWORK_ERROR";
+
+export type RedeemResult =
+  | { ok: true; source: "code" }
+  | { ok: false; error: RedeemErrorCode };
+
+type RedeemServerResponse = {
+  ok: boolean;
+  source?: "code";
+  error?: string;
+};
+
+export async function redeemAccessCode(code: string): Promise<RedeemResult> {
+  const base = normalizeBaseUrl(DEFAULT_API_BASE);
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/v1/premium/redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  } catch {
+    return { ok: false, error: "NETWORK_ERROR" };
+  }
+
+  let data: RedeemServerResponse | null = null;
+  try {
+    data = (await response.json()) as RedeemServerResponse;
+  } catch {
+    data = null;
+  }
+
+  if (response.ok && data?.ok && data.source === "code") {
+    return { ok: true, source: "code" };
+  }
+
+  const serverError = data?.error;
+  if (serverError === "REDEEM_NOT_CONFIGURED") {
+    return { ok: false, error: "REDEEM_NOT_CONFIGURED" };
+  }
+  return { ok: false, error: "INVALID_CODE" };
+}

@@ -2,19 +2,20 @@ import * as SecureStore from "expo-secure-store";
 import { Language } from "@/i18n/translations";
 
 const KEY = "antislot_language";
+const SUPPORTED: readonly Language[] = ["tr", "en"];
 
 export async function getLanguage(): Promise<Language> {
-  const lang = await SecureStore.getItemAsync(KEY);
-  if (lang === "tr") {
-    return "tr";
+  try {
+    const lang = await SecureStore.getItemAsync(KEY);
+    if (lang && (SUPPORTED as readonly string[]).includes(lang)) {
+      return lang as Language;
+    }
+  } catch {
+    // ignore — fall through to default
   }
-  if (lang === "en") {
-    await SecureStore.setItemAsync(KEY, "tr");
-  }
-  // Default language is Turkish.
   return "tr";
 }
 
-export async function setLanguage(language: Language) {
+export async function setLanguage(language: Language): Promise<void> {
   await SecureStore.setItemAsync(KEY, language);
 }

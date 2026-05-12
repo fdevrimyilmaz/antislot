@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  Modal,
   ScrollView,
   Share,
   StyleSheet,
@@ -12,6 +11,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { haptics } from "@/services/haptics";
+import { reportError } from "@/services/monitoring";
 import {
   saveDiaryEntry,
   getTodayEntry,
@@ -20,19 +31,28 @@ import {
   deleteDiaryEntry,
 } from "@/store/diaryStore";
 
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export default function Diary() {
-  const [showIntro, setShowIntro] = useState(true);
+  const { colors } = useTheme();
+  const toast = useToast();
+
   const [diaryEntry, setDiaryEntry] = useState("");
   const [entryId, setEntryId] = useState<string | null>(null);
   const [entryDate, setEntryDate] = useState<string | null>(null);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadTodayEntry();
-  }, []);
-
-  const loadTodayEntry = async () => {
+  const loadEntries = async () => {
     try {
       const today = await getTodayEntry();
       if (today) {
@@ -43,25 +63,32 @@ export default function Diary() {
       const allEntries = await getDiaryEntries();
       setEntries(allEntries);
     } catch (error) {
-      console.error("Günlük kaydı yüklenirken hata:", error);
+      reportError(error, { scope: "diary.load", level: "warning" });
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadEntries();
+  }, []);
+
   const handleSave = async () => {
-    if (!diaryEntry.trim()) {
-      Alert.alert("Boş Kayıt", "Kaydetmeden önce bir şeyler yazın.");
+    const trimmed = diaryEntry.trim();
+    if (!trimmed) {
+      haptics.warning();
+      toast.warning("Kaydetmeden önce bir şeyler yazın.", "Boş Kayıt");
       return;
     }
 
+    setSaving(true);
     try {
       const today = new Date().toISOString().split("T")[0];
       const entry: DiaryEntry = {
         id: entryId || `entry_${Date.now()}`,
         date: entryDate || today,
-        content: diaryEntry.trim(),
-        createdAt: entryId ? Date.now() : Date.now(),
+        content: trimmed,
+        createdAt: Date.now(),
       };
 
       await saveDiaryEntry(entry);
@@ -69,465 +96,401 @@ export default function Diary() {
       setEntryDate(entry.date);
       const allEntries = await getDiaryEntries();
       setEntries(allEntries);
-      Alert.alert("Kaydedildi", "Günlük kaydınız kaydedildi.");
+      haptics.success();
+      toast.success("Günlük kaydınız güvenle kaydedildi.", "Kaydedildi");
     } catch (error) {
-      Alert.alert("Hata", "Günlük kaydı kaydedilemedi.");
-      console.error(error);
+      reportError(error, { scope: "diary.save" });
+      haptics.error();
+      toast.error("Günlük kaydı kaydedilemedi.", "Hata");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleShare = async () => {
-    if (!diaryEntry.trim()) {
-      Alert.alert("Boş Kayıt", "Paylaşılacak bir şey yok.");
+    const trimmed = diaryEntry.trim();
+    if (!trimmed) {
+      haptics.warning();
+      toast.warning("Paylaşılacak bir şey yok.", "Boş Kayıt");
       return;
     }
+    haptics.tapLight();
     try {
-      await Share.share({
-        message: diaryEntry.trim(),
-      });
-    } catch {
-      Alert.alert("Hata", "Kayıt paylaşılamadı.");
+      await Share.share({ message: trimmed });
+    } catch (error) {
+      reportError(error, { scope: "diary.share", level: "warning" });
+      toast.error("Kayıt paylaşılamadı.", "Hata");
     }
   };
 
   const handleNewEntry = () => {
+    haptics.tapLight();
     setDiaryEntry("");
     setEntryId(null);
     setEntryDate(null);
   };
 
   const handleSelectEntry = (entry: DiaryEntry) => {
+    haptics.selection();
     setDiaryEntry(entry.content);
     setEntryId(entry.id);
     setEntryDate(entry.date);
   };
 
-  const handleDeleteEntry = async (id: string) => {
+  const handleDeleteEntry = (id: string) => {
+    haptics.warning();
     Alert.alert("Kaydı Sil", "Bu kaydı silmek istediğinize emin misiniz?", [
       { text: "İptal", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
-          await deleteDiaryEntry(id);
-          const allEntries = await getDiaryEntries();
-          setEntries(allEntries);
-          if (entryId === id) {
-            handleNewEntry();
+          try {
+            await deleteDiaryEntry(id);
+            const allEntries = await getDiaryEntries();
+            setEntries(allEntries);
+            if (entryId === id) {
+              handleNewEntry();
+            }
+            haptics.success();
+            toast.info("Kayıt silindi.");
+          } catch (error) {
+            reportError(error, { scope: "diary.delete" });
+            haptics.error();
+            toast.error("Kayıt silinemedi.", "Hata");
           }
         },
       },
     ]);
   };
 
+  const isEditing = entryId !== null;
+  const wordCount = diaryEntry.trim().length === 0 ? 0 : diaryEntry.trim().split(/\s+/).length;
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
-          </TouchableOpacity>
-        </View>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Geri"
+            >
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={colors.text}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+              <Text style={[styles.backButtonText, { color: colors.text }]}>Geri</Text>
+            </TouchableOpacity>
 
-        <View style={styles.iconWrapper}>
-          <Text style={styles.icon}>📅</Text>
-        </View>
-
-        <Text style={styles.title}>Günlük</Text>
-        <Text style={styles.subtitle}>Özel Günlüğünüz</Text>
-
-        <Text style={styles.description}>
-          Her gün kontrol ederek kumar davranışlarınızı, dürtülerinizi ve isteklerinizi gözden
-          geçirin. Günlük kayıtlarınız duygusal kalıpları ve tetikleyicileri takip etmenize
-          yardımcı olur ve ilerlemenize dair içgörüler sunar.
-        </Text>
-
-        <Text style={styles.reminder}>
-          Günlüğünüzü ne kadar çok kullanırsanız, süreçteki içgörüler o kadar artar.
-        </Text>
-
-        <View style={styles.entryContainer}>
-          <Text style={styles.entryLabel}>
-            {entryId ? "Kayıt Düzenleniyor" : "İlk kaydınıza yukarıdan başlayın!"}
-          </Text>
-          <TextInput
-            style={styles.entryInput}
-            placeholder="Düşünceleriniz, duygularınız ve deneyimleriniz hakkında yazın..."
-            placeholderTextColor="#999"
-            multiline
-            numberOfLines={8}
-            value={diaryEntry}
-            onChangeText={setDiaryEntry}
-            textAlignVertical="top"
-            editable={!loading}
-          />
-        </View>
-
-        <View style={styles.buttonGroup}>
-          <TouchableOpacity 
-            style={styles.shareBtn}
-            onPress={handleShare}
-            disabled={loading}
-          >
-            <Text style={styles.shareText}>Paylaş</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.editBtn}
-            onPress={handleSave}
-            disabled={loading}
-          >
-            <Text style={styles.editText}>Kaydet</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.newBtn}
-            onPress={handleNewEntry}
-            disabled={loading}
-          >
-            <Text style={styles.newText}>Yeni</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Son Kayıtlar</Text>
-          {entries.length === 0 ? (
-            <Text style={styles.emptyText}>Henüz kayıt yok.</Text>
-          ) : (
-            entries.map((entry) => (
-              <View key={entry.id} style={styles.historyCard}>
-                <TouchableOpacity onPress={() => handleSelectEntry(entry)}>
-                  <Text style={styles.historyDate}>{entry.date}</Text>
-                  <Text style={styles.historyPreview} numberOfLines={2}>
-                    {entry.content}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleDeleteEntry(entry.id)} style={styles.deleteBtn}>
-                  <Text style={styles.deleteText}>Sil</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Giriş Modali */}
-      <Modal
-        visible={showIntro}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowIntro(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>📅</Text>
-            </View>
-
-            <Text style={styles.modalTitle}>Günlük</Text>
-            <Text style={styles.modalSubtitle}>
-              Özel Günlüğünüz
-            </Text>
-
-            <Text style={styles.modalDescription}>
-              Her gün kontrol ederek kumar davranışlarınızı, dürtülerinizi ve isteklerinizi gözden
-              geçirin. Günlük kayıtlarınız duygusal kalıpları ve tetikleyicileri takip etmenize
-              yardımcı olur ve ilerlemenize dair içgörüler sunar.
-            </Text>
-
-            <Text style={styles.modalReminder}>
-              Günlüğünüzü ne kadar çok kullanırsanız, süreçteki içgörüler o kadar artar.
-            </Text>
-
-            <Text style={styles.modalCTA}>
-              İlk kaydınıza yukarıdan başlayın!
-            </Text>
-
-            <View style={styles.modalButtonGroup}>
+            {isEditing ? (
               <TouchableOpacity
-                style={styles.modalShareBtn}
-                onPress={() => setShowIntro(false)}
+                onPress={handleNewEntry}
+                style={[styles.newEntryChip, { backgroundColor: colors.primary + "1A" }]}
+                accessibilityRole="button"
+                accessibilityLabel="Yeni günlük kaydı oluştur"
               >
-                <Text style={styles.modalShareText}>Paylaş</Text>
+                <Ionicons name="add" size={14} color={colors.primary} />
+                <Text style={[styles.newEntryChipText, { color: colors.primary }]}>
+                  Yeni Kayıt
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalEditBtn}
-                onPress={() => setShowIntro(false)}
-              >
-                <Text style={styles.modalEditText}>Düzenle</Text>
-              </TouchableOpacity>
-            </View>
+            ) : null}
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+
+          <Card variant="hero" style={styles.heroCard}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="journal" size={28} color="#FFFFFF" />
+            </View>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle} accessibilityRole="header">
+                Günlük
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Düşüncelerinizi, dürtülerinizi ve ilerlemenizi takip edin. Tüm kayıtlar
+                cihazınızda güvenle saklanır.
+              </Text>
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={isEditing ? "Kayıt Düzenleniyor" : "Yeni Kayıt"}
+              icon="create"
+              subtitle={
+                isEditing && entryDate
+                  ? `Tarih: ${formatDate(entryDate)}`
+                  : "Bugünün düşüncelerini yazmaya başlayın."
+              }
+              meta={wordCount > 0 ? `${wordCount} kelime` : undefined}
+            />
+            <TextInput
+              style={[
+                styles.entryInput,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Düşünceleriniz, duygularınız ve deneyimleriniz hakkında yazın..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={10}
+              value={diaryEntry}
+              onChangeText={setDiaryEntry}
+              textAlignVertical="top"
+              editable={!loading && !saving}
+              accessibilityLabel="Günlük metni"
+            />
+
+            <View style={styles.actionRow}>
+              <Button
+                title="Kaydet"
+                onPress={handleSave}
+                disabled={loading || saving || diaryEntry.trim().length === 0}
+                loading={saving}
+                variant="primary"
+                leftIcon="checkmark"
+                style={styles.actionPrimary}
+              />
+              <Button
+                title="Paylaş"
+                onPress={handleShare}
+                disabled={loading || saving || diaryEntry.trim().length === 0}
+                variant="secondary"
+                leftIcon="share-outline"
+              />
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Son Kayıtlar"
+              icon="time"
+              meta={entries.length > 0 ? `${entries.length} kayıt` : undefined}
+            />
+
+            {loading ? (
+              <View style={styles.historyList}>
+                {[0, 1, 2].map((i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.historyRow,
+                      i < 2 && {
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View style={styles.historyInfo}>
+                      <Skeleton width={120} height={12} />
+                      <Skeleton width="90%" height={14} style={styles.skelGap} />
+                      <Skeleton width="70%" height={14} style={styles.skelGap} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : entries.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="journal-outline" size={36} color={colors.textMuted} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Henüz kayıt yok
+                </Text>
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  İlk kaydınızı yukarıdan oluşturun.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.historyList}>
+                {entries.map((entry, index) => (
+                  <View
+                    key={entry.id}
+                    style={[
+                      styles.historyRow,
+                      index < entries.length - 1 && {
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.cardBorder,
+                      },
+                      entry.id === entryId && {
+                        backgroundColor: `${colors.primary}0F`,
+                      },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.historyInfo}
+                      onPress={() => handleSelectEntry(entry)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${formatDate(entry.date)} kaydını aç`}
+                    >
+                      <Text style={[styles.historyDate, { color: colors.primary }]}>
+                        {formatDate(entry.date)}
+                      </Text>
+                      <Text
+                        style={[styles.historyPreview, { color: colors.text }]}
+                        numberOfLines={2}
+                      >
+                        {entry.content}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteEntry(entry.id)}
+                      style={styles.deleteBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${formatDate(entry.date)} kaydını sil`}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F9FF",
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  backBtn: {
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
     alignSelf: "flex-start",
   },
-  backText: {
-    fontSize: 16,
-    color: "#1D4C72",
+  backButtonText: {
+    fontSize: 17,
+    fontWeight: "600",
   },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-    alignSelf: "center",
-  },
-  icon: {
-    fontSize: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1E7A55",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 20,
-    color: "#666",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  description: {
-    fontSize: 16,
-    color: "#555",
-    lineHeight: 24,
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  reminder: {
-    fontSize: 15,
-    color: "#666",
-    fontStyle: "italic",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  entryContainer: {
-    marginBottom: 24,
-  },
-  entryLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E7A55",
-    marginBottom: 12,
-  },
-  entryInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    minHeight: 200,
-    fontSize: 16,
-    color: "#222",
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  buttonGroup: {
+  newEntryChip: {
     flexDirection: "row",
-    gap: 12,
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  newEntryChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  heroCard: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
-  shareBtn: {
-    flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 16,
-    borderRadius: 16,
+  heroIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
   },
-  shareText: {
+  heroTextWrap: { flex: 1 },
+  heroTitle: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  editBtn: {
-    flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  editText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  newBtn: {
-    flex: 1,
-    backgroundColor: "#1D4C72",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  newText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  historySection: {
-    marginTop: 8,
-  },
-  historyTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1E7A55",
-    marginBottom: 12,
+    marginBottom: 4,
   },
-  historyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+  heroSubtitle: {
+    color: "#FFFFFF",
+    opacity: 0.92,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  cardSpacing: {
+    marginBottom: 14,
+  },
+  entryInput: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    minHeight: 180,
+    borderWidth: 1,
+    lineHeight: 22,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  actionPrimary: {
+    flex: 1,
+  },
+  historyList: {
+    width: "100%",
+  },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    gap: 10,
+    borderRadius: 8,
+  },
+  historyInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   historyDate: {
     fontSize: 12,
-    color: "#666",
-    marginBottom: 6,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    marginBottom: 4,
+    textTransform: "uppercase",
   },
   historyPreview: {
     fontSize: 14,
-    color: "#333",
-    marginBottom: 10,
+    lineHeight: 20,
   },
   deleteBtn: {
-    alignSelf: "flex-start",
-    backgroundColor: "#D06B5C",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  deleteText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#999",
-    fontStyle: "italic",
-  },
-  // Modal stilleri
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    width: 36,
+    height: 36,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
   },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
-    width: "100%",
-    maxWidth: 400,
+  emptyState: {
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  modalIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#E8F5E9",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
+    paddingVertical: 32,
+    gap: 8,
   },
-  modalIconEmoji: {
-    fontSize: 50,
-  },
-  modalTitle: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1E7A55",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 20,
-    color: "#666",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  modalDescription: {
-    fontSize: 16,
-    color: "#555",
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: 12,
-  },
-  modalReminder: {
-    fontSize: 15,
-    color: "#666",
-    fontStyle: "italic",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  modalCTA: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E7A55",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  modalButtonGroup: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-  },
-  modalShareBtn: {
-    flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  modalShareText: {
-    color: "#FFFFFF",
+  emptyTitle: {
     fontSize: 15,
     fontWeight: "700",
   },
-  modalEditBtn: {
-    flex: 1,
-    backgroundColor: "#4A4A4A",
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: "center",
+  emptyHint: {
+    fontSize: 13,
+    textAlign: "center",
   },
-  modalEditText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
+  skelGap: {
+    marginTop: 6,
   },
 });

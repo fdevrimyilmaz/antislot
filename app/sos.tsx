@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Linking,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,10 +10,27 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addContact, getContacts, removeContact } from "@/store/sosStore";
-// SOS screen focuses on gambling support.
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
-const HELPLINES = [
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { useToast } from "@/components/ui/toast";
+import { addContact, getContacts, removeContact } from "@/store/sosStore";
+import { haptics } from "@/services/haptics";
+import { reportError } from "@/services/monitoring";
+
+type Helpline = {
+  title: string;
+  phone?: string;
+  sms?: string;
+  label: string;
+};
+
+const HELPLINES: Helpline[] = [
   {
     title: "112 Acil Çağrı Merkezi",
     phone: "112",
@@ -29,7 +45,7 @@ const HELPLINES = [
     title: "Alo 183 Sosyal Destek Hattı",
     phone: "183",
     sms: "183",
-    label: "7/24 ücretsiz destek • SMS: Ad Soyad, TCKN, talep",
+    label: "7/24 ücretsiz destek · SMS: Ad Soyad, TCKN, talep",
   },
 ];
 
@@ -50,13 +66,13 @@ const GROUNDING_STEPS = [
   "Tadabildiğiniz 1 şey",
 ];
 
-const SOS_FOCUS_COPY = {
-  title: "Kumar için SOS",
-  description: "Kumar dürtüsü yükseldiğinde hızlıca destek ve topraklama adımlarını kullanın.",
-};
+const BREATHING_DURATION_SEC = 60;
+const DELAY_DURATION_SEC = 600;
 
 export default function SOS() {
-  const [showIntro, setShowIntro] = useState(true);
+  const { colors } = useTheme();
+  const toast = useToast();
+
   const [contacts, setContacts] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -65,8 +81,12 @@ export default function SOS() {
 
   useEffect(() => {
     (async () => {
-      const stored = await getContacts();
-      setContacts(stored);
+      try {
+        const stored = await getContacts();
+        setContacts(stored);
+      } catch (error) {
+        reportError(error, { scope: "sos.contacts.load", level: "warning" });
+      }
     })();
   }, []);
 
@@ -74,9 +94,13 @@ export default function SOS() {
     if (breathingSeconds === null) return;
     if (breathingSeconds <= 0) {
       setBreathingSeconds(null);
+      haptics.success();
       return;
     }
-    const timer = setTimeout(() => setBreathingSeconds((prev) => (prev ? prev - 1 : null)), 1000);
+    const timer = setTimeout(
+      () => setBreathingSeconds((prev) => (prev ? prev - 1 : null)),
+      1000
+    );
     return () => clearTimeout(timer);
   }, [breathingSeconds]);
 
@@ -84,23 +108,82 @@ export default function SOS() {
     if (delaySeconds === null) return;
     if (delaySeconds <= 0) {
       setDelaySeconds(null);
+      haptics.success();
       return;
     }
-    const timer = setTimeout(() => setDelaySeconds((prev) => (prev ? prev - 1 : null)), 1000);
+    const timer = setTimeout(
+      () => setDelaySeconds((prev) => (prev ? prev - 1 : null)),
+      1000
+    );
     return () => clearTimeout(timer);
   }, [delaySeconds]);
 
-  const handleAddContact = async () => {
-    if (!newName.trim() || !newPhone.trim()) return;
-    const updated = await addContact(newName, newPhone);
-    setContacts(updated);
-    setNewName("");
-    setNewPhone("");
+  const handleEmergency = () => {
+    haptics.tapHeavy();
+    Linking.openURL("tel:112");
   };
 
-  const handleRemoveContact = async (id: string) => {
-    const updated = await removeContact(id);
-    setContacts(updated);
+  const handleCallPhone = (phone: string) => {
+    haptics.tapMedium();
+    Linking.openURL(`tel:${phone}`);
+  };
+
+  const handleSendSms = (sms: string) => {
+    haptics.tapLight();
+    Linking.openURL(`sms:${sms}`);
+  };
+
+  const handleStartBreathing = () => {
+    haptics.tapLight();
+    setBreathingSeconds(BREATHING_DURATION_SEC);
+  };
+
+  const handleStopBreathing = () => {
+    haptics.warning();
+    setBreathingSeconds(null);
+  };
+
+  const handleStartDelay = () => {
+    haptics.tapLight();
+    setDelaySeconds(DELAY_DURATION_SEC);
+  };
+
+  const handleStopDelay = () => {
+    haptics.warning();
+    setDelaySeconds(null);
+  };
+
+  const handleAddContact = async () => {
+    const trimmedName = newName.trim();
+    const trimmedPhone = newPhone.trim();
+    if (!trimmedName || !trimmedPhone) {
+      toast.warning("İsim ve telefon alanlarını doldurun.", "Eksik Bilgi");
+      return;
+    }
+    try {
+      const updated = await addContact(trimmedName, trimmedPhone);
+      setContacts(updated);
+      setNewName("");
+      setNewPhone("");
+      haptics.success();
+      toast.success(`${trimmedName} eklendi.`, "Kişi Eklendi");
+    } catch (error) {
+      reportError(error, { scope: "sos.contacts.add" });
+      haptics.error();
+      toast.error("Kişi eklenemedi. Lütfen tekrar deneyin.", "Hata");
+    }
+  };
+
+  const handleRemoveContact = async (id: string, name: string) => {
+    haptics.warning();
+    try {
+      const updated = await removeContact(id);
+      setContacts(updated);
+      toast.info(`${name} kaldırıldı.`);
+    } catch (error) {
+      reportError(error, { scope: "sos.contacts.remove" });
+      haptics.error();
+    }
   };
 
   const formattedBreathing = useMemo(() => {
@@ -117,312 +200,515 @@ export default function SOS() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   }, [delaySeconds]);
 
-  const focusCopy = SOS_FOCUS_COPY;
-
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
-          </TouchableOpacity>
-        </View>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.headerRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Geri"
+            >
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={colors.text}
+                accessibilityElementsHidden
+                importantForAccessibility="no"
+              />
+              <Text style={[styles.backButtonText, { color: colors.text }]}>Geri</Text>
+            </TouchableOpacity>
 
-        <Text style={styles.title}>{focusCopy.title}</Text>
-
-        <View style={styles.card}>
-          <View style={styles.iconWrapper}>
-            <Text style={styles.icon}>🆘</Text>
+            <TouchableOpacity
+              onPress={handleEmergency}
+              style={[styles.emergencyChip, { backgroundColor: colors.danger }]}
+              accessibilityRole="button"
+              accessibilityLabel="112 Acil aranır"
+            >
+              <Ionicons name="call" size={14} color="#FFFFFF" />
+              <Text style={styles.emergencyChipText}>112 Ara</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.cardTitle}>Yalnız değilsiniz</Text>
-          <Text style={styles.cardText}>
-          {focusCopy.description} Hayati tehlike varsa 112&apos;yi arayın.
-          </Text>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Acil Yardım</Text>
-          {HELPLINES.map((line) => (
-            <View key={line.title} style={styles.actionRow}>
-              <View style={styles.actionInfo}>
-                <Text style={styles.actionTitle}>{line.title}</Text>
-                <Text style={styles.actionSub}>{line.label}</Text>
-              </View>
-              {line.phone && (
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => Linking.openURL(`tel:${line.phone}`)}
-                >
-                  <Text style={styles.primaryButtonText}>Ara</Text>
-                </TouchableOpacity>
-              )}
-              {line.sms && (
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => Linking.openURL(`sms:${line.sms}`)}
-                >
-                  <Text style={styles.secondaryButtonText}>Mesaj</Text>
-                </TouchableOpacity>
-              )}
+          <Card variant="hero" style={styles.heroCard}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="heart" size={28} color="#FFFFFF" />
             </View>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nefes Sıfırlama</Text>
-          <Text style={styles.sectionSub}>
-            4 saniye nefes al, 4 saniye tut, 6 saniye ver. Süre bitene kadar tekrar edin.
-          </Text>
-          {breathingSeconds === null ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setBreathingSeconds(60)}>
-              <Text style={styles.primaryButtonText}>60 sn Nefes Başlat</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.timerRow}>
-              <Text style={styles.timerText}>{formattedBreathing}</Text>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setBreathingSeconds(null)}>
-                <Text style={styles.secondaryButtonText}>Durdur</Text>
-              </TouchableOpacity>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle} accessibilityRole="header">
+                Yalnız değilsiniz
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Kumar dürtüsü yükseldiğinde hızlı destek ve topraklama adımları burada.
+                Hayati tehlike varsa 112’yi arayın.
+              </Text>
             </View>
-          )}
-        </View>
+          </Card>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Dürtüyü Ertele</Text>
-          <Text style={styles.sectionSub}>Dürtü yoğunluğunu azaltmak için 10 dakikalık bir ara verin.</Text>
-          {delaySeconds === null ? (
-            <TouchableOpacity style={styles.primaryButton} onPress={() => setDelaySeconds(600)}>
-              <Text style={styles.primaryButtonText}>10 dk Ertelemeyi Başlat</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.timerRow}>
-              <Text style={styles.timerText}>{formattedDelay}</Text>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setDelaySeconds(null)}>
-                <Text style={styles.secondaryButtonText}>Durdur</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Topraklama: 5-4-3-2-1</Text>
-          {GROUNDING_STEPS.map((step) => (
-            <Text key={step} style={styles.listItem}>• {step}</Text>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hızlı Baş Etme Planı</Text>
-          {COPING_STEPS.map((step) => (
-            <Text key={step} style={styles.listItem}>• {step}</Text>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Güvenilir Kişiler</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              placeholder="İsim"
-              value={newName}
-              onChangeText={setNewName}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Nefes Sıfırlama"
+              icon="leaf"
+              subtitle="4 saniye al · 4 saniye tut · 6 saniye ver. Süre bitene kadar tekrar edin."
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Telefon"
-              value={newPhone}
-              onChangeText={setNewPhone}
-              keyboardType="phone-pad"
-            />
-          </View>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleAddContact}>
-            <Text style={styles.secondaryButtonText}>Kişi Ekle</Text>
-          </TouchableOpacity>
-          {contacts.length === 0 ? (
-            <Text style={styles.emptyText}>Kayıtlı kişi yok</Text>
-          ) : (
-            contacts.map((contact) => (
-              <View key={contact.id} style={styles.contactRow}>
-                <View>
-                  <Text style={styles.contactName}>{contact.name}</Text>
-                  <Text style={styles.contactPhone}>{contact.phone}</Text>
-                </View>
-                <View style={styles.contactActions}>
-                  <TouchableOpacity
-                    style={styles.primaryButton}
-                    onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-                  >
-                    <Text style={styles.primaryButtonText}>Ara</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.secondaryButton}
-                    onPress={() => handleRemoveContact(contact.id)}
-                  >
-                    <Text style={styles.secondaryButtonText}>Kaldır</Text>
-                  </TouchableOpacity>
-                </View>
+            {breathingSeconds === null ? (
+              <Button
+                title="60 sn Nefes Başlat"
+                onPress={handleStartBreathing}
+                variant="primary"
+                fullWidth
+                leftIcon="play"
+              />
+            ) : (
+              <View style={styles.timerRow}>
+                <Text
+                  style={[styles.timerText, { color: colors.primary }]}
+                  accessibilityLiveRegion="polite"
+                >
+                  {formattedBreathing}
+                </Text>
+                <Button
+                  title="Durdur"
+                  onPress={handleStopBreathing}
+                  variant="secondary"
+                  leftIcon="stop"
+                />
               </View>
-            ))
-          )}
-        </View>
-      </ScrollView>
+            )}
+          </Card>
 
-      <Modal
-        visible={showIntro}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowIntro(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Dürtüyü Ertele"
+              icon="time"
+              subtitle="Dürtü yoğunluğunu azaltmak için 10 dakikalık bir ara verin."
+            />
+            {delaySeconds === null ? (
+              <Button
+                title="10 dk Ertelemeyi Başlat"
+                onPress={handleStartDelay}
+                variant="primary"
+                fullWidth
+                leftIcon="hourglass"
+              />
+            ) : (
+              <View style={styles.timerRow}>
+                <Text
+                  style={[styles.timerText, { color: colors.primary }]}
+                  accessibilityLiveRegion="polite"
+                >
+                  {formattedDelay}
+                </Text>
+                <Button
+                  title="Durdur"
+                  onPress={handleStopDelay}
+                  variant="secondary"
+                  leftIcon="stop"
+                />
+              </View>
+            )}
+          </Card>
 
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>🆘</Text>
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Yardım Hatları" icon="call" />
+            <View style={styles.helplineList}>
+              {HELPLINES.map((line, index) => (
+                <View
+                  key={line.title}
+                  style={[
+                    styles.helplineRow,
+                    index < HELPLINES.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.cardBorder,
+                    },
+                  ]}
+                >
+                  <View style={styles.helplineInfo}>
+                    <Text style={[styles.helplineTitle, { color: colors.text }]}>
+                      {line.title}
+                    </Text>
+                    <Text style={[styles.helplineSub, { color: colors.textMuted }]}>
+                      {line.label}
+                    </Text>
+                  </View>
+                  <View style={styles.helplineActions}>
+                    {line.phone ? (
+                      <Button
+                        title="Ara"
+                        onPress={() => handleCallPhone(line.phone!)}
+                        variant="primary"
+                        leftIcon="call"
+                      />
+                    ) : null}
+                    {line.sms ? (
+                      <Button
+                        title="SMS"
+                        onPress={() => handleSendSms(line.sms!)}
+                        variant="secondary"
+                        leftIcon="chatbox"
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Topraklama: 5-4-3-2-1"
+              icon="compass"
+              subtitle="Şu ana dönmek için duyularınıza odaklanın."
+            />
+            <View style={styles.stepList}>
+              {GROUNDING_STEPS.map((step, index) => (
+                <View key={step} style={styles.stepRow}>
+                  <View
+                    style={[
+                      styles.stepNumber,
+                      { backgroundColor: `${colors.primary}1F`, borderColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={[styles.stepNumberText, { color: colors.primary }]}>
+                      {GROUNDING_STEPS.length - index}
+                    </Text>
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Hızlı Baş Etme Planı"
+              icon="list"
+              subtitle="Sıraya göre uygulayın, biri işe yaramadıysa diğerine geçin."
+            />
+            <View style={styles.stepList}>
+              {COPING_STEPS.map((step, index) => (
+                <View key={step} style={styles.stepRow}>
+                  <View
+                    style={[
+                      styles.stepBullet,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text style={styles.stepBulletText}>{index + 1}</Text>
+                  </View>
+                  <Text style={[styles.stepText, { color: colors.text }]}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Güvendiğiniz Kişiler"
+              icon="people"
+              subtitle="Krizde hızlı ulaşabileceğiniz numaraları saklayın."
+            />
+            <View style={styles.contactForm}>
+              <TextInput
+                style={[
+                  styles.contactInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.cardBorder,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="İsim"
+                placeholderTextColor={colors.textMuted}
+                value={newName}
+                onChangeText={setNewName}
+                accessibilityLabel="Kişi ismi"
+              />
+              <TextInput
+                style={[
+                  styles.contactInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.cardBorder,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="Telefon"
+                placeholderTextColor={colors.textMuted}
+                value={newPhone}
+                onChangeText={setNewPhone}
+                keyboardType="phone-pad"
+                accessibilityLabel="Kişi telefonu"
+              />
+              <Button
+                title="Kişi Ekle"
+                onPress={handleAddContact}
+                variant="secondary"
+                fullWidth
+                leftIcon="person-add"
+              />
             </View>
 
-            <Text style={styles.modalTitle}>{focusCopy.title}</Text>
-            <Text style={styles.modalSubtitle}>
-              {focusCopy.description} Hayati tehlike varsa 112&apos;yi arayın; bir yardım hattını arayın,
-              nefes egzersizi başlatın veya güvendiğiniz birine ulaşın.
-            </Text>
-
-            <TouchableOpacity style={styles.modalNextBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.modalNextText}>Hazırım</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+            {contacts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="people-outline" size={28} color={colors.textMuted} />
+                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                  Kayıtlı kişi yok
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.contactList}>
+                {contacts.map((contact, index) => (
+                  <View
+                    key={contact.id}
+                    style={[
+                      styles.contactRow,
+                      index < contacts.length - 1 && {
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View style={styles.contactInfo}>
+                      <Text style={[styles.contactName, { color: colors.text }]}>
+                        {contact.name}
+                      </Text>
+                      <Text style={[styles.contactPhone, { color: colors.textMuted }]}>
+                        {contact.phone}
+                      </Text>
+                    </View>
+                    <View style={styles.contactActions}>
+                      <Button
+                        title="Ara"
+                        onPress={() => handleCallPhone(contact.phone)}
+                        variant="primary"
+                        leftIcon="call"
+                      />
+                      <TouchableOpacity
+                        onPress={() => handleRemoveContact(contact.id, contact.name)}
+                        style={styles.removeBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${contact.name} kaldır`}
+                        hitSlop={8}
+                      >
+                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  header: { marginBottom: 20 },
-  backBtn: { alignSelf: "flex-start" },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", marginBottom: 16, color: "#222" },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40, gap: 0 },
+  headerRow: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
-  iconWrapper: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#FFEBEE",
-    justifyContent: "center",
+  backButton: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    gap: 2,
+    alignSelf: "flex-start",
   },
-  icon: { fontSize: 46 },
-  cardTitle: { fontSize: 20, fontWeight: "800", marginBottom: 8, color: "#222" },
-  cardText: { fontSize: 15, color: "#555", textAlign: "center", lineHeight: 22 },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
+  backButtonText: {
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  emergencyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.18,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    elevation: 4,
   },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: "#1D4C72", marginBottom: 12 },
-  sectionSub: { fontSize: 13, color: "#666", marginBottom: 10, lineHeight: 18 },
-  actionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  actionInfo: { flex: 1, marginRight: 12 },
-  actionTitle: { fontSize: 14, fontWeight: "700", color: "#222" },
-  actionSub: { fontSize: 12, color: "#666" },
-  primaryButton: {
-    backgroundColor: "#D06B5C",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    alignItems: "center",
+  emergencyChipText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 13,
+    letterSpacing: 0.3,
   },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-  secondaryButton: {
-    backgroundColor: "#E8F0F8",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  secondaryButtonText: { color: "#1D4C72", fontWeight: "700" },
-  listItem: { fontSize: 14, color: "#444", marginBottom: 6 },
-  inputRow: { gap: 10 },
-  input: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  emptyText: { fontSize: 13, color: "#999", fontStyle: "italic" },
-  contactRow: {
+  heroCard: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  contactName: { fontSize: 14, fontWeight: "700", color: "#222" },
-  contactPhone: { fontSize: 13, color: "#666" },
-  contactActions: { flexDirection: "row", gap: 8 },
-  timerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  timerText: { fontSize: 22, fontWeight: "800", color: "#1D4C72" },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
-  },
-  closeBtn: { position: "absolute", top: 16, right: 16 },
-  closeText: { fontSize: 24, color: "#999", fontWeight: "300" },
-  modalIcon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#FFEBEE",
-    justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
-  modalIconEmoji: { fontSize: 54 },
-  modalTitle: { fontSize: 24, fontWeight: "900", color: "#D06B5C", marginBottom: 8 },
-  modalSubtitle: { fontSize: 14, color: "#555", textAlign: "center", marginBottom: 16 },
-  modalNextBtn: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    width: "100%",
+  heroIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
   },
-  modalNextText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  heroTextWrap: { flex: 1 },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: "#FFFFFF",
+    opacity: 0.92,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  cardSpacing: {
+    marginBottom: 14,
+  },
+  timerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  timerText: {
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    fontVariant: ["tabular-nums"],
+  },
+  helplineList: {
+    width: "100%",
+  },
+  helplineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+  },
+  helplineInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  helplineTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  helplineSub: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  helplineActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  stepList: {
+    gap: 12,
+  },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  stepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepNumberText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  stepBullet: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepBulletText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  stepText: {
+    fontSize: 14,
+    lineHeight: 20,
+    flex: 1,
+  },
+  contactForm: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  contactInput: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    borderWidth: 1,
+  },
+  contactList: {
+    marginTop: 12,
+  },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    gap: 10,
+  },
+  contactInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  contactPhone: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  contactActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  removeBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontStyle: "italic",
+  },
 });

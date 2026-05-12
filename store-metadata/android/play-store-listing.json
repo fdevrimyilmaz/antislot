@@ -1,7 +1,19 @@
 {
   "title": "Antislot",
-  "shortDescription": "Support tools for managing gambling urges.",
-  "fullDescription": "Antislot provides practical recovery support: crisis shortcuts, guided coping sessions, local progress tools, and privacy controls.",
+  "shortDescription": "Kumar dürtüsüne karşı 7/24 kriz desteği, nefes ve günlük araçları.",
+  "fullDescription": "Antislot, kumar dürtüleriyle başa çıkmak için yanınızda taşıdığınız sessiz bir destek aracı. Krizde hızlıca ulaşabileceğin yardım hatlarından nefes egzersizlerine, günlük tutmaktan yapay zeka destekli sohbete kadar tüm araçlar tek bir uygulamada.\n\n<b>Özellikler</b>\n• Acil SOS — 112 ve Yeşilay 115 gibi destek hatlarına tek dokunuşla erişim. 60 saniyelik nefes sıfırlama ve 10 dakikalık dürtü erteleme zamanlayıcıları.\n• 5-4-3-2-1 Topraklama — Dürtü anında şu ana dönmek için duyu tabanlı egzersiz.\n• Günlük — Düşüncelerini, dürtülerini ve duygusal kalıplarını cihazında güvenle kaydet.\n• Yapay ANTI Destek — Türkçe konuşan AI yardımcısı; kısa, sakinleştirici ve uygulanabilir adımlar önerir.\n• İlerleme Paneli — Temiz gün sayacı, haftalık streak haritası ve kilometre taşları.\n• Premium Kontrol Merkezi — Erişim kodu veya 7 günlük deneme ile ek seanslar ve canlı destek.\n• SMS Spam Tanıyıcı — Şüpheli mesajları yapıştırıp kumar/bahis/dolandırıcılık sınıflandırması yap.\n\n<b>Gizlilik</b>\n• Verileriniz cihazınızda saklanır.\n• Tanı verileri ve çökme raporları varsayılan olarak KAPALIDIR; istediğinizde açabilirsiniz.\n• Anonim — hesap zorunlu değildir.\n\n<b>Yasal Uyarı</b>\nAntislot profesyonel yardımın yerine geçmez; tanı veya tedavi vermez. Hayati tehlike anında lütfen 112'yi arayın.\n\n<b>Destek</b>\nsupport@antislot.app",
   "privacyPolicyUrl": "https://antislot-legal.vercel.app/privacy",
-  "website": "https://antislot-legal.vercel.app"
+  "website": "https://antislot-legal.vercel.app",
+  "supportEmail": "support@antislot.app",
+  "category": "HEALTH_AND_FITNESS",
+  "contentRating": "EVERYONE_10_PLUS",
+  "containsAds": false,
+  "inAppPurchases": true,
+  "dataSafety": {
+    "dataCollection": "no_data_collected_by_default",
+    "dataSharing": "no_third_party_sharing",
+    "encryption": "encrypted_in_transit",
+    "userDeletionAvailable": true,
+    "rationale": "All user content (diary, AI chat, contacts, progress) is stored locally. Anonymous diagnostics are opt-in."
+  }
 }

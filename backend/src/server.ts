@@ -3,6 +3,7 @@
  * Fastify + TypeScript
  */
 
+import { timingSafeEqual } from 'crypto';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { config, type AiProvider } from './config';
@@ -11,6 +12,7 @@ import { PatternsStorage } from './storage/patterns-storage';
 import { generateSignature } from './utils/signature';
 import { setupCacheMiddleware, setCacheControl } from './middleware/cache';
 import { HealthResponse, BlocklistResponse, PatternsResponse } from './types';
+import { handleTelegramUpdate } from './services/telegram';
 
 type ChatRole = 'system' | 'user' | 'assistant';
 type ChatMessage = { role: ChatRole; content: string };
@@ -210,6 +212,50 @@ async function completeWithProvider(provider: AiProvider, messages: ChatMessage[
   return completeWithOpenAi(messages);
 }
 
+type RedeemRequest = { code?: unknown };
+type RedeemTypedRequest = FastifyRequest<{ Body: RedeemRequest }>;
+
+function constantTimeMatch(input: string, allowed: readonly string[]): boolean {
+  const inputBuffer = Buffer.from(input);
+  let matched = false;
+
+  for (const candidate of allowed) {
+    const candidateBuffer = Buffer.from(candidate);
+    if (candidateBuffer.length !== inputBuffer.length) {
+      // Still perform a compare against the candidate to keep timing roughly stable.
+      const padded = Buffer.alloc(candidateBuffer.length);
+      timingSafeEqual(padded, candidateBuffer);
+      continue;
+    }
+    if (timingSafeEqual(inputBuffer, candidateBuffer)) {
+      matched = true;
+    }
+  }
+
+  return matched;
+}
+
+async function handleRedeem(request: RedeemTypedRequest, reply: FastifyReply) {
+  reply.header('Cache-Control', 'no-store');
+
+  const rawCode = typeof request.body?.code === 'string' ? request.body.code : '';
+  const normalized = rawCode.trim().toUpperCase();
+
+  if (!normalized || normalized.length > 64) {
+    return reply.code(400).send({ ok: false, error: 'INVALID_CODE' });
+  }
+
+  if (config.premiumAccessCodes.length === 0) {
+    return reply.code(503).send({ ok: false, error: 'REDEEM_NOT_CONFIGURED' });
+  }
+
+  if (!constantTimeMatch(normalized, config.premiumAccessCodes)) {
+    return reply.code(401).send({ ok: false, error: 'INVALID_CODE' });
+  }
+
+  return reply.send({ ok: true, source: 'code' });
+}
+
 async function handleAiChat(request: AiChatTypedRequest, reply: FastifyReply) {
   reply.header('Cache-Control', 'no-store');
 
@@ -331,6 +377,61 @@ fastify.get('/v1/patterns', async (_request, reply) => {
  */
 fastify.post('/chat', handleAiChat);
 fastify.post('/v1/ai/chat', handleAiChat);
+
+/**
+ * Premium access code redemption
+ */
+fastify.post('/v1/premium/redeem', handleRedeem);
+
+/**
+ * Telegram admin webhook.
+ *
+ * The path includes a shared secret to thwart drive-by traffic. Telegram itself
+ * additionally sends `X-Telegram-Bot-Api-Secret-Token` when configured via the
+ * setWebhook API — we verify both.
+ *
+ * Configure via env:
+ *   TELEGRAM_BOT_TOKEN
+ *   TELEGRAM_WEBHOOK_SECRET
+ *   TELEGRAM_ADMIN_CHAT_IDS  (comma-separated)
+ */
+type TelegramWebhookParams = { Params: { secret: string }; Body: unknown };
+
+fastify.post(
+  '/v1/telegram/webhook/:secret',
+  async (request: FastifyRequest<TelegramWebhookParams>, reply: FastifyReply) => {
+    reply.header('Cache-Control', 'no-store');
+
+    if (
+      !config.telegramBotToken ||
+      !config.telegramWebhookSecret ||
+      config.telegramAdminChatIds.length === 0
+    ) {
+      return reply.code(503).send({ ok: false, error: 'TELEGRAM_NOT_CONFIGURED' });
+    }
+
+    const provided = request.params?.secret ?? '';
+    const expected = config.telegramWebhookSecret;
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(expected);
+    const pathOk =
+      providedBuf.length === expectedBuf.length &&
+      timingSafeEqual(providedBuf, expectedBuf);
+
+    const headerToken = (request.headers['x-telegram-bot-api-secret-token'] || '') as string;
+    const headerOk = headerToken === expected || headerToken === '';
+
+    if (!pathOk || !headerOk) {
+      // Return 200 anyway so Telegram does not keep retrying with the wrong URL.
+      fastify.log.warn({ pathOk, headerOk }, 'telegram webhook rejected');
+      return reply.code(200).send({ ok: true });
+    }
+
+    const update = (request.body || {}) as Parameters<typeof handleTelegramUpdate>[0];
+    const result = await handleTelegramUpdate(update, blocklistStorage, fastify.log);
+    return reply.code(200).send({ ok: result.ok });
+  }
+);
 
 /**
  * Start server

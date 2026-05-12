@@ -1,4 +1,4 @@
-export type Language = "tr";
+export type Language = "tr" | "en";
 
 export interface TranslationCoverageItem {
   language: Language;
@@ -82,82 +82,158 @@ export interface Translations {
   explore: string;
   premium: string;
   ai: string;
+
+  // Language
+  languageSection: string;
+  languageSectionHint: string;
+  languageTurkish: string;
+  languageEnglish: string;
 }
 
 export const translations: Record<Language, Translations> = {
   tr: {
-    // Onboarding
-    tagline: "KONTROLU GERI ALMANIZ ICIN",
-    taglineToolbox: "ARAC KUTUNUZ",
+    tagline: "KONTROLÜ GERİ ALMANIZ İÇİN",
+    taglineToolbox: "ARAÇ KUTUNUZ",
     continue: "Devam Et",
 
-    // Home
-    welcomeBack: "TEKRAR HOS GELDINIZ",
+    welcomeBack: "TEKRAR HOŞ GELDİNİZ",
     gambleFree: "Kumardan Uzak",
-    days: "GUN",
+    days: "GÜN",
 
-    // Cards
     therapy: "Terapi",
     therapySubtitle: "Seanslar",
-    mindfulness: "Farkindalik",
+    mindfulness: "Farkındalık",
     mindfulnessSubtitle: "Seanslar",
     sos: "SOS",
-    sosSubtitle: "Acil yardim",
-    progress: "Ilerleme",
-    progressSubtitle: "Simdi incele",
+    sosSubtitle: "Acil yardım",
+    progress: "İlerleme",
+    progressSubtitle: "Şimdi incele",
     support: "Destek",
-    supportSubtitle: "Yardim bir dokunus uzakta",
-    diary: "Gunluk",
-    diarySubtitle: "Ozel gunlugunuz",
+    supportSubtitle: "Yardım bir dokunuş uzakta",
+    diary: "Günlük",
+    diarySubtitle: "Özel günlüğünüz",
     smsFilter: "SMS Filtresi",
-    smsFilterSubtitle: "Spam Mesajlari Engelle",
+    smsFilterSubtitle: "Spam mesajları engelle",
 
-    // Welcome modal
-    welcomeToAntislot: "ANTISLOT'A HOS GELDINIZ",
-    welcomeDescription: "Lutfen ilerleme takibi icin hesabinizi tamamlayin.",
-    next: "Ileri",
+    welcomeToAntislot: "ANTISLOT'A HOŞ GELDİNİZ",
+    welcomeDescription: "Lütfen ilerleme takibi için hesabınızı tamamlayın.",
+    next: "İleri",
 
-    // Continue screen
     back: "Geri",
     generalBack: "Geri",
     createAccount: "HESABINIZI TAMAMLAYIN",
-    username: "Kullanici Adi",
-    age: "Yasiniz",
+    username: "Kullanıcı Adı",
+    age: "Yaşınız",
     gender: "Cinsiyet",
-    ethnicity: "Etnik Koken",
-    countryState: "Ulke/Sehir",
-    howDidYouFindUs: "Bizi nasil buldunuz?",
+    ethnicity: "Etnik Köken",
+    countryState: "Ülke/Şehir",
+    howDidYouFindUs: "Bizi nasıl buldunuz?",
     confirmInfo: "Bilgileri Onayla",
 
-    // Privacy data screen
     privacyDataTitle: "Gizlilik Verileri",
     privacyDataLocalStorage: "Yerel Saklama",
-    privacyDataLocalStorageSubtitle: "Verileriniz cihazinizda saklanir.",
-    privacyDataUrgeLogs: "Durtu Kayitlari",
-    privacyDataUrgeLogsDesc: "Durtu gunlugu ve ilgili kayitlar yerel tutulur.",
-    privacyDataUrgePatterns: "Durtu Oruntuleri",
-    privacyDataUrgePatternsDesc: "Tetikleyici oruntuleri analiz icin saklanir.",
-    privacyDataOtherLocalData: "Diger Yerel Veriler",
-    privacyDataOtherLocalDataDesc: "Tema, dil ve uygulama tercihleri cihazinizda kalir.",
-    privacyDataTelemetry: "Tanimlama ve Telemetri",
-    privacyDataTelemetrySubtitle: "Paylasim tercihlerinizi buradan yonetin.",
-    privacyDataDiagnosticsToggle: "Tani Verilerini Paylas",
-    privacyDataDiagnosticsHint: "Anonim tani verileri iyilestirme icin kullanilir.",
-    privacyDataCrashReporting: "Cokme Raporlari",
-    privacyDataCrashReportingHint: "Hatalarin daha hizli cozulmesine yardim eder.",
+    privacyDataLocalStorageSubtitle: "Verileriniz cihazınızda saklanır.",
+    privacyDataUrgeLogs: "Dürtü Kayıtları",
+    privacyDataUrgeLogsDesc: "Dürtü günlüğü ve ilgili kayıtlar yerel tutulur.",
+    privacyDataUrgePatterns: "Dürtü Örüntüleri",
+    privacyDataUrgePatternsDesc: "Tetikleyici örüntüleri analiz için saklanır.",
+    privacyDataOtherLocalData: "Diğer Yerel Veriler",
+    privacyDataOtherLocalDataDesc: "Tema, dil ve uygulama tercihleri cihazınızda kalır.",
+    privacyDataTelemetry: "Tanılama ve Telemetri",
+    privacyDataTelemetrySubtitle: "Paylaşım tercihlerinizi buradan yönetin.",
+    privacyDataDiagnosticsToggle: "Tanı Verilerini Paylaş",
+    privacyDataDiagnosticsHint: "Anonim tanı verileri iyileştirme için kullanılır.",
+    privacyDataCrashReporting: "Çökme Raporları",
+    privacyDataCrashReportingHint: "Hataların daha hızlı çözülmesine yardım eder.",
     privacyDataPolicies: "Politikalar",
-    privacyDataPoliciesSubtitle: "Gizlilik ve kullanim metinlerine ulasin.",
-    privacyDataPrivacyPolicy: "Gizlilik Politikasi",
-    privacyDataTerms: "Kullanim Sartlari",
-    privacyDataImportantInfo: "Onemli Bilgiler",
-    privacyDataSecurity: "Guvenlik",
-    privacyDataSecuritySubtitle: "Verileriniz guvenli altyapida korunur.",
+    privacyDataPoliciesSubtitle: "Gizlilik ve kullanım metinlerine ulaşın.",
+    privacyDataPrivacyPolicy: "Gizlilik Politikası",
+    privacyDataTerms: "Kullanım Şartları",
+    privacyDataImportantInfo: "Önemli Bilgiler",
+    privacyDataSecurity: "Güvenlik",
+    privacyDataSecuritySubtitle: "Verileriniz güvenli altyapıda korunur.",
 
-    // Tabs
     home: "Ana Sayfa",
-    explore: "Kesfet",
+    explore: "Keşfet",
     premium: "Premium",
     ai: "AI",
+
+    languageSection: "Uygulama Dili",
+    languageSectionHint: "Dil tercihiniz cihazınızda saklanır.",
+    languageTurkish: "Türkçe",
+    languageEnglish: "İngilizce",
+  },
+  en: {
+    tagline: "TO TAKE BACK CONTROL",
+    taglineToolbox: "YOUR TOOLKIT",
+    continue: "Continue",
+
+    welcomeBack: "WELCOME BACK",
+    gambleFree: "Gamble-Free",
+    days: "DAYS",
+
+    therapy: "Therapy",
+    therapySubtitle: "Sessions",
+    mindfulness: "Mindfulness",
+    mindfulnessSubtitle: "Sessions",
+    sos: "SOS",
+    sosSubtitle: "Emergency help",
+    progress: "Progress",
+    progressSubtitle: "Check now",
+    support: "Support",
+    supportSubtitle: "Help one tap away",
+    diary: "Diary",
+    diarySubtitle: "Your private journal",
+    smsFilter: "SMS Filter",
+    smsFilterSubtitle: "Block spam messages",
+
+    welcomeToAntislot: "WELCOME TO ANTISLOT",
+    welcomeDescription: "Please complete your account for progress tracking.",
+    next: "Next",
+
+    back: "Back",
+    generalBack: "Back",
+    createAccount: "COMPLETE YOUR ACCOUNT",
+    username: "Username",
+    age: "Age",
+    gender: "Gender",
+    ethnicity: "Ethnicity",
+    countryState: "Country/City",
+    howDidYouFindUs: "How did you find us?",
+    confirmInfo: "Confirm Info",
+
+    privacyDataTitle: "Privacy Data",
+    privacyDataLocalStorage: "Local Storage",
+    privacyDataLocalStorageSubtitle: "Your data stays on your device.",
+    privacyDataUrgeLogs: "Urge Logs",
+    privacyDataUrgeLogsDesc: "Urge journal and related records are stored locally.",
+    privacyDataUrgePatterns: "Urge Patterns",
+    privacyDataUrgePatternsDesc: "Trigger patterns are stored for analysis.",
+    privacyDataOtherLocalData: "Other Local Data",
+    privacyDataOtherLocalDataDesc: "Theme, language and app preferences remain on your device.",
+    privacyDataTelemetry: "Diagnostics & Telemetry",
+    privacyDataTelemetrySubtitle: "Manage your sharing preferences here.",
+    privacyDataDiagnosticsToggle: "Share Diagnostics",
+    privacyDataDiagnosticsHint: "Anonymous diagnostics help us improve.",
+    privacyDataCrashReporting: "Crash Reporting",
+    privacyDataCrashReportingHint: "Helps fix errors faster.",
+    privacyDataPolicies: "Policies",
+    privacyDataPoliciesSubtitle: "Read our privacy and usage texts.",
+    privacyDataPrivacyPolicy: "Privacy Policy",
+    privacyDataTerms: "Terms of Use",
+    privacyDataImportantInfo: "Important Info",
+    privacyDataSecurity: "Security",
+    privacyDataSecuritySubtitle: "Your data is protected on secure infrastructure.",
+
+    home: "Home",
+    explore: "Explore",
+    premium: "Premium",
+    ai: "AI",
+
+    languageSection: "App Language",
+    languageSectionHint: "Your language preference is saved on your device.",
+    languageTurkish: "Turkish",
+    languageEnglish: "English",
   },
 };
 
@@ -165,6 +241,10 @@ const languageMeta: Record<Language, { fallbackLanguage: Language; locale: strin
   tr: {
     fallbackLanguage: "tr",
     locale: "tr-TR",
+  },
+  en: {
+    fallbackLanguage: "tr",
+    locale: "en-US",
   },
 };
 

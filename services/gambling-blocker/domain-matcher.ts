@@ -55,7 +55,7 @@ export class DomainMatcher {
           case 'regex':
             try {
               this.regexPatterns.push(new RegExp(pattern.pattern, 'i'));
-            } catch (e) {
+            } catch {
               console.warn(`Geçersiz regex kalıbı: ${pattern.pattern}`);
             }
             break;

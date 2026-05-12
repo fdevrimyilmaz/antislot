@@ -12,6 +12,20 @@ function resolveAiProvider(): AiProvider {
   return 'openai';
 }
 
+function parseAccessCodes(raw: string | undefined): string[] {
+  return (raw || '')
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter((value) => value.length > 0);
+}
+
+function parseAdminChatIds(raw: string | undefined): number[] {
+  return (raw || '')
+    .split(',')
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter((value) => Number.isFinite(value));
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -43,5 +57,15 @@ export const config = {
   openAiMaxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '300', 10),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-  geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta'
+  geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta',
+
+  // Premium access codes (server-side validation). Comma-separated list via env.
+  // Codes are normalized to uppercase. If empty, the redeem endpoint refuses all attempts.
+  premiumAccessCodes: parseAccessCodes(process.env.PREMIUM_ACCESS_CODES),
+
+  // Telegram admin bot — for admin-only blocklist management.
+  // The webhook path is `/v1/telegram/webhook/<secret>`; the secret MUST match.
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || '',
+  telegramAdminChatIds: parseAdminChatIds(process.env.TELEGRAM_ADMIN_CHAT_IDS),
 };

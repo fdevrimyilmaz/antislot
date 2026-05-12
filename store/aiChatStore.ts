@@ -1,5 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
+import { reportError } from "@/services/monitoring";
+
 export type AiMessageRole = "user" | "assistant";
 
 export type AiMessage = {
@@ -18,7 +20,7 @@ export async function loadAiMessages(): Promise<AiMessage[]> {
     const parsed = JSON.parse(stored) as AiMessage[];
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.error("AI mesajları yüklenirken hata:", error);
+    reportError(error, { scope: "aiChatStore.load", level: "warning" });
     return [];
   }
 }
@@ -27,7 +29,10 @@ export async function saveAiMessages(messages: AiMessage[]): Promise<void> {
   try {
     await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(messages));
   } catch (error) {
-    console.error("AI mesajları kaydedilirken hata:", error);
+    reportError(error, {
+      scope: "aiChatStore.save",
+      extra: { count: messages.length },
+    });
     throw error;
   }
 }
@@ -36,6 +41,6 @@ export async function clearAiMessages(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(STORAGE_KEY);
   } catch (error) {
-    console.error("AI mesajları silinirken hata:", error);
+    reportError(error, { scope: "aiChatStore.clear", level: "warning" });
   }
 }

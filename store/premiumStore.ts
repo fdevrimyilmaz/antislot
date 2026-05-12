@@ -1,5 +1,7 @@
 import * as SecureStore from "expo-secure-store";
 
+import { reportError } from "@/services/monitoring";
+
 export type PremiumSource = "none" | "trial" | "code";
 
 export type PremiumState = {
@@ -42,7 +44,7 @@ export async function getPremiumState(): Promise<PremiumState> {
     }
     return normalized;
   } catch (error) {
-    console.error("Premium durumu yüklenirken hata:", error);
+    reportError(error, { scope: "premiumStore.load", level: "warning" });
     return { ...DEFAULT_STATE };
   }
 }

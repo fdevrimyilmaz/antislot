@@ -1,9 +1,20 @@
 {
   "name": "Antislot",
-  "subtitle": "Recovery Support Tools",
-  "description": "Antislot helps users manage gambling urges with crisis support, guided sessions, and private progress tracking.",
-  "keywords": "recovery,wellness,habit,focus,support",
+  "subtitle": "Kumar Dürtüsüne Karşı Destek",
+  "promoText": "Kumar dürtüsü ile başa çıkmak için 7/24 kriz desteği, nefes egzersizleri ve özel ilerleme takibi. Tüm verileriniz cihazınızda kalır.",
+  "description": "Antislot, kumar dürtüleriyle başa çıkmak için yanınızda taşıdığınız sessiz bir destek aracı. Krizde hızlıca ulaşabileceğin yardım hatlarından nefes egzersizlerine, günlük tutmaktan yapay zeka destekli sohbete kadar tüm araçlar tek bir uygulamada.\n\nÖzellikler\n• Acil SOS — 112 ve Yeşilay 115 gibi destek hatlarına tek dokunuşla erişim. 60 saniyelik nefes sıfırlama ve 10 dakikalık dürtü erteleme zamanlayıcıları.\n• 5-4-3-2-1 Topraklama — Dürtü anında şu ana dönmek için duyu tabanlı egzersiz.\n• Günlük — Düşüncelerini, dürtülerini ve duygusal kalıplarını cihazında güvenle kaydet.\n• Yapay ANTI Destek — Türkçe konuşan AI yardımcısı; kısa, sakinleştirici ve uygulanabilir adımlar önerir.\n• İlerleme Paneli — Temiz gün sayacı, haftalık streak haritası ve kilometre taşları.\n• Premium Kontrol Merkezi — Erişim kodu veya 7 günlük deneme ile ek seanslar ve canlı destek.\n• SMS Spam Tanıyıcı — Şüpheli mesajları yapıştırıp kumar, bahis veya dolandırıcılık olup olmadığını sınıflandır.\n\nGizlilik\n• Verileriniz cihazınızda saklanır.\n• Tanı verileri ve çökme raporları varsayılan olarak KAPALIDIR; istediğinizde açabilirsiniz.\n• Anonim — hesap zorunlu değildir.\n\nYasal Uyarı\nAntislot profesyonel yardımın yerine geçmez; tanı veya tedavi vermez. Hayati tehlike anında lütfen 112'yi arayın.\n\nDestek\nsupport@antislot.app",
+  "keywords": "kumar,bağımlılık,dürtü,destek,nefes,topraklama,günlük,sos,iyileşme,farkındalık",
   "privacyPolicyUrl": "https://antislot-legal.vercel.app/privacy",
   "supportUrl": "https://antislot-legal.vercel.app/support",
-  "marketingUrl": "https://antislot-legal.vercel.app"
+  "marketingUrl": "https://antislot-legal.vercel.app",
+  "primaryCategory": "HEALTH_AND_FITNESS",
+  "secondaryCategory": "MEDICAL",
+  "ageRating": "17+",
+  "contentRights": {
+    "containsThirdPartyContent": false
+  },
+  "appPrivacy": {
+    "dataNotCollected": true,
+    "rationale": "Antislot stores all user content (diary entries, AI chat, contacts, progress) locally on device. Anonymous crash reports and diagnostics are opt-in and contain no PII."
+  }
 }

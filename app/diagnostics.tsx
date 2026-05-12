@@ -9,9 +9,21 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { getFilterSettings } from "@/store/smsFilterStore";
 import * as SecureStore from "expo-secure-store";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { haptics } from "@/services/haptics";
+import { reportError } from "@/services/monitoring";
+import { getFilterSettings } from "@/store/smsFilterStore";
 
 interface DiagnosticData {
   smsFilterEnabled: boolean;
@@ -25,35 +37,32 @@ interface DiagnosticData {
   appVersion: string;
 }
 
-export default function DiagnosticsScreen() {
-  const [data, setData] = useState<DiagnosticData>({
-    smsFilterEnabled: false,
-    smsFilterStrictMode: false,
-    smsFilterKeywords: 0,
-    smsFilterCustomKeywords: 0,
-    lastBlocklistUpdate: null,
-    lastPatternsUpdate: null,
-    totalBlocked: 0,
-    totalAllowed: 0,
-    appVersion: "1.0.0",
-  });
-  const [loading, setLoading] = useState(true);
+const INITIAL_DATA: DiagnosticData = {
+  smsFilterEnabled: false,
+  smsFilterStrictMode: false,
+  smsFilterKeywords: 0,
+  smsFilterCustomKeywords: 0,
+  lastBlocklistUpdate: null,
+  lastPatternsUpdate: null,
+  totalBlocked: 0,
+  totalAllowed: 0,
+  appVersion: "1.0.0",
+};
 
-  useEffect(() => {
-    loadDiagnostics();
-  }, []);
+export default function DiagnosticsScreen() {
+  const { colors } = useTheme();
+  const toast = useToast();
+  const [data, setData] = useState<DiagnosticData>(INITIAL_DATA);
+  const [loading, setLoading] = useState(true);
 
   const loadDiagnostics = async () => {
     try {
       const settings = await getFilterSettings();
-      
-      // Sayaçları yükle
-      const blockedStr = await SecureStore.getItemAsync("antislot_blocked_count") || "0";
-      const allowedStr = await SecureStore.getItemAsync("antislot_allowed_count") || "0";
+      const blockedStr = (await SecureStore.getItemAsync("antislot_blocked_count")) || "0";
+      const allowedStr = (await SecureStore.getItemAsync("antislot_allowed_count")) || "0";
       const blocklistUpdate = await SecureStore.getItemAsync("antislot_blocklist_update");
       const patternsUpdate = await SecureStore.getItemAsync("antislot_patterns_update");
 
-      // Anahtar kelime sayımlarını al
       const { getAllKeywords } = await import("@/services/sms-filter/keywords");
       const defaultKeywords = getAllKeywords().length;
 
@@ -72,244 +81,293 @@ export default function DiagnosticsScreen() {
           "1.0.0",
       });
     } catch (error) {
-      console.error("Tanılama bilgileri yüklenirken hata:", error);
+      reportError(error, { scope: "diagnostics.load", level: "warning" });
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadDiagnostics();
+  }, []);
+
   const formatTimestamp = (timestamp: string | null) => {
     if (!timestamp) return "Hiç";
     try {
       const date = new Date(parseInt(timestamp, 10));
-      return date.toLocaleString();
+      return date.toLocaleString("tr-TR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     } catch {
       return "Geçersiz";
     }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loader}>
-          <Text>Yükleniyor...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleReset = async () => {
+    haptics.warning();
+    try {
+      await SecureStore.deleteItemAsync("antislot_blocked_count");
+      await SecureStore.deleteItemAsync("antislot_allowed_count");
+      await loadDiagnostics();
+      haptics.success();
+      toast.success("Sayaçlar sıfırlandı.", "Tamam");
+    } catch (error) {
+      reportError(error, { scope: "diagnostics.reset" });
+      haptics.error();
+      toast.error("Sayaçlar sıfırlanamadı.", "Hata");
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Geri</Text>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.backText, { color: colors.text }]}>Geri</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Tanılamalar</Text>
-        </View>
 
-        {/* App Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Uygulama Bilgileri</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Sürüm</Text>
-            <Text style={styles.infoValue}>{data.appVersion}</Text>
-          </View>
-        </View>
+          <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
+            Tanılamalar
+          </Text>
 
-        {/* SMS Filter Status */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SMS Filtre Durumu</Text>
-          
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Filtre Etkin</Text>
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Uygulama Bilgileri" icon="information-circle" />
+            <InfoRow label="Sürüm" value={data.appVersion} colors={colors} loading={loading} />
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="SMS Tanıyıcı"
+              icon="flask"
+              subtitle="Sınıflandırıcı sözlüğü ve modunun durumu."
+            />
+            <View style={styles.list}>
+              <View style={[styles.toggleRow, dividerStyle(colors)]}>
+                <View style={styles.toggleInfo}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>Sıkı Mod</Text>
+                </View>
+                <Switch
+                  value={data.smsFilterStrictMode}
+                  disabled
+                  trackColor={{ false: colors.cardBorder, true: colors.warning }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+              <InfoRow
+                label="Hazır Anahtar Kelimeler"
+                value={String(data.smsFilterKeywords)}
+                colors={colors}
+                loading={loading}
+                divider
+              />
+              <InfoRow
+                label="Özel Anahtar Kelimeler"
+                value={String(data.smsFilterCustomKeywords)}
+                colors={colors}
+                loading={loading}
+              />
             </View>
-            <Switch value={data.smsFilterEnabled} disabled trackColor={{ false: "#ccc", true: "#1E7A55" }} />
-          </View>
+          </Card>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingLabel}>Sıkı Mod</Text>
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Son Güncellemeler" icon="time" />
+            <InfoRow
+              label="Engel Listesi"
+              value={formatTimestamp(data.lastBlocklistUpdate)}
+              colors={colors}
+              loading={loading}
+              divider
+            />
+            <InfoRow
+              label="Kalıplar"
+              value={formatTimestamp(data.lastPatternsUpdate)}
+              colors={colors}
+              loading={loading}
+            />
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Mesaj İstatistikleri" icon="bar-chart" />
+            <View style={styles.statRow}>
+              <StatCard
+                value={data.totalBlocked}
+                label="Engellendi"
+                icon="shield"
+                colors={colors}
+                tone="danger"
+                loading={loading}
+              />
+              <StatCard
+                value={data.totalAllowed}
+                label="İzin Verildi"
+                icon="checkmark-circle"
+                colors={colors}
+                tone="success"
+                loading={loading}
+              />
             </View>
-            <Switch value={data.smsFilterStrictMode} disabled trackColor={{ false: "#ccc", true: "#D06B5C" }} />
-          </View>
+          </Card>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Varsayılan Anahtar Kelimeler</Text>
-            <Text style={styles.infoValue}>{data.smsFilterKeywords}</Text>
-          </View>
+          <Button
+            title="Sayaçları Sıfırla"
+            onPress={handleReset}
+            variant="destructive"
+            fullWidth
+            leftIcon="refresh"
+            style={styles.resetBtn}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Özel Anahtar Kelimeler</Text>
-            <Text style={styles.infoValue}>{data.smsFilterCustomKeywords}</Text>
-          </View>
-        </View>
+function dividerStyle(colors: { cardBorder: string }) {
+  return {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  };
+}
 
-        {/* Zaman damgalarını güncelle */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Son Güncellemeler</Text>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Engel Listesi</Text>
-            <Text style={styles.infoValue}>{formatTimestamp(data.lastBlocklistUpdate)}</Text>
-          </View>
+function InfoRow({
+  label,
+  value,
+  colors,
+  loading,
+  divider,
+}: {
+  label: string;
+  value: string;
+  colors: { text: string; textMuted: string; primary: string; cardBorder: string };
+  loading: boolean;
+  divider?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.infoRow,
+        divider && {
+          borderBottomWidth: 1,
+          borderBottomColor: colors.cardBorder,
+        },
+      ]}
+    >
+      <Text style={[styles.infoLabel, { color: colors.textMuted }]}>{label}</Text>
+      {loading ? (
+        <Skeleton width={80} height={14} radius={6} />
+      ) : (
+        <Text style={[styles.infoValue, { color: colors.primary }]}>{value}</Text>
+      )}
+    </View>
+  );
+}
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Kalıplar</Text>
-            <Text style={styles.infoValue}>{formatTimestamp(data.lastPatternsUpdate)}</Text>
-          </View>
-        </View>
-
-        {/* Counters */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mesaj İstatistikleri</Text>
-          
-          <View style={styles.statRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{data.totalBlocked}</Text>
-              <Text style={styles.statLabel}>Engellendi</Text>
-            </View>
-
-            <View style={styles.statCard}>
-              <Text style={styles.statNumber}>{data.totalAllowed}</Text>
-              <Text style={styles.statLabel}>İzin Verildi</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Sıfırlama düğmesi */}
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={async () => {
-            await SecureStore.deleteItemAsync("antislot_blocked_count");
-            await SecureStore.deleteItemAsync("antislot_allowed_count");
-            await loadDiagnostics();
-          }}
-        >
-          <Text style={styles.resetButtonText}>Sayaçları Sıfırla</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+function StatCard({
+  value,
+  label,
+  icon,
+  colors,
+  tone,
+  loading,
+}: {
+  value: number;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  colors: { card: string; cardBorder: string; text: string; textMuted: string; primary: string; danger: string; success: string };
+  tone: "success" | "danger";
+  loading: boolean;
+}) {
+  const accent = tone === "success" ? colors.success : colors.danger;
+  return (
+    <View
+      style={[
+        styles.statCard,
+        {
+          backgroundColor: `${accent}12`,
+          borderColor: `${accent}33`,
+        },
+      ]}
+    >
+      <Ionicons name={icon} size={22} color={accent} />
+      {loading ? (
+        <Skeleton width={50} height={28} radius={6} style={styles.statSkel} />
+      ) : (
+        <Text style={[styles.statNumber, { color: accent }]}>{value}</Text>
+      )}
+      <Text style={[styles.statLabel, { color: colors.textMuted }]}>{label}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F9FF",
-  },
-  loader: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 24,
-  },
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
   backButton: {
-    marginBottom: 12,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: "#1D4C72",
-    fontWeight: "600",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 8,
-  },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1D4C72",
-    marginBottom: 16,
-  },
-  settingRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    gap: 2,
+    alignSelf: "flex-start",
+    marginBottom: 10,
   },
-  settingLeft: {
-    flex: 1,
+  backText: { fontSize: 17, fontWeight: "600" },
+  title: {
+    fontSize: 28,
+    fontWeight: "900",
+    marginBottom: 18,
   },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+  cardSpacing: { marginBottom: 14 },
+  list: { width: "100%" },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
   },
+  toggleInfo: { flex: 1, paddingRight: 12 },
+  toggleLabel: { fontSize: 15, fontWeight: "700" },
   infoRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  infoLabel: {
-    fontSize: 15,
-    color: "#666",
-    flex: 1,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1D4C72",
-  },
-  statRow: {
-    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
     gap: 12,
   },
+  infoLabel: { fontSize: 14, flex: 1 },
+  infoValue: { fontSize: 14, fontWeight: "700", textAlign: "right" },
+  statRow: { flexDirection: "row", gap: 10 },
   statCard: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
     padding: 16,
     alignItems: "center",
+    gap: 6,
   },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: "#666",
-  },
-  resetButton: {
-    backgroundColor: "#D06B5C",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  resetButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
+  statSkel: { marginTop: 4 },
+  statNumber: { fontSize: 28, fontWeight: "900" },
+  statLabel: { fontSize: 12, fontWeight: "600" },
+  resetBtn: { marginTop: 4 },
 });

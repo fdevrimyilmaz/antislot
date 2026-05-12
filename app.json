@@ -22,7 +22,10 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "ENABLE_IOS_NE": false
+        "ENABLE_IOS_NE": false,
+        "NSUserTrackingUsageDescription": "Antislot kullanıcı izleme yapmaz. Bu izin yalnızca üçüncü taraf SDK'lar tarafından isteniyorsa görünür ve reddedilebilir.",
+        "NSLocalNetworkUsageDescription": "Yerel ağda DNS düzeyinde kumar siteleri filtrelemesi için cihaz içi VPN bağlantısı kurulur. Veri uzaktaki bir sunucuya gönderilmez.",
+        "NSAppleEventsUsageDescription": "Antislot Apple Events kullanmaz."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -81,6 +84,6 @@
       "supportUrl": "https://antislot-legal.vercel.app/support"
     },
     "owner": "512ferhat512",
-    "description": "Kumar durtulerini yonetmek icin destek araclari. Kriz destegi, ilerleme takibi ve guvenli veri saklama."
+    "description": "Kumar dürtüleriyle başa çıkmak için destek araçları: kriz desteği, farkındalık ve ilerleme takibi, yapay zeka destekli sohbet ve cihazda güvenli veri saklama."
   }
 }
