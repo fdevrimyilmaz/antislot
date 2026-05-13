@@ -10,6 +10,13 @@ import { LanguageProvider } from '@/contexts/LanguageContext';
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { UserProvider, useUser } from '@/contexts/UserContext';
 import { useProgressStore } from '@/store/progressStore';
+import { useLockoutStore } from '@/store/lockoutStore';
+import { useRiskWindowsStore } from '@/store/riskWindowsStore';
+import { useNotifPrefsStore } from '@/store/notificationsPrefsStore';
+import {
+  rescheduleDailyCheckin,
+  rescheduleRiskWindowReminders,
+} from '@/services/localNotifications';
 import { ToastProvider } from '@/components/ui/toast';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { initMonitoring } from '@/services/monitoring';
@@ -28,12 +35,56 @@ function RootLayoutContent() {
   const colorScheme = useColorScheme();
   const { uid, loading: userLoading } = useUser();
   const hydrateProgress = useProgressStore((state) => state.hydrate);
+  const hydrateLockout = useLockoutStore((s) => s.hydrate);
+  const hydrateRiskWindows = useRiskWindowsStore((s) => s.hydrate);
+  const hydrateNotifPrefs = useNotifPrefsStore((s) => s.hydrate);
+  const riskWindowsHydrated = useRiskWindowsStore((s) => s.hydrated);
+  const riskWindows = useRiskWindowsStore((s) => s.windows);
+  const notifPrefsHydrated = useNotifPrefsStore((s) => s.hydrated);
+  const notifPrefs = useNotifPrefsStore((s) => s.prefs);
 
   useEffect(() => {
     if (!userLoading && uid) {
       hydrateProgress(uid);
     }
   }, [userLoading, uid, hydrateProgress]);
+
+  useEffect(() => {
+    hydrateLockout();
+  }, [hydrateLockout]);
+
+  useEffect(() => {
+    hydrateRiskWindows();
+  }, [hydrateRiskWindows]);
+
+  useEffect(() => {
+    hydrateNotifPrefs();
+  }, [hydrateNotifPrefs]);
+
+  // Re-apply scheduled local notifications whenever the underlying prefs
+  // or windows change. Without this, adding a risk window wouldn't fire a
+  // reminder until the user toggles the switch again.
+  useEffect(() => {
+    if (!riskWindowsHydrated || !notifPrefsHydrated) return;
+    if (notifPrefs.riskRemindersEnabled) {
+      rescheduleRiskWindowReminders(riskWindows).catch(() => undefined);
+    }
+  }, [riskWindowsHydrated, notifPrefsHydrated, riskWindows, notifPrefs.riskRemindersEnabled]);
+
+  useEffect(() => {
+    if (!notifPrefsHydrated) return;
+    if (notifPrefs.checkinEnabled) {
+      rescheduleDailyCheckin({
+        hour: notifPrefs.checkinHour,
+        minute: notifPrefs.checkinMinute,
+      }).catch(() => undefined);
+    }
+  }, [
+    notifPrefsHydrated,
+    notifPrefs.checkinEnabled,
+    notifPrefs.checkinHour,
+    notifPrefs.checkinMinute,
+  ]);
 
   return (
     <CustomThemeProvider>
@@ -86,12 +137,52 @@ function RootLayoutContent() {
                 presentation: 'card',
               }} 
             />
-            <Stack.Screen 
-              name="settings" 
-              options={{ 
+            <Stack.Screen
+              name="settings"
+              options={{
                 headerShown: false,
                 presentation: 'card',
-              }} 
+              }}
+            />
+            <Stack.Screen
+              name="themes"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="self-exclusion"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="risk-windows"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="notifications"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="curriculum/index"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="curriculum/[day]"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="insights"
+              options={{ headerShown: false, presentation: 'card' }}
             />
             <Stack.Screen
               name="privacy"

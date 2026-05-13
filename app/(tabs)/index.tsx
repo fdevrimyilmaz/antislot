@@ -1,6 +1,6 @@
 import { type Href, router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +21,23 @@ import { DailyStreakCard } from "@/components/ui/daily-streak-card";
 import { FloatingSOSButton } from "@/components/ui/floating-sos-button";
 import { LanguageSelector } from "@/components/ui/language-selector";
 import { SavingsWidget, DailyCheckinWidget } from "@/components/ui/insight-widgets";
+import {
+  formatRemaining,
+  isLockoutActive,
+  remainingMs,
+  useLockoutStore,
+} from "@/store/lockoutStore";
+import {
+  formatHM,
+  getActiveWindow,
+  useRiskWindowsStore,
+} from "@/store/riskWindowsStore";
+import {
+  pendingCelebration,
+  useCelebrationStore,
+  type MilestoneThreshold,
+} from "@/store/celebrationStore";
+import { MilestoneCelebration } from "@/components/ui/milestone-celebration";
 import { pickDailyMotivation } from "../data/dailyMotivations";
 
 type ModuleDef = {
@@ -72,6 +89,50 @@ export default function HomeScreen() {
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
   const motivation = useMemo(() => pickDailyMotivation(safeDays), [safeDays]);
 
+  const lockoutState = useLockoutStore((s) => s.state);
+  const lockoutActive = isLockoutActive(lockoutState);
+  const lockoutLabel = lockoutActive
+    ? formatRemaining(remainingMs(lockoutState))
+    : "";
+
+  // Re-evaluate the active risk window every minute so the banner appears
+  // and disappears in real time as the clock crosses the window boundary.
+  const riskWindows = useRiskWindowsStore((s) => s.windows);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const activeRiskWindow = useMemo(
+    () => getActiveWindow(riskWindows, now),
+    [riskWindows, now]
+  );
+
+  // Streak milestone celebration. Fires once per crossed threshold;
+  // persisted in celebrationStore so a relaunch doesn't double-show.
+  const celebrationHydrated = useCelebrationStore((s) => s.hydrated);
+  const celebratedUpTo = useCelebrationStore((s) => s.celebratedUpTo);
+  const hydrateCelebration = useCelebrationStore((s) => s.hydrate);
+  const markCelebrated = useCelebrationStore((s) => s.markCelebrated);
+  const [activeMilestone, setActiveMilestone] = useState<MilestoneThreshold | null>(null);
+
+  useEffect(() => {
+    if (!celebrationHydrated) hydrateCelebration();
+  }, [celebrationHydrated, hydrateCelebration]);
+
+  useEffect(() => {
+    if (!celebrationHydrated || !progressHydrated) return;
+    const next = pendingCelebration(safeDays, celebratedUpTo);
+    if (next !== null) setActiveMilestone(next);
+  }, [celebrationHydrated, progressHydrated, safeDays, celebratedUpTo]);
+
+  const handleCelebrationClose = async () => {
+    if (activeMilestone !== null) {
+      await markCelebrated(activeMilestone);
+    }
+    setActiveMilestone(null);
+  };
+
   const modules = useMemo<ModuleDef[]>(
     () => [
       {
@@ -91,6 +152,42 @@ export default function HomeScreen() {
         decorativeIcon: "shield-outline",
         tone: "teal",
         route: "/blocker",
+      },
+      {
+        key: "self-exclusion",
+        title: "Self-Exclusion",
+        subtitle: "Kararı önceden ver, kilitle",
+        icon: "lock-closed",
+        decorativeIcon: "shield-checkmark",
+        tone: "slate",
+        route: "/self-exclusion" as Href,
+      },
+      {
+        key: "risk-windows",
+        title: "Risk Pencereleri",
+        subtitle: "Riskli saatleri önceden işaretle",
+        icon: "time",
+        decorativeIcon: "alarm",
+        tone: "coral",
+        route: "/risk-windows" as Href,
+      },
+      {
+        key: "curriculum",
+        title: "30 Günlük Yol",
+        subtitle: "Günde 5 dk — yapılandırılmış iyileşme",
+        icon: "leaf",
+        decorativeIcon: "ribbon",
+        tone: "emerald",
+        route: "/curriculum" as Href,
+      },
+      {
+        key: "insights",
+        title: "İçgörüler",
+        subtitle: "Kişisel patern analizi",
+        icon: "analytics",
+        decorativeIcon: "stats-chart",
+        tone: "indigo",
+        route: "/insights" as Href,
       },
       {
         key: "therapy",
@@ -205,10 +302,131 @@ export default function HomeScreen() {
             </LinearGradient>
           </View>
 
-          {/* Language selector */}
-          <View style={styles.languageWrap}>
-            <LanguageSelector variant="row" />
+          {/* Language + theme quick controls */}
+          <View style={styles.controlsRow}>
+            <View style={styles.controlsLang}>
+              <LanguageSelector variant="row" />
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push("/themes" as Href)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Tema galerisini aç"
+              style={[
+                styles.themeChip,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.themeChipIcon,
+                  { backgroundColor: `${colors.primary}14` },
+                ]}
+              >
+                <Ionicons name="color-palette" size={16} color={colors.primary} />
+              </View>
+              <Text style={[styles.themeChipLabel, { color: colors.text }]}>Tema</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Self-exclusion banner — only while a lockout window is active. */}
+          {lockoutActive ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => router.push("/self-exclusion" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={`Self-Exclusion aktif, ${lockoutLabel} kaldı`}
+              style={[
+                styles.lockoutBanner,
+                {
+                  backgroundColor: `${colors.success}1A`,
+                  borderColor: colors.success,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.lockoutIcon,
+                  { backgroundColor: `${colors.success}22` },
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark"
+                  size={18}
+                  color={colors.success}
+                />
+              </View>
+              <View style={styles.lockoutText}>
+                <Text
+                  style={[styles.lockoutTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  Self-Exclusion aktif
+                </Text>
+                <Text
+                  style={[styles.lockoutSub, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  Kalan: {lockoutLabel} · dokun, detayları gör
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Active risk-window alert — only while clock falls inside one. */}
+          {activeRiskWindow ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => router.push("/risk-windows" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={`Risk penceresi aktif: ${activeRiskWindow.label}`}
+              style={[
+                styles.riskBanner,
+                {
+                  backgroundColor: `${colors.danger}1A`,
+                  borderColor: colors.danger,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.riskIcon,
+                  { backgroundColor: `${colors.danger}22` },
+                ]}
+              >
+                <Ionicons name="warning" size={18} color={colors.danger} />
+              </View>
+              <View style={styles.riskText}>
+                <Text
+                  style={[styles.riskTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  Risk penceresi: {activeRiskWindow.label}
+                </Text>
+                <Text
+                  style={[styles.riskSub, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  {formatHM(activeRiskWindow.startHour, activeRiskWindow.startMinute)}
+                  –{formatHM(activeRiskWindow.endHour, activeRiskWindow.endMinute)}
+                  {" · dürtü riski yüksek, nazik ol"}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={colors.textMuted}
+              />
+            </TouchableOpacity>
+          ) : null}
 
           {/* Daily streak hero */}
           <View style={styles.heroWrap}>
@@ -244,6 +462,13 @@ export default function HomeScreen() {
 
       {/* Floating SOS — always within thumb reach */}
       <FloatingSOSButton />
+
+      <MilestoneCelebration
+        visible={activeMilestone !== null}
+        threshold={activeMilestone}
+        streakDays={safeDays}
+        onClose={handleCelebrationClose}
+      />
     </LinearGradient>
   );
 }
@@ -305,12 +530,76 @@ const styles = StyleSheet.create({
   brandAccent: {
     color: "#FFB366",
   },
-  languageWrap: {
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 10,
     marginBottom: 14,
+  },
+  controlsLang: {
+    flex: 1,
+    minWidth: 0,
+  },
+  themeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  themeChipIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeChipLabel: {
+    fontSize: 13,
+    fontWeight: "700",
   },
   heroWrap: {
     marginBottom: 14,
   },
+  lockoutBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  lockoutIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lockoutText: { flex: 1, minWidth: 0 },
+  lockoutTitle: { fontSize: 14, fontWeight: "800" },
+  lockoutSub: { fontSize: 12, marginTop: 2 },
+  riskBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  riskIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  riskText: { flex: 1, minWidth: 0 },
+  riskTitle: { fontSize: 14, fontWeight: "800" },
+  riskSub: { fontSize: 12, marginTop: 2 },
   insightRow: {
     flexDirection: "row",
     gap: 10,

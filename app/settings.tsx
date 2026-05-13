@@ -19,6 +19,12 @@ import {
   useUserAddictionsStore,
 } from "@/store/userAddictionsStore";
 import { THEME_OPTIONS, useTheme } from "@/contexts/ThemeContext";
+import {
+  formatRemaining,
+  isLockoutActive,
+  remainingMs,
+  useLockoutStore,
+} from "@/store/lockoutStore";
 import { ThemeTexture } from "@/components/theme-texture";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,13 +54,21 @@ const MESSAGE_LINKS: LinkItem[] = [
 const HELP_LINKS: LinkItem[] = [
   { label: "Destek Ağı", icon: "people", route: "/support" },
   { label: "SOS", icon: "alert-circle", route: "/sos" },
+  { label: "Self-Exclusion", icon: "lock-closed", route: "/self-exclusion" },
+  { label: "Risk Pencereleri", icon: "time", route: "/risk-windows" },
+  { label: "Bildirimler", icon: "notifications", route: "/notifications" },
   { label: "Tanılamalar", icon: "construct", route: "/diagnostics" },
 ];
 
 export default function SettingsScreen() {
   const { userAddictions, hydrated, setManyAddictions } = useUserAddictionsStore();
-  const { theme, setTheme, colors } = useTheme();
+  const { theme, preference, colors } = useTheme();
   const toast = useToast();
+  const lockoutState = useLockoutStore((s) => s.state);
+  const lockoutActive = isLockoutActive(lockoutState);
+  const lockoutRemaining = lockoutActive
+    ? formatRemaining(remainingMs(lockoutState))
+    : null;
   const [draft, setDraft] = useState<UserAddictions>(userAddictions);
   const [saving, setSaving] = useState(false);
 
@@ -74,6 +88,14 @@ export default function SettingsScreen() {
   );
 
   const handleToggle = (key: (typeof ADDICTION_KEYS)[number]) => {
+    if (lockoutActive) {
+      haptics.warning();
+      toast.warning(
+        `Self-Exclusion aktif — ${lockoutRemaining} kaldı.`,
+        "Kilitli"
+      );
+      return;
+    }
     if (draft[key] && selectedCount === 1) {
       haptics.warning();
       toast.warning("En az bir bağımlılık seçili olmalı.", "Seçim Gerekli");
@@ -83,13 +105,22 @@ export default function SettingsScreen() {
     setDraft((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSetTheme = (themeId: typeof theme) => {
-    haptics.selection();
-    setTheme(themeId);
-  };
+  const currentLabel = useMemo(() => {
+    if (preference === "system") return "Otomatik (sistem)";
+    const opt = THEME_OPTIONS.find((o) => o.id === theme);
+    return opt ? opt.label : "Özel";
+  }, [preference, theme]);
 
   const handleSave = async () => {
     if (selectedCount === 0 || saving) return;
+    if (lockoutActive) {
+      haptics.warning();
+      toast.warning(
+        `Self-Exclusion aktif — ${lockoutRemaining} kaldı.`,
+        "Kilitli"
+      );
+      return;
+    }
     haptics.tapMedium();
     setSaving(true);
     try {
@@ -179,51 +210,39 @@ export default function SettingsScreen() {
             <SectionHeader
               title="Görsel Tema"
               icon="color-palette"
-              subtitle="Uygulamanın genel görünümünü değiştirin."
+              subtitle="10 hazır palet ve sistem takip seçeneği."
             />
-            <View style={styles.themeList}>
-              {THEME_OPTIONS.map((option) => {
-                const selected = option.id === theme;
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.themeRow,
-                      {
-                        backgroundColor: selected ? `${colors.primary}14` : colors.card,
-                        borderColor: selected ? colors.primary : colors.cardBorder,
-                      },
-                    ]}
-                    onPress={() => handleSetTheme(option.id)}
-                    activeOpacity={0.85}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`${option.label}: ${option.description}`}
-                  >
-                    <View style={styles.themeTextBlock}>
-                      <Text style={[styles.themeLabel, { color: colors.text }]}>
-                        {option.emoji} {option.label}
-                      </Text>
-                      <Text style={[styles.themeHint, { color: colors.textMuted }]}>
-                        {option.description}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.radioOuter,
-                        { borderColor: selected ? colors.primary : colors.cardBorder },
-                      ]}
-                    >
-                      {selected ? (
-                        <View
-                          style={[styles.radioInner, { backgroundColor: colors.primary }]}
-                        />
-                      ) : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              onPress={() => {
+                haptics.tapLight();
+                router.push("/themes" as never);
+              }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Tema galerisini aç"
+              style={[
+                styles.themeGalleryRow,
+                { backgroundColor: colors.card, borderColor: colors.cardBorder },
+              ]}
+            >
+              <View
+                style={[styles.themeGalleryIcon, { backgroundColor: `${colors.primary}14` }]}
+              >
+                <Ionicons name="color-palette" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.themeGalleryText}>
+                <Text style={[styles.themeGalleryTitle, { color: colors.text }]}>
+                  Tema Galerisi
+                </Text>
+                <Text
+                  style={[styles.themeGallerySub, { color: colors.textMuted }]}
+                  numberOfLines={2}
+                >
+                  Aktif: {currentLabel} · canlı önizlemeyle değiştir
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
           </Card>
 
           <Card style={styles.cardSpacing}>
@@ -232,6 +251,19 @@ export default function SettingsScreen() {
               icon="options"
               subtitle="Kumar takibini açıp kapatabilirsiniz. En az bir seçim gerekli."
             />
+            {lockoutActive ? (
+              <View
+                style={[
+                  styles.lockoutNotice,
+                  { backgroundColor: `${colors.success}14`, borderColor: colors.success },
+                ]}
+              >
+                <Ionicons name="lock-closed" size={14} color={colors.success} />
+                <Text style={[styles.lockoutNoticeText, { color: colors.text }]}>
+                  Self-Exclusion aktif — {lockoutRemaining} kaldı. Değişiklikler kilitli.
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.toggleList}>
               {ADDICTION_KEYS.map((key, index) => (
                 <View
@@ -255,6 +287,7 @@ export default function SettingsScreen() {
                   <Switch
                     value={draft[key]}
                     onValueChange={() => handleToggle(key)}
+                    disabled={lockoutActive}
                     trackColor={{ false: colors.cardBorder, true: colors.primary }}
                     thumbColor="#FFFFFF"
                     accessibilityLabel={`${ADDICTION_LABELS[key]} takibi`}
@@ -275,7 +308,7 @@ export default function SettingsScreen() {
             <Button
               title={saving ? "Kaydediliyor" : "Kaydet"}
               onPress={handleSave}
-              disabled={!hasChanges || selectedCount === 0 || saving}
+              disabled={!hasChanges || selectedCount === 0 || saving || lockoutActive}
               loading={saving}
               variant="primary"
               fullWidth
@@ -387,20 +420,24 @@ const styles = StyleSheet.create({
   cardSpacing: {
     marginBottom: 14,
   },
-  themeList: {
-    gap: 10,
-  },
-  themeRow: {
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
+  themeGalleryRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  themeTextBlock: { flex: 1, paddingRight: 12 },
-  themeLabel: { fontSize: 15, fontWeight: "700" },
-  themeHint: { fontSize: 12, marginTop: 3, lineHeight: 16 },
+  themeGalleryIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  themeGalleryText: { flex: 1, minWidth: 0 },
+  themeGalleryTitle: { fontSize: 15, fontWeight: "800" },
+  themeGallerySub: { fontSize: 12, marginTop: 3, lineHeight: 16 },
   radioOuter: {
     width: 22,
     height: 22,
@@ -442,6 +479,22 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     marginTop: 14,
+  },
+  lockoutNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  lockoutNoticeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    flex: 1,
   },
   linkList: {
     width: "100%",
