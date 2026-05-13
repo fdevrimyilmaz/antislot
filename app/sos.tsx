@@ -30,6 +30,7 @@ import {
   setBuddyMessage,
   type EmergencyContact,
 } from "@/store/sosStore";
+import { getCrisisPlan, type CrisisPlan } from "@/store/crisisPlanStore";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
 
@@ -91,22 +92,39 @@ export default function SOS() {
   const [buddyMessage, setBuddyMessageState] = useState(DEFAULT_BUDDY_MESSAGE);
   const [editingTemplate, setEditingTemplate] = useState(false);
   const [draftTemplate, setDraftTemplate] = useState(DEFAULT_BUDDY_MESSAGE);
+  const [crisisPlan, setCrisisPlan] = useState<CrisisPlan | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [stored, savedMessage] = await Promise.all([
+        const [stored, savedMessage, plan] = await Promise.all([
           getContacts(),
           getBuddyMessage(),
+          getCrisisPlan(),
         ]);
         setContacts(stored);
         setBuddyMessageState(savedMessage);
         setDraftTemplate(savedMessage);
+        setCrisisPlan(plan);
       } catch (error) {
         reportError(error, { scope: "sos.contacts.load", level: "warning" });
       }
     })();
   }, []);
+
+  const crisisPlanHasContent = useMemo(() => {
+    if (!crisisPlan) return false;
+    return (
+      crisisPlan.warningSigns.length > 0 ||
+      crisisPlan.highRiskSituations.length > 0 ||
+      crisisPlan.copingActions.length > 0
+    );
+  }, [crisisPlan]);
+
+  const handleOpenCrisisPlan = () => {
+    haptics.tapLight();
+    router.push("/modules/crisis-plan" as never);
+  };
 
   const buddy = useMemo(() => contacts.find((c) => c.isBuddy) ?? null, [contacts]);
 
@@ -376,6 +394,100 @@ export default function SOS() {
                   style={styles.buddyBtn}
                 />
               </View>
+            </Card>
+          ) : null}
+
+          {/* Crisis plan — surfaces user's pre-filled answers when present,
+              or a CTA to build one when empty. Designed for review in the
+              moment, NOT editing. */}
+          {crisisPlan && crisisPlanHasContent ? (
+            <Card style={styles.cardSpacing}>
+              <SectionHeader
+                title="Kriz Planın"
+                icon="document-text"
+                subtitle="Sakin anında yazdığın adımlar. Şimdi sırayla uygula."
+              />
+              {crisisPlan.warningSigns.length > 0 ? (
+                <CrisisList
+                  colors={colors}
+                  icon="alert-circle"
+                  title="Uyarı işaretleri"
+                  items={crisisPlan.warningSigns}
+                  tint={colors.warning}
+                />
+              ) : null}
+              {crisisPlan.highRiskSituations.length > 0 ? (
+                <CrisisList
+                  colors={colors}
+                  icon="warning"
+                  title="Riskli durumlar"
+                  items={crisisPlan.highRiskSituations}
+                  tint={colors.danger}
+                />
+              ) : null}
+              {crisisPlan.copingActions.length > 0 ? (
+                <CrisisList
+                  colors={colors}
+                  icon="checkmark-done"
+                  title="Baş etme adımları"
+                  items={crisisPlan.copingActions}
+                  tint={colors.success}
+                />
+              ) : null}
+              <TouchableOpacity
+                onPress={handleOpenCrisisPlan}
+                style={[
+                  styles.crisisEditBtn,
+                  { backgroundColor: `${colors.primary}14` },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Kriz planını düzenle"
+              >
+                <Ionicons name="create" size={14} color={colors.primary} />
+                <Text style={[styles.crisisEditText, { color: colors.primary }]}>
+                  Planı düzenle
+                </Text>
+              </TouchableOpacity>
+            </Card>
+          ) : crisisPlan && !crisisPlanHasContent ? (
+            <Card
+              style={[
+                styles.cardSpacing,
+                { borderColor: colors.primary, backgroundColor: `${colors.primary}08` },
+              ]}
+            >
+              <View style={styles.crisisEmptyRow}>
+                <View
+                  style={[
+                    styles.crisisEmptyIcon,
+                    { backgroundColor: `${colors.primary}1F` },
+                  ]}
+                >
+                  <Ionicons
+                    name="document-text"
+                    size={18}
+                    color={colors.primary}
+                  />
+                </View>
+                <View style={styles.crisisEmptyText}>
+                  <Text style={[styles.crisisEmptyTitle, { color: colors.text }]}>
+                    Kriz planın yok
+                  </Text>
+                  <Text
+                    style={[styles.crisisEmptySub, { color: colors.textMuted }]}
+                  >
+                    8 dakikada doldur — bir sonraki krizde okuyacağın hazır adımlar.
+                  </Text>
+                </View>
+              </View>
+              <Button
+                title="Plan oluştur"
+                onPress={handleOpenCrisisPlan}
+                variant="primary"
+                fullWidth
+                leftIcon="create"
+                style={styles.crisisEmptyBtn}
+              />
             </Card>
           ) : null}
 
@@ -785,6 +897,31 @@ export default function SOS() {
   );
 }
 
+type CrisisListProps = {
+  colors: { text: string; textMuted: string };
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  items: string[];
+  tint: string;
+};
+
+function CrisisList({ colors, icon, title, items, tint }: CrisisListProps) {
+  return (
+    <View style={styles.crisisList}>
+      <View style={styles.crisisListHeader}>
+        <Ionicons name={icon} size={14} color={tint} />
+        <Text style={[styles.crisisListTitle, { color: colors.text }]}>{title}</Text>
+      </View>
+      {items.map((item, idx) => (
+        <View key={`${title}-${idx}`} style={styles.crisisItem}>
+          <View style={[styles.crisisBullet, { backgroundColor: tint }]} />
+          <Text style={[styles.crisisItemText, { color: colors.text }]}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   gradientContainer: { flex: 1 },
   container: { flex: 1 },
@@ -1037,6 +1174,69 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 17,
   },
+  crisisList: {
+    marginBottom: 14,
+  },
+  crisisListHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  crisisListTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  crisisItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  crisisBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 7,
+  },
+  crisisItemText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  crisisEditBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  crisisEditText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  crisisEmptyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 12,
+  },
+  crisisEmptyIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  crisisEmptyText: { flex: 1, minWidth: 0 },
+  crisisEmptyTitle: { fontSize: 14, fontWeight: "800" },
+  crisisEmptySub: { fontSize: 12, marginTop: 3, lineHeight: 16 },
+  crisisEmptyBtn: { marginTop: 0 },
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
