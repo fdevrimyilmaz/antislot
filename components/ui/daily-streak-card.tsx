@@ -11,11 +11,17 @@ type DailyStreakCardProps = {
   headline: string;
   /** Longer supportive line (e.g. "İlk adımı attın. 10 dakika bile çok değerli."). */
   message: string;
+  /** Optional next-milestone preview rendered as a chip at the bottom. */
+  nextMilestone?: {
+    daysToGo: number;
+    label: string;
+    emoji: string;
+  };
 };
 
 const MONTHS = ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"];
 
-export function DailyStreakCard({ days, headline, message }: DailyStreakCardProps) {
+export function DailyStreakCard({ days, headline, message, nextMilestone }: DailyStreakCardProps) {
   const { colors } = useTheme();
   const now = new Date();
   const month = MONTHS[now.getMonth()] ?? MONTHS[0];
@@ -58,6 +64,18 @@ export function DailyStreakCard({ days, headline, message }: DailyStreakCardProp
           </View>
         </View>
       </View>
+
+      {nextMilestone ? (
+        <View style={styles.nextMilestoneChip}>
+          <Text style={styles.nextMilestoneEmoji}>{nextMilestone.emoji}</Text>
+          <Text style={styles.nextMilestoneText}>
+            <Text style={styles.nextMilestoneDays}>
+              {nextMilestone.daysToGo} gün
+            </Text>{" "}
+            sonra {nextMilestone.label}
+          </Text>
+        </View>
+      ) : null}
     </LinearGradient>
   );
 }
@@ -172,5 +190,26 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "900",
     color: "#1F2937",
+  },
+  nextMilestoneChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  nextMilestoneEmoji: { fontSize: 14 },
+  nextMilestoneText: {
+    color: "rgba(255,255,255,0.92)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  nextMilestoneDays: {
+    color: "#FFFFFF",
+    fontWeight: "900",
   },
 });

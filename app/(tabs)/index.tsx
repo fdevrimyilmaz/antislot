@@ -34,6 +34,8 @@ import {
   useRiskWindowsStore,
 } from "@/store/riskWindowsStore";
 import {
+  getMilestoneCopy,
+  MILESTONE_THRESHOLDS,
   pendingCelebration,
   useCelebrationStore,
   type MilestoneThreshold,
@@ -91,6 +93,18 @@ export default function HomeScreen() {
 
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
   const motivation = useMemo(() => pickDailyMotivation(safeDays), [safeDays]);
+
+  // Next-milestone preview rendered as a chip on the streak hero.
+  const nextMilestoneChip = useMemo(() => {
+    const next = MILESTONE_THRESHOLDS.find((t) => t > safeDays);
+    if (!next) return undefined;
+    const copy = getMilestoneCopy(next);
+    return {
+      daysToGo: next - safeDays,
+      label: copy.title,
+      emoji: copy.emoji,
+    };
+  }, [safeDays]);
 
   const lockoutState = useLockoutStore((s) => s.state);
   const lockoutActive = isLockoutActive(lockoutState);
@@ -486,6 +500,7 @@ export default function HomeScreen() {
               days={safeDays}
               headline={motivation.headline}
               message={motivation.message}
+              nextMilestone={nextMilestoneChip}
             />
           </View>
 
