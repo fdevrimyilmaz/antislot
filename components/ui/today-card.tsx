@@ -1,4 +1,4 @@
-import { type Href, router } from "expo-router";
+import { type Href, router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   StyleSheet,
@@ -57,6 +57,15 @@ export function TodayCard() {
     if (!curriculumHydrated) hydrateCurriculum();
     refresh();
   }, [curriculumHydrated, hydrateCurriculum, refresh]);
+
+  // Re-pull pledge/check-in state every time the home regains focus so
+  // an entry made on a sub-screen is reflected immediately when the
+  // user comes back.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   const nextDayNum = getNextDay(curriculumState);
   const nextDay = getDay(nextDayNum);

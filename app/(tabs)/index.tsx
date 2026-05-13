@@ -1,6 +1,6 @@
 import { type Href, router } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -163,6 +163,20 @@ export default function HomeScreen() {
     await markTourShown();
   };
 
+  // Pull-to-refresh: re-hydrate progress + lockout state on demand so a
+  // user who just made a change on another device (or backend) sees it.
+  const [refreshing, setRefreshing] = useState(false);
+  const hydrateProgress = useProgressStore((s) => s.hydrate);
+  const hydrateLockout = useLockoutStore((s) => s.hydrate);
+  const refreshHome = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([hydrateProgress(), hydrateLockout()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [hydrateProgress, hydrateLockout]);
+
   // Modules are split into two visual groups on the home grid:
   //   • "Hızlı erişim" — safety + intervention quartet (always on top)
   //   • "Araştır ve büyü" — supporting tools and content
@@ -314,6 +328,14 @@ export default function HomeScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.contentWrapper}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refreshHome}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           {/* Brand pill */}
           <View style={styles.brandRow}>
