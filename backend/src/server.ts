@@ -187,10 +187,10 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion
       contents,
       generationConfig: {
         temperature: 0.4,
-        // Cap at 4096 — well within Gemini's per-call limit, generous for
-        // long Turkish replies. Lower bound 256 so very small overrides
-        // don't accidentally cut every reply short.
-        maxOutputTokens: Math.max(256, Math.min(4096, config.openAiMaxTokens * 2))
+        // Dedicated cap from GEMINI_MAX_OUTPUT_TOKENS (default 2048).
+        // Clamped to [256, 8192] so user overrides can't accidentally
+        // cripple or balloon the call.
+        maxOutputTokens: Math.max(256, Math.min(8192, config.geminiMaxOutputTokens))
       }
     })
   });

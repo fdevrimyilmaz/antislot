@@ -61,6 +61,9 @@ export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta',
+  // Dedicated Gemini cap, independent of OPENAI_MAX_TOKENS. 2048 covers
+  // ~1100–1400 Turkish words — well beyond any single reply we expect.
+  geminiMaxOutputTokens: parseInt(process.env.GEMINI_MAX_OUTPUT_TOKENS || '2048', 10),
 
   // Premium access codes (server-side validation). Comma-separated list via env.
   // Codes are normalized to uppercase. If empty, the redeem endpoint refuses all attempts.

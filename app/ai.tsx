@@ -1,10 +1,8 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { ThemeTexture } from "@/components/theme-texture";
-import { PremiumBarChart } from "@/components/ui/premium-bar-chart";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { safeAiReply } from "@/services/aiSafety";
 import { addBreadcrumb, reportError } from "@/services/monitoring";
@@ -45,8 +43,6 @@ const FALLBACK_REPLY =
 // Generous timeout — Gemini 2.5 Flash can take 10–20s on long Turkish
 // prompts. 15s was cutting some valid responses off as "timeout".
 const AI_TIMEOUT_MS = 35000;
-const ACTIVITY_DAYS = 7;
-const ACTIVITY_DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"] as const;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function startOfLocalDay(ts: number): number {
@@ -55,20 +51,18 @@ function startOfLocalDay(ts: number): number {
   return d.getTime();
 }
 
-function buildDailyActivity(messages: AiMessage[], now: number, days: number) {
+/** Returns counts of user messages today and over the last 7 days. */
+function summarizeActivity(messages: AiMessage[], now: number) {
   const todayStart = startOfLocalDay(now);
-  const counts: number[] = new Array(days).fill(0);
-
+  let today = 0;
+  let lastSeven = 0;
   for (const msg of messages) {
     if (msg.role !== "user") continue;
-    const dayStart = startOfLocalDay(msg.createdAt);
-    const offset = Math.round((todayStart - dayStart) / MS_PER_DAY);
-    if (offset >= 0 && offset < days) {
-      counts[days - 1 - offset] += 1;
-    }
+    const offsetDays = Math.floor((todayStart - startOfLocalDay(msg.createdAt)) / MS_PER_DAY);
+    if (offsetDays === 0) today += 1;
+    if (offsetDays >= 0 && offsetDays < 7) lastSeven += 1;
   }
-
-  return counts;
+  return { today, lastSeven };
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -172,39 +166,10 @@ export default function AiScreen() {
     []
   );
 
-  const dailyActivity = useMemo(() => {
-    const counts = buildDailyActivity(messages, Date.now(), ACTIVITY_DAYS);
-    const maxCount = counts.reduce((max, c) => Math.max(max, c), 0);
-    const todayWeekday = new Date().getDay();
-
-    return counts.map((count, index) => {
-      const dayOffset = ACTIVITY_DAYS - 1 - index;
-      const weekday = (todayWeekday - dayOffset + 7) % 7;
-      const labelIndex = (weekday + 6) % 7;
-      const ratio = maxCount > 0 ? count / maxCount : 0;
-      const value = count === 0 ? 0 : Math.max(12, Math.round(ratio * 100));
-      return {
-        key: `day-${index}`,
-        label: ACTIVITY_DAY_LABELS[labelIndex],
-        value,
-        inactive: count === 0,
-        valueLabel: count > 0 ? String(count) : "0",
-        count,
-      };
-    });
-  }, [messages]);
-
-  const todayCount = dailyActivity[dailyActivity.length - 1]?.count ?? 0;
-  const weeklyTotal = dailyActivity.reduce((sum, item) => sum + item.count, 0);
-  const averageReference = useMemo(() => {
-    const max = dailyActivity.reduce((m, d) => Math.max(m, d.count), 0);
-    if (max === 0) return undefined;
-    const avg = weeklyTotal / dailyActivity.length;
-    return {
-      value: (avg / max) * 100,
-      label: `Ort. ${avg < 10 ? avg.toFixed(1) : avg.toFixed(0)}`,
-    };
-  }, [dailyActivity, weeklyTotal]);
+  const { today: todayCount, lastSeven: weeklyTotal } = useMemo(
+    () => summarizeActivity(messages, Date.now()),
+    [messages]
+  );
 
   const handleSend = async (preset?: string) => {
     if (loading || sending) return;
@@ -347,21 +312,6 @@ export default function AiScreen() {
               Bugün: {todayCount} · Son 7 gün: {weeklyTotal}
             </Text>
           </View>
-        </Card>
-
-        <Card style={styles.graphCard}>
-          <SectionHeader
-            title="Sohbet Aktivitesi"
-            icon="pulse"
-            subtitle="Son 7 günde gönderdiğiniz mesaj sayısının günlük dağılımı."
-            meta={`${weeklyTotal} mesaj`}
-          />
-          <PremiumBarChart
-            data={dailyActivity}
-            colors={colors}
-            chartHeight={118}
-            referenceLine={averageReference}
-          />
         </Card>
 
         <FlatList
@@ -521,9 +471,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
     opacity: 0.92,
-  },
-  graphCard: {
-    marginBottom: 12,
   },
   messagesContainer: {
     flex: 1,
