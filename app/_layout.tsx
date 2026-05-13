@@ -93,6 +93,10 @@ function RootLayoutContent() {
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack
             screenOptions={{
+              // Every screen draws its own header (back button, title, etc.)
+              // so we suppress the native Stack header globally. This also
+              // catches new routes added later without per-screen wiring.
+              headerShown: false,
               contentStyle: { backgroundColor: '#F4F9FF', opacity: 1 },
               // iOS'ta modal açıldığında arka planın kararmasını engelle
               gestureEnabled: true,
