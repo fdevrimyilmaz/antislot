@@ -10,16 +10,16 @@ import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
 import { setOnboardingDone } from "@/store/onboardingFlag";
 
-type ConsentKey = "vpn" | "limitations" | "privacy";
+type ConsentKey = "scope" | "limitations" | "privacy";
 
 const CONSENTS: { key: ConsentKey; text: string }[] = [
   {
-    key: "vpn",
-    text: "Uygulamanın kumar sitelerini engellemek için VPN/Network Extension kullandığını biliyorum.",
+    key: "scope",
+    text: "Antislot bir destek aracıdır — bahis sitelerini cihaz seviyesinde engellemez. Para Koruma, Self-Exclusion ve Risk Pencereleri uygulama içinde devreye girer.",
   },
   {
     key: "limitations",
-    text: "DoH, uygulama içi tarayıcılar ve captive portal sınırlamalarını okudum.",
+    text: "Sınırlamalar sayfasını okudum: bu uygulama tıbbi tedavi yerine geçmez; krizde 112 / Yeşilay 115 hatlarını ararım.",
   },
   {
     key: "privacy",
@@ -31,14 +31,14 @@ export default function OnboardingQ10() {
   const router = useRouter();
   const { colors } = useTheme();
   const [consents, setConsents] = useState<Record<ConsentKey, boolean>>({
-    vpn: false,
+    scope: false,
     limitations: false,
     privacy: false,
   });
   const [finishing, setFinishing] = useState(false);
 
   const canFinish = useMemo(
-    () => consents.vpn && consents.limitations && consents.privacy,
+    () => consents.scope && consents.limitations && consents.privacy,
     [consents]
   );
 

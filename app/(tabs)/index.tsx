@@ -39,6 +39,8 @@ import {
   type MilestoneThreshold,
 } from "@/store/celebrationStore";
 import { MilestoneCelebration } from "@/components/ui/milestone-celebration";
+import { WelcomeTour } from "@/components/ui/welcome-tour";
+import { useWelcomeTourStore } from "@/store/welcomeTourStore";
 import { pickDailyMotivation } from "../data/dailyMotivations";
 
 type ModuleDef = {
@@ -132,6 +134,33 @@ export default function HomeScreen() {
       await markCelebrated(activeMilestone);
     }
     setActiveMilestone(null);
+  };
+
+  // Welcome tour — fires once after onboarding finishes (or once for
+  // existing users on first launch after this version ships).
+  const tourHydrated = useWelcomeTourStore((s) => s.hydrated);
+  const tourShown = useWelcomeTourStore((s) => s.shown);
+  const hydrateTour = useWelcomeTourStore((s) => s.hydrate);
+  const markTourShown = useWelcomeTourStore((s) => s.markShown);
+  const [tourVisible, setTourVisible] = useState(false);
+
+  useEffect(() => {
+    if (!tourHydrated) hydrateTour();
+  }, [tourHydrated, hydrateTour]);
+
+  useEffect(() => {
+    if (!tourHydrated || tourShown) return;
+    // Open the tour only after onboarding is finished and the welcome
+    // toast has had a moment to clear.
+    if (done && !loading) {
+      const timeout = setTimeout(() => setTourVisible(true), 800);
+      return () => clearTimeout(timeout);
+    }
+  }, [tourHydrated, tourShown, done, loading]);
+
+  const handleTourClose = async () => {
+    setTourVisible(false);
+    await markTourShown();
   };
 
   // Modules are split into two visual groups on the home grid:
@@ -494,6 +523,8 @@ export default function HomeScreen() {
         streakDays={safeDays}
         onClose={handleCelebrationClose}
       />
+
+      <WelcomeTour visible={tourVisible} onClose={handleTourClose} />
     </LinearGradient>
   );
 }
