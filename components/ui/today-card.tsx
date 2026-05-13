@@ -15,6 +15,10 @@ import { getTodayCheckin } from "@/store/checkinStore";
 import { getTodayPledge } from "@/store/pledgeStore";
 import { useCurriculumStore, getNextDay } from "@/store/curriculumStore";
 import { getDay } from "@/app/data/recoveryCurriculum";
+import {
+  CATEGORY_META,
+  pickDailyAffirmation,
+} from "@/app/data/affirmations";
 
 type TaskRow = {
   key: "pledge" | "curriculum" | "checkin";
@@ -114,6 +118,10 @@ export function TodayCard() {
 
   const doneCount = tasks.filter((t) => t.done).length;
   const allDone = doneCount === tasks.length;
+  const dailyAffirmation = allDone ? pickDailyAffirmation() : null;
+  const affirmationMeta = dailyAffirmation
+    ? CATEGORY_META[dailyAffirmation.category]
+    : null;
 
   const handlePress = (task: TaskRow) => {
     haptics.tapLight();
@@ -162,6 +170,28 @@ export function TodayCard() {
           ))}
         </View>
       </View>
+
+      {allDone && dailyAffirmation && affirmationMeta ? (
+        <View
+          style={[
+            styles.affirmationBlock,
+            {
+              backgroundColor: `${colors.success}10`,
+              borderColor: colors.success,
+            },
+          ]}
+        >
+          <View style={styles.affirmationHeader}>
+            <Text style={styles.affirmationEmoji}>{affirmationMeta.emoji}</Text>
+            <Text style={[styles.affirmationLabel, { color: colors.success }]}>
+              Bugünün olumlaması · {affirmationMeta.label}
+            </Text>
+          </View>
+          <Text style={[styles.affirmationText, { color: colors.text }]}>
+            “{dailyAffirmation.text}”
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.list}>
         {tasks.map((task, idx) => (
@@ -281,4 +311,30 @@ const styles = StyleSheet.create({
   taskBody: { flex: 1, minWidth: 0 },
   taskTitle: { fontSize: 14, fontWeight: "700" },
   taskSub: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+
+  affirmationBlock: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  affirmationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  affirmationEmoji: { fontSize: 14 },
+  affirmationLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+  },
+  affirmationText: {
+    fontSize: 14,
+    fontStyle: "italic",
+    fontWeight: "600",
+    lineHeight: 20,
+  },
 });
