@@ -128,10 +128,10 @@ export default function ExploreScreen() {
               </View>
               <Text style={styles.modulesShortcutTitle}>İnteraktif Modüller</Text>
               <Text style={styles.modulesShortcutSub}>
-                Günlük söz · Sebepler · Rozetler · Toparlanma çizelgesi · Para alternatifi · ve dahası
+                Dürtü defteri · Kayıp defteri · Hedefler · Kriz planı · Olumlamalar · ve daha fazlası
               </Text>
               <View style={styles.modulesShortcutFooter}>
-                <Text style={styles.modulesShortcutCta}>10 modül</Text>
+                <Text style={styles.modulesShortcutCta}>15 modül</Text>
                 <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </View>
             </LinearGradient>

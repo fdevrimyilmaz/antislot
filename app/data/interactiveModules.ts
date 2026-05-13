@@ -34,6 +34,71 @@ export type InteractiveModule = {
 
 export const INTERACTIVE_MODULES: InteractiveModule[] = [
   {
+    id: "urge-log",
+    title: "Dürtü Defteri",
+    subtitle: "Her dürtüyü kaydet, patern çıkar",
+    description:
+      "Dürtü hissettiğinde 30 saniyede kaydet — yoğunluk, tetikleyici, sonuç. Zamanla saatlik dağılım ve direniş oranın görünür hale gelir.",
+    icon: "pulse",
+    decorIcon: "stats-chart",
+    tone: "coral",
+    focus: "psikolojik",
+    durationLabel: "30 sn",
+    route: "/modules/urge-log",
+  },
+  {
+    id: "loss-ledger",
+    title: "Kayıp Defteri",
+    subtitle: "Gerçek toplam — caydırıcı ayna",
+    description:
+      "Bahsten geçmiş yıllarda ne kadar kaybettin? Dönem dönem yaz, toplam tablo otomatik çıksın. Tek bir bahis değil — tüm yolun ücreti.",
+    icon: "receipt",
+    decorIcon: "calculator",
+    tone: "amber",
+    focus: "finansal",
+    durationLabel: "5 dk",
+    route: "/modules/loss-ledger",
+  },
+  {
+    id: "goals",
+    title: "Hedefler",
+    subtitle: "Streak / birikim / alışkanlık",
+    description:
+      "Net hedefler koy: '90 gün temiz', '50.000 TL birikim', 'haftada 3 yürüyüş'. Otomatik ilerleme barı streak ve birikimi referans alır.",
+    icon: "flag",
+    decorIcon: "trophy",
+    tone: "ocean",
+    focus: "deger",
+    durationLabel: "3 dk",
+    route: "/modules/goals",
+  },
+  {
+    id: "crisis-plan",
+    title: "Kriz Planı",
+    subtitle: "Kararı önceden ver",
+    description:
+      "Uyarı işaretleri, riskli durumlar, baş etme adımları ve güvendiğin kişinin telefonu — hepsi önceden hazır. Krizde sadece oku ve uygula.",
+    icon: "alert-circle",
+    decorIcon: "shield-checkmark",
+    tone: "coral",
+    focus: "psikolojik",
+    durationLabel: "8 dk",
+    route: "/modules/crisis-plan",
+  },
+  {
+    id: "affirmations",
+    title: "Olumlamalar",
+    subtitle: "30 farklı kart, günde 1 öne çıkıyor",
+    description:
+      "Güç, kimlik, huzur, finansal, ilişki, gelecek kategorilerinde 30 olumlama. Her gün bir tanesi öne çıkar; dürtü anında yüksek sesle oku.",
+    icon: "sparkles",
+    decorIcon: "star",
+    tone: "violet",
+    focus: "deger",
+    durationLabel: "1 dk",
+    route: "/modules/affirmations",
+  },
+  {
     id: "pledge",
     title: "Bugünün Sözü",
     subtitle: "Günlük taahhüt — sadece bugün için",

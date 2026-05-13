@@ -172,6 +172,26 @@ function RootLayoutContent() {
               name="modules/recovery-timeline"
               options={{ headerShown: false, presentation: 'card' }}
             />
+            <Stack.Screen
+              name="modules/urge-log"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/loss-ledger"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/goals"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/crisis-plan"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/affirmations"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
             {/* Geçici olarak devre dışı: iOS overlay etkisini önlemek için */}
             {/* <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} /> */}
           </Stack>
