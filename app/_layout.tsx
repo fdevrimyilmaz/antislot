@@ -121,12 +121,56 @@ function RootLayoutContent() {
                 presentation: "card",
               }}
             />
-            <Stack.Screen 
-              name="onboarding/index" 
-              options={{ 
+            <Stack.Screen
+              name="onboarding/index"
+              options={{
                 headerShown: false,
                 presentation: 'card',
-              }} 
+              }}
+            />
+            <Stack.Screen
+              name="modules/index"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/money-alternative"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/future-simulation"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/hidden-costs"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/brain-hygiene"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/identity-check"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/trigger-map"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/pledge"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/reasons"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/milestones"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
+              name="modules/recovery-timeline"
+              options={{ headerShown: false, presentation: 'card' }}
             />
             {/* Geçici olarak devre dışı: iOS overlay etkisini önlemek için */}
             {/* <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} /> */}

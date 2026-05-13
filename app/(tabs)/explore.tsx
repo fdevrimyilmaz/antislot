@@ -98,6 +98,45 @@ export default function ExploreScreen() {
             </Text>
           </View>
 
+          {/* Interactive modules shortcut */}
+          <TouchableOpacity
+            activeOpacity={0.88}
+            onPress={() => {
+              haptics.tapLight();
+              router.push("/modules" as never);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="İnteraktif modülleri aç"
+            style={styles.modulesShortcut}
+          >
+            <LinearGradient
+              colors={["#8B6614", "#7A580F", "#5A4108"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.modulesShortcutInner}
+            >
+              <View style={styles.modulesShortcutDecor} pointerEvents="none">
+                <Ionicons name="grid" size={100} color="rgba(255,255,255,0.14)" />
+              </View>
+              <View style={styles.modulesShortcutHeader}>
+                <View style={styles.modulesShortcutIcon}>
+                  <Ionicons name="apps" size={18} color="#FFFFFF" />
+                </View>
+                <View style={styles.modulesShortcutBadgePill}>
+                  <Text style={styles.modulesShortcutBadge}>YENİ</Text>
+                </View>
+              </View>
+              <Text style={styles.modulesShortcutTitle}>İnteraktif Modüller</Text>
+              <Text style={styles.modulesShortcutSub}>
+                Günlük söz · Sebepler · Rozetler · Toparlanma çizelgesi · Para alternatifi · ve dahası
+              </Text>
+              <View style={styles.modulesShortcutFooter}>
+                <Text style={styles.modulesShortcutCta}>10 modül</Text>
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+
           {/* Stats row */}
           <Card style={styles.statsCard} padding={0}>
             <View style={styles.statsRow}>
@@ -346,6 +385,80 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: "900", marginBottom: 4, letterSpacing: -0.4 },
   subtitle: { fontSize: 14, lineHeight: 20 },
 
+  modulesShortcut: {
+    marginBottom: 14,
+    borderRadius: 22,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  modulesShortcutInner: {
+    padding: 18,
+    minHeight: 130,
+    overflow: "hidden",
+  },
+  modulesShortcutDecor: {
+    position: "absolute",
+    right: -18,
+    bottom: -18,
+  },
+  modulesShortcutHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  modulesShortcutIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.24)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modulesShortcutBadgePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,208,116,0.28)",
+    borderWidth: 1,
+    borderColor: "rgba(255,208,116,0.45)",
+  },
+  modulesShortcutBadge: {
+    color: "#FFD074",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  modulesShortcutTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.3,
+    marginBottom: 4,
+  },
+  modulesShortcutSub: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 12,
+  },
+  modulesShortcutFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  modulesShortcutCta: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   statsCard: {
     marginBottom: 14,
     paddingHorizontal: 4,

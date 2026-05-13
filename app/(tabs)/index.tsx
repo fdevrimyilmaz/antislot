@@ -21,6 +21,7 @@ import { DailyStreakCard } from "@/components/ui/daily-streak-card";
 import { FloatingSOSButton } from "@/components/ui/floating-sos-button";
 import { LanguageSelector } from "@/components/ui/language-selector";
 import { SavingsWidget, DailyCheckinWidget } from "@/components/ui/insight-widgets";
+import { pickDailyMotivation } from "../data/dailyMotivations";
 
 type ModuleDef = {
   key: string;
@@ -32,36 +33,10 @@ type ModuleDef = {
   route: Href;
 };
 
-function buildMotivation(days: number): { headline: string; message: string } {
-  if (days <= 0) {
-    return {
-      headline: "Bugün yeni bir başlangıç",
-      message: "İlk adımı attın. 10 dakika bile çok değerli.",
-    };
-  }
-  if (days < 7) {
-    return {
-      headline: `${days}. gün — ivme yakalanıyor`,
-      message: "Küçük zaferler birikiyor. Bugüne bir nefes daha ekle.",
-    };
-  }
-  if (days < 30) {
-    return {
-      headline: "Streak büyüyor",
-      message: "Bir hafta arkanda. Bedenin ve zihnin sana teşekkür ediyor.",
-    };
-  }
-  if (days < 90) {
-    return {
-      headline: "Yeni alışkanlık şekilleniyor",
-      message: "30 günü geçtin. Beyin yolakları yeniden yazılıyor.",
-    };
-  }
-  return {
-    headline: "Toparlanmanın derin evresi",
-    message: "İlerlemeni koru — bu noktaya gelen az insan var.",
-  };
-}
+// Motivation copy is sourced from the rotating dataset in
+// `app/data/dailyMotivations.ts` — picks a stage-appropriate quote keyed on
+// (streak length, day-of-year) so the same streak shows a different message
+// every day.
 
 export default function HomeScreen() {
   const { t } = useLanguage();
@@ -95,7 +70,7 @@ export default function HomeScreen() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
-  const motivation = useMemo(() => buildMotivation(safeDays), [safeDays]);
+  const motivation = useMemo(() => pickDailyMotivation(safeDays), [safeDays]);
 
   const modules = useMemo<ModuleDef[]>(
     () => [
@@ -154,12 +129,23 @@ export default function HomeScreen() {
         route: "/sms-filter",
       },
       {
+        key: "modules",
+        title: "Modüller",
+        subtitle: "Para alternatifi, gelecek simülasyonu...",
+        icon: "apps",
+        decorativeIcon: "grid",
+        tone: "amber",
+        // Cast: /modules is not in the typed-routes map until dev server
+        // has indexed the new modules/ directory.
+        route: "/modules" as Href,
+      },
+      {
         key: "facts",
         title: "Gerçekler",
         subtitle: "Online kumarın gerçek yüzü",
         icon: "eye",
         decorativeIcon: "eye-outline",
-        tone: "amber",
+        tone: "violet",
         route: "/facts",
       },
       {
@@ -168,7 +154,7 @@ export default function HomeScreen() {
         subtitle: "Özel günlüğün",
         icon: "book",
         decorativeIcon: "book-outline",
-        tone: "violet",
+        tone: "indigo",
         route: "/diary",
       },
     ],
