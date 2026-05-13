@@ -56,6 +56,7 @@ const SUPPORT_LINKS: LinkItem[] = [
 ];
 
 const LEGAL_LINKS: LinkItem[] = [
+  { label: "Verilerimi Dışa Aktar", icon: "download", route: "/data-export" },
   { label: "Gizlilik Politikası", icon: "lock-closed", route: "/privacy" },
   { label: "Kullanım Şartları", icon: "document-text", route: "/terms" },
   { label: "Sınırlamalar", icon: "information-circle", route: "/limitations" },

@@ -185,6 +185,10 @@ function RootLayoutContent() {
               options={{ headerShown: false, presentation: 'card' }}
             />
             <Stack.Screen
+              name="data-export"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
               name="privacy"
               options={{
                 headerShown: false,
