@@ -528,6 +528,40 @@ export default function HomeScreen() {
           {/* "Today" checklist — surfaces pledge, curriculum day, check-in */}
           <TodayCard />
 
+          {/* Quick-access shortcut for urge logging — most useful action
+              during an active impulse, saves the user a Modules drill-down. */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push("/modules/urge-log" as Href)}
+            accessibilityRole="button"
+            accessibilityLabel="Hızlı dürtü kaydet"
+            style={[
+              styles.quickUrgeBtn,
+              {
+                backgroundColor: `${colors.danger}10`,
+                borderColor: colors.danger,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.quickUrgeIcon,
+                { backgroundColor: `${colors.danger}22` },
+              ]}
+            >
+              <Ionicons name="pulse" size={16} color={colors.danger} />
+            </View>
+            <View style={styles.quickUrgeText}>
+              <Text style={[styles.quickUrgeTitle, { color: colors.text }]}>
+                Dürtü hissettin mi?
+              </Text>
+              <Text style={[styles.quickUrgeSub, { color: colors.textMuted }]}>
+                30 saniyede kaydet — patern oluşsun
+              </Text>
+            </View>
+            <Ionicons name="add-circle" size={22} color={colors.danger} />
+          </TouchableOpacity>
+
           {/* Quick-access safety + intervention quartet */}
           <Text style={[styles.groupLabel, { color: colors.textMuted }]}>
             HIZLI ERİŞİM
@@ -738,4 +772,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 4,
   },
+  quickUrgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 18,
+  },
+  quickUrgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickUrgeText: { flex: 1, minWidth: 0 },
+  quickUrgeTitle: { fontSize: 14, fontWeight: "800" },
+  quickUrgeSub: { fontSize: 12, marginTop: 2 },
 });
