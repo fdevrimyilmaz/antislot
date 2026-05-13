@@ -447,13 +447,12 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ) : null}
 
-          {/* Active risk-window alert — only while clock falls inside one. */}
+          {/* Active risk-window alert — only while clock falls inside one.
+              Primary tap goes to SOS (this is a high-risk moment, the user
+              needs help, not settings). Small chip on the right routes to
+              the window's settings if they want to review/edit. */}
           {activeRiskWindow ? (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => router.push("/risk-windows" as Href)}
-              accessibilityRole="button"
-              accessibilityLabel={`Risk penceresi aktif: ${activeRiskWindow.label}`}
+            <View
               style={[
                 styles.riskBanner,
                 {
@@ -462,36 +461,52 @@ export default function HomeScreen() {
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.riskIcon,
-                  { backgroundColor: `${colors.danger}22` },
-                ]}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => router.push("/sos")}
+                accessibilityRole="button"
+                accessibilityLabel={`SOS — Risk penceresi aktif: ${activeRiskWindow.label}`}
+                style={styles.riskMain}
               >
-                <Ionicons name="warning" size={18} color={colors.danger} />
-              </View>
-              <View style={styles.riskText}>
-                <Text
-                  style={[styles.riskTitle, { color: colors.text }]}
-                  numberOfLines={1}
+                <View
+                  style={[
+                    styles.riskIcon,
+                    { backgroundColor: `${colors.danger}22` },
+                  ]}
                 >
-                  Risk penceresi: {activeRiskWindow.label}
-                </Text>
-                <Text
-                  style={[styles.riskSub, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  {formatHM(activeRiskWindow.startHour, activeRiskWindow.startMinute)}
-                  –{formatHM(activeRiskWindow.endHour, activeRiskWindow.endMinute)}
-                  {" · dürtü riski yüksek, nazik ol"}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={colors.textMuted}
-              />
-            </TouchableOpacity>
+                  <Ionicons name="warning" size={18} color={colors.danger} />
+                </View>
+                <View style={styles.riskText}>
+                  <Text
+                    style={[styles.riskTitle, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    Risk penceresi: {activeRiskWindow.label}
+                  </Text>
+                  <Text
+                    style={[styles.riskSub, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                  >
+                    {formatHM(activeRiskWindow.startHour, activeRiskWindow.startMinute)}
+                    –{formatHM(activeRiskWindow.endHour, activeRiskWindow.endMinute)}
+                    {" · SOS aç"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/risk-windows" as Href)}
+                style={styles.riskSettingsBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Risk pencerelerini düzenle"
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="settings"
+                  size={16}
+                  color={colors.textMuted}
+                />
+              </TouchableOpacity>
+            </View>
           ) : null}
 
           {/* Daily streak hero */}
@@ -677,11 +692,17 @@ const styles = StyleSheet.create({
   riskBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
     marginBottom: 14,
+    gap: 6,
+  },
+  riskMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   riskIcon: {
     width: 34,
@@ -693,6 +714,13 @@ const styles = StyleSheet.create({
   riskText: { flex: 1, minWidth: 0 },
   riskTitle: { fontSize: 14, fontWeight: "800" },
   riskSub: { fontSize: 12, marginTop: 2 },
+  riskSettingsBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   insightRow: {
     flexDirection: "row",
     gap: 10,
