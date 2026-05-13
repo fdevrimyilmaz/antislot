@@ -115,7 +115,13 @@ function isAiConfigured(provider: AiProvider): boolean {
   return (config.openAiApiKey || '').trim().length > 0;
 }
 
-async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
+type AiCompletion = {
+  text: string;
+  /** True when the upstream truncated due to token limit. */
+  truncated?: boolean;
+};
+
+async function completeWithOpenAi(messages: ChatMessage[]): Promise<AiCompletion> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
 
@@ -141,21 +147,25 @@ async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
     }
 
     const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
 
-    const replyText = data?.choices?.[0]?.message?.content?.trim();
+    const choice = data?.choices?.[0];
+    const replyText = choice?.message?.content?.trim();
     if (!replyText) {
       throw new Error('openai_empty_reply');
     }
 
-    return replyText;
+    return {
+      text: replyText,
+      truncated: choice?.finish_reason === 'length'
+    };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
+async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion> {
   const contents = normalizeGeminiContents(messages);
   if (contents.length === 0) {
     throw new Error('gemini_empty_prompt');
@@ -177,7 +187,10 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
       contents,
       generationConfig: {
         temperature: 0.4,
-        maxOutputTokens: Math.max(64, Math.min(1024, config.openAiMaxTokens * 2))
+        // Cap at 4096 — well within Gemini's per-call limit, generous for
+        // long Turkish replies. Lower bound 256 so very small overrides
+        // don't accidentally cut every reply short.
+        maxOutputTokens: Math.max(256, Math.min(4096, config.openAiMaxTokens * 2))
       }
     })
   });
@@ -190,10 +203,12 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
   const payload = (await response.json()) as {
     candidates?: {
       content?: { parts?: { text?: string }[] };
+      finishReason?: string;
     }[];
   };
 
-  const replyText = (payload.candidates?.[0]?.content?.parts || [])
+  const candidate = payload.candidates?.[0];
+  const replyText = (candidate?.content?.parts || [])
     .map((part) => part.text || '')
     .join(' ')
     .trim();
@@ -202,10 +217,14 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
     throw new Error('gemini_empty_reply');
   }
 
-  return replyText;
+  // Surface truncation so the UI can hint the user to rephrase or
+  // continue. `MAX_TOKENS` is the canonical signal from Gemini.
+  const truncated = candidate?.finishReason === 'MAX_TOKENS';
+
+  return { text: replyText, truncated };
 }
 
-async function completeWithProvider(provider: AiProvider, messages: ChatMessage[]): Promise<string> {
+async function completeWithProvider(provider: AiProvider, messages: ChatMessage[]): Promise<AiCompletion> {
   if (provider === 'gemini') {
     return completeWithGemini(messages);
   }
@@ -270,9 +289,14 @@ async function handleAiChat(request: AiChatTypedRequest, reply: FastifyReply) {
   }
 
   try {
-    const replyText = await completeWithProvider(provider, messages);
+    const completion = await completeWithProvider(provider, messages);
     const model = provider === 'gemini' ? config.geminiModel : config.openAiModel;
-    return reply.send({ reply: replyText, model, provider });
+    return reply.send({
+      reply: completion.text,
+      truncated: Boolean(completion.truncated),
+      model,
+      provider
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown AI error';
     fastify.log.error({ provider, error: errorMessage }, 'AI request failed');

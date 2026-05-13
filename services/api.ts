@@ -8,6 +8,13 @@ export type ChatMessage = {
 
 type ChatResponse = {
   reply: string;
+  /** Server signals when the upstream model hit its output-token cap. */
+  truncated?: boolean;
+};
+
+export type ChatResult = {
+  reply: string;
+  truncated: boolean;
 };
 
 type PostChatOptions = {
@@ -39,7 +46,7 @@ const normalizeBaseUrl = (url: string) => url.replace(/\/+$/, "");
 export async function postChat(
   messages: ChatMessage[],
   options: PostChatOptions = {}
-): Promise<string> {
+): Promise<ChatResult> {
   const baseUrl = normalizeBaseUrl(DEFAULT_API_URL);
   const response = await fetch(`${baseUrl}/chat`, {
     method: "POST",
@@ -57,5 +64,5 @@ export async function postChat(
   if (!data?.reply) {
     throw new Error("Chat reply missing");
   }
-  return data.reply;
+  return { reply: data.reply, truncated: Boolean(data.truncated) };
 }

@@ -143,7 +143,7 @@ const getLocaleCopy = (locale: "tr") => {
 export async function safeAiReply(
   userText: string,
   context?: SafetyContext
-): Promise<{ text: string; flags: SafetyFlags }> {
+): Promise<{ text: string; flags: SafetyFlags; truncated: boolean }> {
   const locale = context?.locale ?? "tr";
   const trimmed = userText.trim();
   const normalized = normalizeText(trimmed);
@@ -151,14 +151,14 @@ export async function safeAiReply(
   const copy = getLocaleCopy(locale);
 
   if (flags.selfHarm || flags.crisis) {
-    return { text: copy.crisis, flags };
+    return { text: copy.crisis, flags, truncated: false };
   }
 
   if (isTacticRequest(normalized)) {
-    return { text: copy.refusal, flags };
+    return { text: copy.refusal, flags, truncated: false };
   }
 
-  const reply = await postChat(
+  const { reply, truncated } = await postChat(
     [
       { role: "system", content: copy.systemPrompt },
       { role: "user", content: trimmed },
@@ -166,6 +166,13 @@ export async function safeAiReply(
     { signal: context?.signal }
   );
   const replyNormalized = normalizeText(reply);
-  const safeText = isUnsafeReply(replyNormalized) ? copy.refusal : reply;
-  return { text: safeText, flags };
+  const isUnsafe = isUnsafeReply(replyNormalized);
+  const safeText = isUnsafe ? copy.refusal : reply;
+  return {
+    text: safeText,
+    flags,
+    // Truncation only matters when we actually used the upstream reply;
+    // refusal-substituted text is intentional and not "cut off".
+    truncated: isUnsafe ? false : truncated,
+  };
 }

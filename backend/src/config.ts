@@ -53,8 +53,11 @@ export const config = {
   openAiApiKey: process.env.OPENAI_API_KEY || '',
   openAiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   openAiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-  openAiTimeoutMs: parseInt(process.env.OPENAI_TIMEOUT_MS || '15000', 10),
-  openAiMaxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '300', 10),
+  openAiTimeoutMs: parseInt(process.env.OPENAI_TIMEOUT_MS || '30000', 10),
+  // Generous default so long Turkish replies aren't truncated.
+  // Turkish tokenizes worse than English (~1.5–2x tokens for the same content),
+  // so 700 here roughly maps to 350–450 English-token equivalent.
+  openAiMaxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '700', 10),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta',

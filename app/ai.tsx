@@ -42,7 +42,9 @@ const QUICK_PROMPTS = [
 const FALLBACK_REPLY =
   "Şu an bağlantı sorunu var. Yalnız değilsin. 10-15 saniye sonra tekrar dene. Bu sırada su içmek, kısa bir yürüyüş veya ortam değiştirmek dürtüyü azaltabilir.";
 
-const AI_TIMEOUT_MS = 15000;
+// Generous timeout — Gemini 2.5 Flash can take 10–20s on long Turkish
+// prompts. 15s was cutting some valid responses off as "timeout".
+const AI_TIMEOUT_MS = 35000;
 const ACTIVITY_DAYS = 7;
 const ACTIVITY_DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"] as const;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -230,16 +232,22 @@ export default function AiScreen() {
     addBreadcrumb("ai.chat", "send", { length: content.length });
 
     try {
-      const { text } = await withTimeout(
+      const { text, truncated } = await withTimeout(
         safeAiReply(content, { locale: "tr" }),
         AI_TIMEOUT_MS
       );
 
       const replyAt = Date.now();
+      // If the model hit its token cap, append a discreet hint so the
+      // user knows to ask for the rest rather than wondering why the
+      // reply stops mid-sentence.
+      const decoratedText = truncated
+        ? `${text.replace(/[.!?…]?\s*$/, "…")}\n\n⚠️ Yanıt kesildi — “Devam et” diye yazarsan kaldığım yerden sürdürürüm.`
+        : text;
       const assistantMessage: AiMessage = {
         id: `${replyAt}-assistant`,
         role: "assistant",
-        content: text,
+        content: decoratedText,
         createdAt: replyAt,
       };
 

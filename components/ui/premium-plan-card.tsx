@@ -84,7 +84,7 @@ export function PremiumPlanCard({
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
             {title}
           </Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={2}>
             {subtitle}
           </Text>
           {saveLabel ? (
@@ -104,10 +104,28 @@ export function PremiumPlanCard({
               ) : null}
             </>
           ) : (
-            <View style={[styles.unavailableChip, { backgroundColor: `${colors.textMuted}14` }]}>
-              <Ionicons name="cloud-offline-outline" size={12} color={colors.textMuted} />
-              <Text style={[styles.unavailableText, { color: colors.textMuted }]}>
+            <View
+              style={[
+                styles.unavailableBlock,
+                {
+                  backgroundColor: `${colors.warning}14`,
+                  borderColor: `${colors.warning}55`,
+                },
+              ]}
+            >
+              <Ionicons
+                name="storefront-outline"
+                size={16}
+                color={colors.warning}
+              />
+              <Text style={[styles.unavailableTitle, { color: colors.text }]}>
                 Yakında
+              </Text>
+              <Text
+                style={[styles.unavailableHint, { color: colors.textMuted }]}
+                numberOfLines={2}
+              >
+                Mağaza ürünleri hazırlanıyor
               </Text>
             </View>
           )}
@@ -183,7 +201,7 @@ const styles = StyleSheet.create({
   },
   right: {
     alignItems: "flex-end",
-    minWidth: 80,
+    minWidth: 112,
   },
   price: {
     fontSize: 18,
@@ -195,16 +213,26 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
-  unavailableChip: {
-    flexDirection: "row",
+  unavailableBlock: {
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    minWidth: 112,
+    gap: 2,
   },
-  unavailableText: {
-    fontSize: 11,
-    fontWeight: "700",
+  unavailableTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginTop: 2,
+  },
+  unavailableHint: {
+    fontSize: 10,
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 13,
   },
 });
