@@ -21,6 +21,7 @@ import { DailyStreakCard } from "@/components/ui/daily-streak-card";
 import { FloatingSOSButton } from "@/components/ui/floating-sos-button";
 import { LanguageSelector } from "@/components/ui/language-selector";
 import { SavingsWidget, DailyCheckinWidget } from "@/components/ui/insight-widgets";
+import { TodayCard } from "@/components/ui/today-card";
 import {
   formatRemaining,
   isLockoutActive,
@@ -133,7 +134,12 @@ export default function HomeScreen() {
     setActiveMilestone(null);
   };
 
-  const modules = useMemo<ModuleDef[]>(
+  // Modules are split into two visual groups on the home grid:
+  //   • "Hızlı erişim" — safety + intervention quartet (always on top)
+  //   • "Araştır ve büyü" — supporting tools and content
+  // The 30-day curriculum is intentionally NOT in the grid: it's surfaced
+  // as today's task via <TodayCard /> right above.
+  const quickAccess = useMemo<ModuleDef[]>(
     () => [
       {
         key: "sos",
@@ -171,15 +177,12 @@ export default function HomeScreen() {
         tone: "coral",
         route: "/risk-windows" as Href,
       },
-      {
-        key: "curriculum",
-        title: "30 Günlük Yol",
-        subtitle: "Günde 5 dk — yapılandırılmış iyileşme",
-        icon: "leaf",
-        decorativeIcon: "ribbon",
-        tone: "emerald",
-        route: "/curriculum" as Href,
-      },
+    ],
+    []
+  );
+
+  const extras = useMemo<ModuleDef[]>(
+    () => [
       {
         key: "insights",
         title: "İçgörüler",
@@ -208,6 +211,15 @@ export default function HomeScreen() {
         route: "/mindfulness",
       },
       {
+        key: "modules",
+        title: "Modüller",
+        subtitle: "Para alternatifi, gelecek simülasyonu…",
+        icon: "apps",
+        decorativeIcon: "grid",
+        tone: "amber",
+        route: "/modules" as Href,
+      },
+      {
         key: "progress",
         title: "İlerleme",
         subtitle: "Şimdi incele",
@@ -217,24 +229,13 @@ export default function HomeScreen() {
         route: "/progress",
       },
       {
-        key: "sms-filter",
-        title: "Spam Tanıyıcı",
-        subtitle: "Şüpheli mesajı yapıştır, sınıflandır",
-        icon: "mail-unread",
-        decorativeIcon: "mail-outline",
-        tone: "slate",
-        route: "/sms-filter",
-      },
-      {
-        key: "modules",
-        title: "Modüller",
-        subtitle: "Para alternatifi, gelecek simülasyonu...",
-        icon: "apps",
-        decorativeIcon: "grid",
-        tone: "amber",
-        // Cast: /modules is not in the typed-routes map until dev server
-        // has indexed the new modules/ directory.
-        route: "/modules" as Href,
+        key: "diary",
+        title: "Günlük",
+        subtitle: "Özel günlüğün",
+        icon: "book",
+        decorativeIcon: "book-outline",
+        tone: "indigo",
+        route: "/diary",
       },
       {
         key: "facts",
@@ -246,13 +247,13 @@ export default function HomeScreen() {
         route: "/facts",
       },
       {
-        key: "diary",
-        title: "Günlük",
-        subtitle: "Özel günlüğün",
-        icon: "book",
-        decorativeIcon: "book-outline",
-        tone: "indigo",
-        route: "/diary",
+        key: "sms-filter",
+        title: "Spam Tanıyıcı",
+        subtitle: "Şüpheli mesajı yapıştır, sınıflandır",
+        icon: "mail-unread",
+        decorativeIcon: "mail-outline",
+        tone: "slate",
+        route: "/sms-filter",
       },
     ],
     []
@@ -443,9 +444,33 @@ export default function HomeScreen() {
             <DailyCheckinWidget />
           </View>
 
-          {/* Module grid */}
+          {/* "Today" checklist — surfaces pledge, curriculum day, check-in */}
+          <TodayCard />
+
+          {/* Quick-access safety + intervention quartet */}
+          <Text style={[styles.groupLabel, { color: colors.textMuted }]}>
+            HIZLI ERİŞİM
+          </Text>
           <View style={styles.grid}>
-            {modules.map((m) => (
+            {quickAccess.map((m) => (
+              <HomeCard
+                key={m.key}
+                title={m.title}
+                subtitle={m.subtitle}
+                icon={m.icon}
+                decorativeIcon={m.decorativeIcon}
+                tone={m.tone}
+                onPress={() => router.push(m.route)}
+              />
+            ))}
+          </View>
+
+          {/* Supporting tools and content */}
+          <Text style={[styles.groupLabel, { color: colors.textMuted, marginTop: 18 }]}>
+            ARAŞTIR VE BÜYÜ
+          </Text>
+          <View style={styles.grid}>
+            {extras.map((m) => (
               <HomeCard
                 key={m.key}
                 title={m.title}
@@ -609,5 +634,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+  },
+  groupLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    marginBottom: 10,
+    marginLeft: 4,
   },
 });
