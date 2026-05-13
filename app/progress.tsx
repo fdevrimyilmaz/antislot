@@ -23,6 +23,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { getPremiumState } from "@/store/premiumStore";
+import {
+  formatRemaining,
+  isLockoutActive,
+  remainingMs,
+  useLockoutStore,
+} from "@/store/lockoutStore";
 import { reportError } from "@/services/monitoring";
 
 const MILESTONES = [7, 14, 30, 60, 90, 180, 365] as const;
@@ -72,6 +78,8 @@ export default function Progress() {
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const resetProgress = useProgressStore((state) => state.reset);
   const progressHydrated = useProgressStore((state) => state.hydrated);
+  const lockoutState = useLockoutStore((s) => s.state);
+  const lockoutActive = isLockoutActive(lockoutState);
   const [premiumActive, setPremiumActive] = useState(false);
 
   useEffect(() => {
@@ -131,10 +139,23 @@ export default function Progress() {
       toast.error("Kullanıcı bulunamadı.", "Hata");
       return;
     }
+    if (lockoutActive) {
+      haptics.warning();
+      toast.warning(
+        `Self-Exclusion aktif — ${formatRemaining(remainingMs(lockoutState))} kaldı. Süre dolmadan sıfırlanamaz.`,
+        "Kilitli"
+      );
+      return;
+    }
     haptics.warning();
+    const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
+    const dayClause =
+      safeDays > 0
+        ? `${safeDays} günlük temiz dönem geri alınamaz. `
+        : "";
     Alert.alert(
       "İlerlemeyi Sıfırla",
-      "Bu işlem seçili bağımlılık sayacını sıfırlar.",
+      `${dayClause}Bu işlem sayacı sıfırlar. Emin misin?`,
       [
         { text: "İptal", style: "cancel" },
         {
