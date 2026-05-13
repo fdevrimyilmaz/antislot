@@ -41,22 +41,27 @@ type LinkItem = {
   route: string;
 };
 
-const PRIVACY_LINKS: LinkItem[] = [
+// Settings link sections — grouped by purpose so the screen scans easily.
+// Order: protection > support > legal > developer.
+const PROTECTION_LINKS: LinkItem[] = [
+  { label: "Self-Exclusion", icon: "lock-closed", route: "/self-exclusion" },
+  { label: "Risk Pencereleri", icon: "time", route: "/risk-windows" },
+  { label: "Bildirimler", icon: "notifications", route: "/notifications" },
+];
+
+const SUPPORT_LINKS: LinkItem[] = [
+  { label: "SOS", icon: "alert-circle", route: "/sos" },
+  { label: "Destek Ağı", icon: "people", route: "/support" },
+  { label: "SMS Spam Tanıyıcı", icon: "flask", route: "/sms-filter" },
+];
+
+const LEGAL_LINKS: LinkItem[] = [
   { label: "Gizlilik Politikası", icon: "lock-closed", route: "/privacy" },
   { label: "Kullanım Şartları", icon: "document-text", route: "/terms" },
   { label: "Sınırlamalar", icon: "information-circle", route: "/limitations" },
 ];
 
-const MESSAGE_LINKS: LinkItem[] = [
-  { label: "SMS Spam Tanıyıcı", icon: "flask", route: "/sms-filter" },
-];
-
-const HELP_LINKS: LinkItem[] = [
-  { label: "Destek Ağı", icon: "people", route: "/support" },
-  { label: "SOS", icon: "alert-circle", route: "/sos" },
-  { label: "Self-Exclusion", icon: "lock-closed", route: "/self-exclusion" },
-  { label: "Risk Pencereleri", icon: "time", route: "/risk-windows" },
-  { label: "Bildirimler", icon: "notifications", route: "/notifications" },
+const DEV_LINKS: LinkItem[] = [
   { label: "Tanılamalar", icon: "construct", route: "/diagnostics" },
 ];
 
@@ -318,27 +323,36 @@ export default function SettingsScreen() {
           </Card>
 
           <LinkSection
-            title="Gizlilik ve Güvenlik"
-            icon="shield"
-            subtitle="Uygulama politikaları, sınırlamalar ve veri kullanımı."
-            items={PRIVACY_LINKS}
+            title="Korunma"
+            icon="shield-checkmark"
+            subtitle="Self-exclusion, risk pencereleri ve bildirim ayarları."
+            items={PROTECTION_LINKS}
             colors={colors}
             onPress={handleLinkPress}
           />
 
           <LinkSection
-            title="Mesaj Araçları"
-            icon="mail"
-            subtitle="Şüpheli SMS'leri manuel test ile sınıflandır."
-            items={MESSAGE_LINKS}
-            colors={colors}
-            onPress={handleLinkPress}
-          />
-
-          <LinkSection
-            title="Yardım ve Tanılama"
+            title="Destek ve Yardım"
             icon="help-buoy"
-            items={HELP_LINKS}
+            subtitle="Krizde hızlı erişim ve destek araçları."
+            items={SUPPORT_LINKS}
+            colors={colors}
+            onPress={handleLinkPress}
+          />
+
+          <LinkSection
+            title="Gizlilik ve Yasal"
+            icon="lock-closed"
+            subtitle="Politikalar, sınırlamalar ve veri kullanımı."
+            items={LEGAL_LINKS}
+            colors={colors}
+            onPress={handleLinkPress}
+          />
+
+          <LinkSection
+            title="Geliştirici"
+            icon="construct"
+            items={DEV_LINKS}
             colors={colors}
             onPress={handleLinkPress}
           />
