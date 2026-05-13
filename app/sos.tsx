@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,7 +20,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/components/ui/toast";
-import { addContact, getContacts, removeContact } from "@/store/sosStore";
+import {
+  addContact,
+  DEFAULT_BUDDY_MESSAGE,
+  getBuddyMessage,
+  getContacts,
+  removeContact,
+  setBuddy,
+  setBuddyMessage,
+  type EmergencyContact,
+} from "@/store/sosStore";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
 
@@ -73,22 +83,32 @@ export default function SOS() {
   const { colors } = useTheme();
   const toast = useToast();
 
-  const [contacts, setContacts] = useState<{ id: string; name: string; phone: string }[]>([]);
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [breathingSeconds, setBreathingSeconds] = useState<number | null>(null);
   const [delaySeconds, setDelaySeconds] = useState<number | null>(null);
+  const [buddyMessage, setBuddyMessageState] = useState(DEFAULT_BUDDY_MESSAGE);
+  const [editingTemplate, setEditingTemplate] = useState(false);
+  const [draftTemplate, setDraftTemplate] = useState(DEFAULT_BUDDY_MESSAGE);
 
   useEffect(() => {
     (async () => {
       try {
-        const stored = await getContacts();
+        const [stored, savedMessage] = await Promise.all([
+          getContacts(),
+          getBuddyMessage(),
+        ]);
         setContacts(stored);
+        setBuddyMessageState(savedMessage);
+        setDraftTemplate(savedMessage);
       } catch (error) {
         reportError(error, { scope: "sos.contacts.load", level: "warning" });
       }
     })();
   }, []);
+
+  const buddy = useMemo(() => contacts.find((c) => c.isBuddy) ?? null, [contacts]);
 
   useEffect(() => {
     if (breathingSeconds === null) return;
@@ -131,6 +151,60 @@ export default function SOS() {
   const handleSendSms = (sms: string) => {
     haptics.tapLight();
     Linking.openURL(`sms:${sms}`);
+  };
+
+  const handleSendBuddyMessage = (phone: string, name: string) => {
+    haptics.tapHeavy();
+    // sms:phone?body= works on both iOS and Android; the OS opens the
+    // composer pre-filled. The user still hits send manually.
+    const encoded = encodeURIComponent(buddyMessage);
+    const sep = Platform.OS === "ios" ? "&" : "?";
+    Linking.openURL(`sms:${phone}${sep}body=${encoded}`).catch(() => {
+      toast.warning(`${name} için SMS açılamadı.`, "Hata");
+    });
+  };
+
+  const handleToggleBuddy = async (id: string, currentlyBuddy: boolean) => {
+    haptics.selection();
+    try {
+      const updated = await setBuddy(currentlyBuddy ? null : id);
+      setContacts(updated);
+      const name = updated.find((c) => c.id === id)?.name ?? "Kişi";
+      if (currentlyBuddy) {
+        toast.info(`${name} artık buddy değil.`);
+      } else {
+        toast.success(`${name} destek kişin olarak ayarlandı.`, "Buddy");
+      }
+    } catch (error) {
+      reportError(error, { scope: "sos.buddy.toggle" });
+      haptics.error();
+      toast.error("Buddy ayarlanamadı.", "Hata");
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    const trimmed = draftTemplate.trim();
+    if (trimmed.length < 6) {
+      haptics.warning();
+      toast.warning("Mesaj çok kısa.", "Eksik");
+      return;
+    }
+    try {
+      await setBuddyMessage(trimmed);
+      setBuddyMessageState(trimmed);
+      setEditingTemplate(false);
+      haptics.success();
+      toast.success("Mesaj şablonu kaydedildi.", "Kaydedildi");
+    } catch (error) {
+      reportError(error, { scope: "sos.buddy.template" });
+      haptics.error();
+      toast.error("Kaydedilemedi.", "Hata");
+    }
+  };
+
+  const handleResetTemplate = () => {
+    haptics.tapLight();
+    setDraftTemplate(DEFAULT_BUDDY_MESSAGE);
   };
 
   const handleStartBreathing = () => {
@@ -252,6 +326,58 @@ export default function SOS() {
               </Text>
             </View>
           </Card>
+
+          {/* Buddy quick-reach — surfaced near the top so reaching out is
+              fast during a high-arousal moment. */}
+          {buddy ? (
+            <Card
+              style={[
+                styles.cardSpacing,
+                {
+                  backgroundColor: `${colors.success}10`,
+                  borderColor: colors.success,
+                },
+              ]}
+            >
+              <View style={styles.buddyRow}>
+                <View
+                  style={[
+                    styles.buddyIcon,
+                    { backgroundColor: `${colors.success}22` },
+                  ]}
+                >
+                  <Ionicons name="star" size={18} color={colors.success} />
+                </View>
+                <View style={styles.buddyText}>
+                  <Text style={[styles.buddyName, { color: colors.text }]}>
+                    {buddy.name}
+                  </Text>
+                  <Text
+                    style={[styles.buddyHint, { color: colors.textMuted }]}
+                    numberOfLines={2}
+                  >
+                    Destek kişin. Tek dokunuşla hazır mesaj git.
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.buddyBtnRow}>
+                <Button
+                  title="Mesaj at"
+                  onPress={() => handleSendBuddyMessage(buddy.phone, buddy.name)}
+                  variant="primary"
+                  leftIcon="chatbox"
+                  style={styles.buddyBtn}
+                />
+                <Button
+                  title="Ara"
+                  onPress={() => handleCallPhone(buddy.phone)}
+                  variant="secondary"
+                  leftIcon="call"
+                  style={styles.buddyBtn}
+                />
+              </View>
+            </Card>
+          ) : null}
 
           <Card style={styles.cardSpacing}>
             <SectionHeader
@@ -466,46 +592,192 @@ export default function SOS() {
               </View>
             ) : (
               <View style={styles.contactList}>
-                {contacts.map((contact, index) => (
-                  <View
-                    key={contact.id}
-                    style={[
-                      styles.contactRow,
-                      index < contacts.length - 1 && {
-                        borderBottomWidth: 1,
-                        borderBottomColor: colors.cardBorder,
-                      },
-                    ]}
-                  >
-                    <View style={styles.contactInfo}>
-                      <Text style={[styles.contactName, { color: colors.text }]}>
-                        {contact.name}
-                      </Text>
-                      <Text style={[styles.contactPhone, { color: colors.textMuted }]}>
-                        {contact.phone}
-                      </Text>
+                {contacts.map((contact, index) => {
+                  const isBuddy = Boolean(contact.isBuddy);
+                  return (
+                    <View
+                      key={contact.id}
+                      style={[
+                        styles.contactRow,
+                        index < contacts.length - 1 && {
+                          borderBottomWidth: 1,
+                          borderBottomColor: colors.cardBorder,
+                        },
+                      ]}
+                    >
+                      <View style={styles.contactInfo}>
+                        <View style={styles.contactNameRow}>
+                          <Text
+                            style={[styles.contactName, { color: colors.text }]}
+                          >
+                            {contact.name}
+                          </Text>
+                          {isBuddy ? (
+                            <Ionicons
+                              name="star"
+                              size={14}
+                              color={colors.success}
+                            />
+                          ) : null}
+                        </View>
+                        <Text
+                          style={[styles.contactPhone, { color: colors.textMuted }]}
+                        >
+                          {contact.phone}
+                        </Text>
+                      </View>
+                      <View style={styles.contactActions}>
+                        <TouchableOpacity
+                          onPress={() => handleToggleBuddy(contact.id, isBuddy)}
+                          style={[
+                            styles.iconBtn,
+                            {
+                              backgroundColor: isBuddy
+                                ? `${colors.success}22`
+                                : `${colors.primary}14`,
+                            },
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            isBuddy
+                              ? `${contact.name} buddy işaretini kaldır`
+                              : `${contact.name} buddy yap`
+                          }
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name={isBuddy ? "star" : "star-outline"}
+                            size={16}
+                            color={isBuddy ? colors.success : colors.primary}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleSendBuddyMessage(contact.phone, contact.name)
+                          }
+                          style={[
+                            styles.iconBtn,
+                            { backgroundColor: `${colors.primary}14` },
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${contact.name} SMS gönder`}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="chatbox"
+                            size={16}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleCallPhone(contact.phone)}
+                          style={[
+                            styles.iconBtn,
+                            { backgroundColor: `${colors.primary}14` },
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${contact.name} ara`}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="call"
+                            size={16}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleRemoveContact(contact.id, contact.name)
+                          }
+                          style={styles.removeBtn}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${contact.name} kaldır`}
+                          hitSlop={8}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={16}
+                            color={colors.danger}
+                          />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.contactActions}>
-                      <Button
-                        title="Ara"
-                        onPress={() => handleCallPhone(contact.phone)}
-                        variant="primary"
-                        leftIcon="call"
-                      />
-                      <TouchableOpacity
-                        onPress={() => handleRemoveContact(contact.id, contact.name)}
-                        style={styles.removeBtn}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${contact.name} kaldır`}
-                        hitSlop={8}
-                      >
-                        <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
+
+            {/* SMS template editor */}
+            {contacts.length > 0 ? (
+              <View
+                style={[
+                  styles.templateBlock,
+                  { borderColor: colors.cardBorder },
+                ]}
+              >
+                <View style={styles.templateHeader}>
+                  <Ionicons name="chatbox-ellipses" size={14} color={colors.primary} />
+                  <Text style={[styles.templateLabel, { color: colors.text }]}>
+                    Hazır mesaj
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      haptics.tapLight();
+                      setEditingTemplate((v) => !v);
+                    }}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Mesajı düzenle"
+                  >
+                    <Ionicons
+                      name={editingTemplate ? "close" : "create"}
+                      size={16}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
+                {editingTemplate ? (
+                  <>
+                    <TextInput
+                      value={draftTemplate}
+                      onChangeText={setDraftTemplate}
+                      multiline
+                      numberOfLines={2}
+                      maxLength={240}
+                      style={[
+                        styles.templateInput,
+                        {
+                          color: colors.text,
+                          backgroundColor: colors.card,
+                          borderColor: colors.cardBorder,
+                        },
+                      ]}
+                      accessibilityLabel="Hazır mesaj"
+                    />
+                    <View style={styles.templateBtnRow}>
+                      <Button
+                        title="Kaydet"
+                        onPress={handleSaveTemplate}
+                        variant="primary"
+                        leftIcon="checkmark"
+                      />
+                      <Button
+                        title="Varsayılan"
+                        onPress={handleResetTemplate}
+                        variant="ghost"
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <Text
+                    style={[styles.templatePreview, { color: colors.textMuted }]}
+                    numberOfLines={3}
+                  >
+                    “{buddyMessage}”
+                  </Text>
+                )}
+              </View>
+            ) : null}
           </Card>
         </ScrollView>
       </SafeAreaView>
@@ -693,13 +965,77 @@ const styles = StyleSheet.create({
   contactActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
-  removeBtn: {
-    width: 36,
-    height: 36,
+  contactNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  removeBtn: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buddyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  buddyIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buddyText: { flex: 1, minWidth: 0 },
+  buddyName: { fontSize: 16, fontWeight: "800" },
+  buddyHint: { fontSize: 12, marginTop: 3, lineHeight: 16 },
+  buddyBtnRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  buddyBtn: { flex: 1 },
+  templateBlock: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  templateHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  templateLabel: { fontSize: 13, fontWeight: "800", flex: 1 },
+  templateInput: {
+    minHeight: 70,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlignVertical: "top",
+  },
+  templateBtnRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  templatePreview: {
+    fontSize: 12,
+    fontStyle: "italic",
+    lineHeight: 17,
   },
   emptyState: {
     alignItems: "center",
