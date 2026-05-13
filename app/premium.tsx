@@ -30,7 +30,6 @@ import {
   clearPremium,
   getPremiumState,
   setPremiumActive,
-  startTrial,
   type PremiumState,
 } from "@/store/premiumStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
@@ -162,12 +161,6 @@ export default function PremiumScreen() {
     })();
   }, []);
 
-  const remainingDays = useMemo(() => {
-    if (!premiumState?.trialEndsAt) return null;
-    const diffMs = premiumState.trialEndsAt - Date.now();
-    return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  }, [premiumState]);
-
   const statusMeta = useMemo<{
     badge: string;
     value: string;
@@ -190,45 +183,19 @@ export default function PremiumScreen() {
         tone: "inactive",
       };
     }
-    if (premiumState.source === "trial" && remainingDays !== null) {
-      return {
-        badge: "Deneme",
-        value: "Premium deneme aktif",
-        hint: `${remainingDays} gün deneme kaldı`,
-        tone: "trial",
-      };
-    }
     return {
       badge: "Aktif",
       value: "Premium erişimi açık",
       hint: "Erişim kodu ile etkin.",
       tone: "active",
     };
-  }, [loading, premiumState, remainingDays]);
+  }, [loading, premiumState]);
 
   const isPremiumActive = !!premiumState?.isActive;
   const canApplyCode = code.trim().length > 0;
   const activeDurationLabel = isPremiumActive
     ? formatActiveDuration(premiumState?.activatedAt ?? null)
     : null;
-
-  const handleStartTrial = async () => {
-    haptics.tapMedium();
-    try {
-      const state = await startTrial(7);
-      setPremiumState(state);
-      addBreadcrumb("premium.trial", "started", { days: 7 });
-      haptics.success();
-      toast.success("Premium denemeniz 7 gün boyunca aktif.", "Deneme Başladı");
-    } catch (error) {
-      reportError(error, { scope: "premium.trial" });
-      haptics.error();
-      toast.error(
-        "Deneme başlatılamadı. Lütfen biraz sonra tekrar deneyin.",
-        "Hata"
-      );
-    }
-  };
 
   const handleApplyCode = async () => {
     const normalized = code.trim().toUpperCase();
@@ -414,41 +381,6 @@ export default function PremiumScreen() {
               ) : null}
             </Card>
           )}
-
-          {/* Trial CTA */}
-          {!isPremiumActive ? (
-            <Card
-              style={[styles.cardSpacing, styles.trialCard, { borderColor: `${colors.warning}66` }]}
-            >
-              <View style={styles.trialRow}>
-                <View style={styles.trialIconWrap}>
-                  <LinearGradient
-                    colors={[colors.warning, "#F59E0B"]}
-                    style={styles.trialIconBubble}
-                  >
-                    <Ionicons name="rocket" size={20} color="#FFFFFF" />
-                  </LinearGradient>
-                </View>
-                <View style={styles.trialTextWrap}>
-                  <Text style={[styles.trialTitle, { color: colors.text }]}>
-                    7 gün ücretsiz dene
-                  </Text>
-                  <Text style={[styles.trialHint, { color: colors.textMuted }]}>
-                    Kart bilgisi gerekmez. İstediğin zaman iptal et.
-                  </Text>
-                </View>
-              </View>
-              <Button
-                title="Denemeyi Başlat"
-                onPress={handleStartTrial}
-                variant="gradient"
-                size="lg"
-                fullWidth
-                leftIcon="rocket"
-                style={styles.trialButton}
-              />
-            </Card>
-          ) : null}
 
           {/* Premium Features */}
           <Card style={styles.cardSpacing}>
@@ -746,34 +678,6 @@ const styles = StyleSheet.create({
   statusHint: { marginTop: 4, fontSize: 12 },
   statusValueSkeleton: { marginTop: 4 },
   statusHintSkeleton: { marginTop: 8 },
-
-  trialCard: {
-    borderWidth: 1,
-  },
-  trialRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
-  },
-  trialIconWrap: {},
-  trialIconBubble: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  trialTextWrap: { flex: 1, minWidth: 0 },
-  trialTitle: { fontSize: 16, fontWeight: "800", marginBottom: 2 },
-  trialHint: { fontSize: 12, lineHeight: 16 },
-  trialButton: {
-    shadowColor: "#F59E0B",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
 
   featureList: { gap: 12, marginTop: 4 },
   featureRow: {
