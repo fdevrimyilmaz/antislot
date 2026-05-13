@@ -48,34 +48,29 @@ type PremiumFeature = {
 
 const PREMIUM_FEATURES: PremiumFeature[] = [
   {
+    icon: "fitness",
+    title: "Beyin Hijyeni — 7 günlük program",
+    description: "Dopamin döngüsünü onaran somut adımlar; yürüyüş, soğuk duş, derin nefes, ekran orucu.",
+  },
+  {
+    icon: "git-network",
+    title: "Tetikleyici Haritası",
+    description: "Saat, mekân, duygu ve dürtü nedenini birlikte haritalar; sana özel baş etme önerileri.",
+  },
+  {
     icon: "sparkles",
     title: "Tüm farkındalık seansları",
     description: "Şefkat, uyku öncesi sakinleşme ve premium seanslara tam erişim.",
   },
   {
     icon: "chatbubbles",
-    title: "Yapay ANTI'de premium ipuçları",
-    description: "AI yardımcısı daha derin baş etme stratejileri sunar.",
-  },
-  {
-    icon: "trending-up",
-    title: "Gelişmiş istatistikler",
-    description: "Streak haritası, tetikleyici analizi ve kişisel içgörüler.",
-  },
-  {
-    icon: "telescope",
-    title: "Gelecek Simülasyonu",
-    description: "Devam edersen / bugün durursan projeksiyon araçları.",
-  },
-  {
-    icon: "calendar",
-    title: "7 gün odak protokolü",
-    description: "İlk hafta için günlük koruma görevleri otomatik açılır.",
+    title: "Premium AI koçluk",
+    description: "Daha uzun ve daha derin baş etme stratejileri; senin verine göre kişisel ipuçları.",
   },
   {
     icon: "headset",
-    title: "Canlı destek",
-    description: "Premium kullanıcılarına özel destek hattına erişim.",
+    title: "Öncelikli destek",
+    description: "Premium kullanıcılara özel hızlı yanıt destek hattı.",
   },
   {
     icon: "ban",
