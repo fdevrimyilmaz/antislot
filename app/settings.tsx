@@ -32,6 +32,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { LanguageSelector } from "@/components/ui/language-selector";
+import { ProfileSummary } from "@/components/ui/profile-summary";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
 
@@ -207,6 +208,8 @@ export default function SettingsScreen() {
           <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
             Ayarlar
           </Text>
+
+          <ProfileSummary />
 
           <View style={styles.cardSpacing}>
             <LanguageSelector variant="card" />
