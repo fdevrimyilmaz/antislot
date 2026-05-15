@@ -16,6 +16,7 @@ import { ThemeTexture } from "@/components/theme-texture";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { haptics } from "@/services/haptics";
+import { GAMBLING_FACTS } from "./data/gamblingFacts";
 
 type Fact = {
   id: number;
@@ -43,78 +44,123 @@ const CATEGORY_ICONS: Record<
   saglik: "heart",
 };
 
-const FACTS: Fact[] = [
+const BASE_FACTS: Fact[] = [
   {
     id: 1,
     category: "matematik",
-    title: "Slot makinelerinde her dönüş bağımsız",
+    title: "Slot makinelerinde her donus bagimsiz",
     body:
-      "Önceki kayıplar bir sonraki dönüşün kazanma olasılığını artırmaz. Her dönüş ayrı bir olaydır — “Şimdi kazanma sırası geldi” bir yanılgıdır.",
+      "Onceki kayiplar bir sonraki donusun kazanma olasiligini artirmaz. Her donus ayri bir olaydir.",
   },
   {
     id: 2,
     category: "pazarlama",
-    title: "RTP oranı vaat değil, pazarlama rakamıdır",
+    title: "RTP orani vaat degil, pazarlama rakamidir",
     body:
-      "%96 RTP “sana 96 lira geri döner” demek değildir. Milyonlarca dönüş üzerinden hesaplanan teorik bir ortalamadır; senin oturumunda anlamsızdır.",
+      "%96 RTP sana birebir geri donus garantisi vermez. Teorik ortalamadir ve tek oturum icin anlamsiz olabilir.",
   },
   {
     id: 3,
     category: "psikoloji",
-    title: "Yakın kaçırış ödüllendirme gibidir",
+    title: "Yakin kaciris odullendirme gibi algilanir",
     body:
-      "İki uyumlu sembol + üçüncüsünün kıl payı kaçması, beyninde gerçek kazanca benzer dopamin tepkisi yaratır. Bu özellikle tasarlanmıştır.",
+      "Neredeyse kazanma hissi beyinde gercek kazanca benzer tepki uretebilir. Bu davranis dongusunu tetikleyebilir.",
   },
   {
     id: 4,
     category: "matematik",
-    title: "Ev avantajı her zaman matematikseldir",
+    title: "Ev avantaji matematiksel olarak her zaman vardir",
     body:
-      "Rulet, blackjack, slot — hepsinde uzun vadede oyuncu kaybeder. Tek soru: ne kadar hızlı? Strateji bunu yavaşlatabilir, çevirmez.",
+      "Rulet, blackjack ve slot gibi oyunlarda uzun vadede oyuncu beklenen deger olarak eksidedir.",
   },
   {
     id: 5,
     category: "psikoloji",
-    title: "Kayıp peşinde koşmak en pahalı tuzaktır",
+    title: "Kayip pesinde kosmak maliyeti buyutur",
     body:
-      "“Bir el daha, kaybımı kapatırım” düşüncesi gambler’s fallacy. Bahis büyüdükçe kayıp da büyür; bu kalıp birikmiş hasarın temel nedenidir.",
+      "Bir el daha ile kaybi kapatma dusuncesi genellikle daha yuksek riskli kararlara yol acar.",
   },
   {
     id: 6,
     category: "finans",
-    title: "Kredi kartı ile bahis = çift faiz",
+    title: "Kredi ile bahis kaybi finansal baskiyi artirir",
     body:
-      "Kaybettiğin paraya ek olarak banka faizi ödersin. Aylık tutarlar küçük görünür ama yıllık efektif faiz %40+ olabilir.",
+      "Kayip ustune faiz yukunun eklenmesi toplam zarari hizla buyutebilir.",
   },
   {
     id: 7,
     category: "pazarlama",
-    title: "Bonus = senin paranı geri tutma",
+    title: "Bonuslar genelde cevrim kosuluna baglidir",
     body:
-      "Çekim koşulu olan bonusların büyük çoğunluğu çevirim oranı (wagering) yüzünden hiçbir zaman para olarak elinde kalmaz. Bonus kazanç değildir.",
+      "Cekim kosullari nedeniyle bonus tutarlari beklenenden daha zor nakde donusebilir.",
   },
   {
     id: 8,
     category: "saglik",
-    title: "Beyin sosyal medya gibi koşullanır",
+    title: "Aralikli odul dongusu aliskanlik olusturabilir",
     body:
-      "Aralıklı pekiştirme (kazanç olduğunda → dopamin) bağımlılık döngüsünün motorudur. Bu, kumarı durdurmayı eroin kadar zor yapar.",
+      "Degisken odul duzeni davranisin tekrar edilmesini guclendirebilir ve kontrolu zorlastirabilir.",
   },
   {
     id: 9,
     category: "psikoloji",
-    title: "Şanslı serileri sen yaratmıyorsun",
+    title: "Sansli seri hissi patern yanilsamasi olabilir",
     body:
-      "“Bugün şanslı günümdeyim” hissi, kazançların ardından beynin ürettiği patern yanılsamasıdır. Rastgele dizilerin kümelenmesi normaldir.",
+      "Rastgele dagilimlarda kumelenmeler normaldir ve bunlar kontrol oldugu anlamina gelmez.",
   },
   {
     id: 10,
     category: "finans",
-    title: "Para kaybetmenin tek emin yolu",
+    title: "Uzun vadede oynamaya devam etmek kaybi artirir",
     body:
-      "Uzun vadede oynamaya devam etmek. Kazansan bile kazancını geri yatırırsan ev avantajı kaçınılmaz olarak parayı geri alır.",
+      "Kazanc tekrar oyuna sokuldukca ev avantaji etkisi toplami oyuncu aleyhine cevirebilir.",
   },
 ];
+
+const CATEGORY_ROTATION: Fact["category"][] = [
+  "matematik",
+  "psikoloji",
+  "finans",
+  "pazarlama",
+  "saglik",
+];
+
+const CATEGORY_RULES: { category: Fact["category"]; pattern: RegExp }[] = [
+  { category: "finans", pattern: /(borc|kredi|faiz|butce|para|depozit|cekim|yatir)/i },
+  { category: "pazarlama", pattern: /(bonus|kampanya|promosyon|rtp|vip|freebet|free spin)/i },
+  { category: "matematik", pattern: /(algoritma|olasilik|istatistik|oran|rastgele|matematik)/i },
+  { category: "saglik", pattern: /(uyku|stres|anksiyete|beyin|saglik|yorgunluk)/i },
+  { category: "psikoloji", pattern: /(yalniz|kontrol|duygu|panik|utanc|bagimlilik|davranis)/i },
+];
+
+const normalizeText = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const pickCategory = (text: string, index: number): Fact["category"] => {
+  const rule = CATEGORY_RULES.find((entry) => entry.pattern.test(text));
+  if (rule) return rule.category;
+  return CATEGORY_ROTATION[index % CATEGORY_ROTATION.length];
+};
+
+const toTitle = (text: string, fallbackId: number) => {
+  const cleaned = normalizeText(text).replace(/[.!?]+$/g, "");
+  const firstClause = cleaned.split(/[,;:\-]/)[0].trim();
+  const candidate = firstClause.length >= 18 ? firstClause : cleaned;
+  if (!candidate) return `Gercek #${fallbackId}`;
+  if (candidate.length <= 72) return candidate;
+  return `${candidate.slice(0, 69).trimEnd()}...`;
+};
+
+const EXTRA_FACTS: Fact[] = GAMBLING_FACTS.map((raw, idx) => {
+  const body = normalizeText(raw);
+  return {
+    id: BASE_FACTS.length + idx + 1,
+    category: pickCategory(body, idx),
+    title: toTitle(body, BASE_FACTS.length + idx + 1),
+    body,
+  };
+});
+
+const FACTS: Fact[] = [...BASE_FACTS, ...EXTRA_FACTS];
 
 type FilterCategory = "all" | Fact["category"];
 
@@ -493,3 +539,4 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 });
+

@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"APP_EXIT: $?\")",
+      "Bash(echo \"BACKEND_EXIT: $?\")",
+      "Bash(echo \"LINT_EXIT: $?\")",
+      "Bash(npm test *)",
+      "Bash(echo \"TEST_EXIT: $?\")",
+      "Bash(echo \"TSC_EXIT: $?\")",
+      "Bash(node ./scripts/store-assets-check.js)",
+      "Bash(echo \"STORE_EXIT: $?\")",
+      "Bash(echo \"BACKEND_TSC_EXIT: $?\")",
+      "Bash(echo \"ALL_TSC_EXIT: $?\")",
+      "Bash(echo \"FINAL_EXIT: $?\")",
+      "Bash(node ./scripts/i18n-coverage-report.js)",
+      "Bash(echo \"APP_TSC: $?\")",
+      "Bash(echo \"BACKEND_TSC: $?\")",
+      "Bash(echo \"LINT: $?\")",
+      "Bash(echo \"BACKEND: $?\")",
+      "Bash(git add *)",
+      "Bash(echo \"ADD_EXIT: $?\")",
+      "Bash(git commit -m ' *)",
+      "Bash(echo \"COMMIT_EXIT: $?\")",
+      "Bash(echo \"TSC: $?\")",
+      "Bash(dir \"C:\\\\Users\\\\dferh\\\\.claude\\\\projects\\\\c--dev-antislot\\\\memory\")",
+      "Bash(ls -la /c/Users/dferh/.claude/projects/c--dev-antislot/memory/ 2>&1)",
+      "Read(//c/Users/dferh/.claude/projects/c--dev-antislot/memory//**)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react-native-iap/package.json'\\).version\\)\")"
+    ]
+  }
+}

@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.antislot.app",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.antislot.app"
@@ -23,7 +23,6 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "ENABLE_IOS_NE": false,
-        "NSUserTrackingUsageDescription": "Antislot kullanıcı izleme yapmaz. Bu izin yalnızca üçüncü taraf SDK'lar tarafından isteniyorsa görünür ve reddedilebilir.",
         "NSLocalNetworkUsageDescription": "Yerel ağda DNS düzeyinde kumar siteleri filtrelemesi için cihaz içi VPN bağlantısı kurulur. Veri uzaktaki bir sunucuya gönderilmez.",
         "NSAppleEventsUsageDescription": "Antislot Apple Events kullanmaz."
       },
@@ -33,7 +32,7 @@
     },
     "android": {
       "package": "com.antislot.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"

@@ -1,6 +1,6 @@
 import { type Href, router } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -44,6 +44,8 @@ import { MilestoneCelebration } from "@/components/ui/milestone-celebration";
 import { WelcomeTour } from "@/components/ui/welcome-tour";
 import { useWelcomeTourStore } from "@/store/welcomeTourStore";
 import { pickDailyMotivation } from "../data/dailyMotivations";
+
+const BRAND_ICON = require("@/assets/images/icon.png");
 
 type ModuleDef = {
   key: string;
@@ -360,7 +362,7 @@ export default function HomeScreen() {
               style={styles.brandPill}
             >
               <View style={[styles.brandBadge, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
-                <Ionicons name="ban" size={16} color="#FFFFFF" />
+                <Image source={BRAND_ICON} style={styles.brandBadgeImage} resizeMode="cover" />
               </View>
               <Text style={styles.brandText} accessibilityRole="header">
                 ANTİ-<Text style={styles.brandAccent}>SLOT</Text>
@@ -657,11 +659,18 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   brandBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.26)",
+  },
+  brandBadgeImage: {
+    width: "100%",
+    height: "100%",
   },
   brandText: {
     fontSize: 22,

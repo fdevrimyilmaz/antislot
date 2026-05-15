@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 export type PremiumServerResponse = {
   ok: boolean;
   isActive: boolean;
-  source: "iap" | "trial" | "code" | "none";
+  source: "iap" | "code" | "none";
   expiresAt?: number | null;
 };
 

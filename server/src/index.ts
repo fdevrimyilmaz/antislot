@@ -3,6 +3,13 @@ import cors from "cors";
 import express from "express";
 import OpenAI from "openai";
 import { config, type AiProvider } from "./config";
+import { handleActivate, handleRestore } from "./premium";
+import { initIdempotencyStore } from "./premium-idempotency";
+import {
+  configureAppleVerifier,
+  getAppleVerifierStatus,
+  parseEnvironment,
+} from "./apple-jws-verifier";
 
 type ClientMessage = {
   role?: string;
@@ -201,6 +208,64 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+app.post("/v1/premium/activate", async (req, res) => {
+  try {
+    return await handleActivate(req, res);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("premium.activate error:", message);
+    return res.status(500).json({
+      ok: false,
+      isActive: false,
+      source: "none",
+      error: "internal_error",
+    });
+  }
+});
+
+app.post("/v1/premium/restore", async (req, res) => {
+  try {
+    return await handleRestore(req, res);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("premium.restore error:", message);
+    return res.status(500).json({
+      ok: false,
+      isActive: false,
+      source: "none",
+      error: "internal_error",
+    });
+  }
+});
+
+app.post("/v1/premium/sync", (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    isActive: false,
+    source: "none",
+  });
+});
+
+app.post("/v1/premium/redeem", (req, res) => {
+  const codes = config.premiumRedeemCodes;
+  if (codes.length === 0) {
+    return res.status(503).json({
+      ok: false,
+      error: "REDEEM_NOT_CONFIGURED",
+    });
+  }
+  const submittedRaw = (req.body as { code?: unknown })?.code;
+  const submitted =
+    typeof submittedRaw === "string" ? submittedRaw.trim().toUpperCase() : "";
+  if (!submitted) {
+    return res.status(400).json({ ok: false, error: "INVALID_CODE" });
+  }
+  if (!codes.includes(submitted)) {
+    return res.status(400).json({ ok: false, error: "INVALID_CODE" });
+  }
+  return res.status(200).json({ ok: true, source: "code" });
+});
+
 app.post("/iap/webhook", async (req, res) => {
   try {
     const event = req.body ?? {};
@@ -216,8 +281,29 @@ app.post("/iap/webhook", async (req, res) => {
   }
 });
 
+initIdempotencyStore(config.premiumIdempotencyDbPath);
+
+configureAppleVerifier({
+  rootCertDir: config.apple.rootCertDir,
+  bundleId: config.apple.bundleId,
+  environment: parseEnvironment(config.apple.environment),
+  appAppleId: config.apple.appAppleId,
+  enableOnlineChecks: config.apple.enableOnlineRevocationCheck,
+});
+
+if (config.isProduction && !getAppleVerifierStatus().ready) {
+  throw new Error(
+    `Production requires Apple JWS verifier to be configured. ${
+      getAppleVerifierStatus().lastError ?? "no_root_certs"
+    }`
+  );
+}
+
 app.listen(config.port, config.host, () => {
+  const verifierStatus = getAppleVerifierStatus();
   console.log(
-    `AI chat server running on http://${config.host}:${config.port} (provider=${config.aiProvider})`
+    `AI chat server running on http://${config.host}:${config.port} (provider=${config.aiProvider}, appleVerifier=${
+      verifierStatus.ready ? `ready/${verifierStatus.certCount}` : "off"
+    })`
   );
 });

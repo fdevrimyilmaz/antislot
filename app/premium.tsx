@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Linking,
   ScrollView,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -33,11 +34,34 @@ import {
   type PremiumState,
 } from "@/store/premiumStore";
 import { useUserAddictionsStore } from "@/store/userAddictionsStore";
-import { redeemAccessCode } from "@/services/premiumApi";
+import { activatePremium, redeemAccessCode } from "@/services/premiumApi";
 import { addBreadcrumb, reportError } from "@/services/monitoring";
 import { haptics } from "@/services/haptics";
+import {
+  endIap,
+  fetchSubscriptions,
+  finishPurchase,
+  getActivePurchases,
+  IapUserCancelledError,
+  isIapSupported,
+  PLAN_BY_SKU,
+  purchaseSubscription,
+  SUBSCRIPTION_SKUS,
+  type SubscriptionInfo,
+} from "@/services/iap";
+import {
+  ENABLE_IAP,
+  ENABLE_PREMIUM_CODE_ACTIVATION,
+} from "@/constants/featureFlags";
 
 const SUPPORT_EMAIL = "support@antislot.app";
+const EXTRA = (Constants.expoConfig?.extra ?? {}) as {
+  privacyPolicyUrl?: string;
+  termsUrl?: string;
+};
+const PRIVACY_URL = EXTRA.privacyPolicyUrl ?? "https://antislot-legal.vercel.app/privacy";
+const TERMS_URL = EXTRA.termsUrl ?? "https://antislot-legal.vercel.app/terms";
+const MANAGE_SUBS_URL = "https://apps.apple.com/account/subscriptions";
 
 type PremiumFeature = {
   icon: React.ComponentProps<typeof Ionicons>["name"];
@@ -88,40 +112,102 @@ type PlanOption = {
   best?: boolean;
 };
 
-const PLANS: PlanOption[] = [
-  {
-    id: "monthly",
+const PLAN_META: Record<
+  PremiumPlanId,
+  { title: string; subtitle: string; saveLabel?: string; best?: boolean; monthsForHint: number }
+> = {
+  monthly: {
     title: "Aylık Premium",
     subtitle: "Esnek başlangıç",
-    priceLabel: "—",
+    monthsForHint: 1,
   },
-  {
-    id: "quarterly",
+  quarterly: {
     title: "3 Aylık Premium",
     subtitle: "90 gün odaklı paket",
-    priceLabel: "—",
     saveLabel: "−15%",
+    monthsForHint: 3,
   },
-  {
-    id: "semiannual",
+  semiannual: {
     title: "6 Aylık Premium",
     subtitle: "Yarı yıllık koruma",
-    priceLabel: "—",
     saveLabel: "−30%",
+    monthsForHint: 6,
   },
-  {
-    id: "annual",
+  annual: {
     title: "Yıllık Premium",
     subtitle: "En iyi değer",
-    priceLabel: "—",
     saveLabel: "−50%",
     best: true,
+    monthsForHint: 12,
   },
-];
+};
+
+const FALLBACK_PRICES: Record<PremiumPlanId, { priceLabel: string; priceHint?: string }> = {
+  monthly: { priceLabel: "₺149,99", priceHint: "/ ay" },
+  quarterly: { priceLabel: "₺382,49", priceHint: "₺127,49 / ay" },
+  semiannual: { priceLabel: "₺629,99", priceHint: "₺105,00 / ay" },
+  annual: { priceLabel: "₺899,99", priceHint: "₺75,00 / ay" },
+};
+
+const PLAN_ORDER: PremiumPlanId[] = ["monthly", "quarterly", "semiannual", "annual"];
+
+function formatMonthlyHint(displayPrice: string, months: number, currency?: string): string | undefined {
+  if (months <= 1) return "/ ay";
+  const match = displayPrice.match(/([0-9][0-9.,\s]*[0-9])/);
+  if (!match) return undefined;
+  const numericRaw = match[1].replace(/\s/g, "");
+  const parsed = parseFloat(
+    numericRaw.replace(/\./g, "").replace(/,/g, ".")
+  );
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  const monthly = parsed / months;
+  const formatted = monthly.toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const symbol = currency === "TRY" || displayPrice.includes("₺") ? "₺" : "";
+  return `${symbol}${formatted} / ay`;
+}
+
+function buildPlans(subscriptions: SubscriptionInfo[]): PlanOption[] {
+  const bySku = new Map<string, SubscriptionInfo>();
+  for (const info of subscriptions) bySku.set(info.sku, info);
+
+  return PLAN_ORDER.map<PlanOption>((planId) => {
+    const meta = PLAN_META[planId];
+    const sku = SUBSCRIPTION_SKUS[planId];
+    const info = bySku.get(sku);
+
+    if (info?.displayPrice) {
+      return {
+        id: planId,
+        title: meta.title,
+        subtitle: meta.subtitle,
+        priceLabel: info.displayPrice,
+        priceHint: formatMonthlyHint(info.displayPrice, meta.monthsForHint, info.currency),
+        saveLabel: meta.saveLabel,
+        best: meta.best,
+      };
+    }
+
+    const fallback = FALLBACK_PRICES[planId];
+    return {
+      id: planId,
+      title: meta.title,
+      subtitle: meta.subtitle,
+      priceLabel: fallback.priceLabel,
+      priceHint: fallback.priceHint,
+      saveLabel: meta.saveLabel,
+      best: meta.best,
+    };
+  });
+}
+
+const AUTO_RENEW_DISCLOSURE =
+  "Abonelik otomatik yenilenir. Yenileme tutarı, mevcut dönemin bitiminden 24 saat önce Apple ID hesabınızdan tahsil edilir. Otomatik yenilemeyi durdurmak için mevcut dönem bitiminden en az 24 saat önce iptal etmeniz gerekir. Aboneliği Apple ID ayarlarından dilediğin zaman yönetebilir veya iptal edebilirsin.";
 
 const TRUST_POINTS = [
-  "Aboneliği dilediğin zaman iptal edebilirsin.",
-  "Aynı hesapta geri yükleme desteklenir.",
+  "Aynı Apple ID ile geri yükleme desteklenir.",
   "Sunucu doğrulaması ile güvenli aktivasyon.",
 ];
 
@@ -147,6 +233,13 @@ export default function PremiumScreen() {
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PremiumPlanId>("annual");
+  const [subscriptions, setSubscriptions] = useState<SubscriptionInfo[]>([]);
+  const [pricesLoading, setPricesLoading] = useState<boolean>(
+    ENABLE_IAP && isIapSupported()
+  );
+  const [purchasingSku, setPurchasingSku] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const purchasingRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -160,6 +253,35 @@ export default function PremiumScreen() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!ENABLE_IAP || !isIapSupported()) {
+      setPricesLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    (async () => {
+      try {
+        const products = await fetchSubscriptions();
+        if (!active) return;
+        setSubscriptions(products);
+      } catch (error) {
+        reportError(error, { scope: "premium.fetchSubscriptions", level: "warning" });
+      } finally {
+        if (active) setPricesLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      endIap();
+    };
+  }, []);
+
+  const plans = useMemo(() => buildPlans(subscriptions), [subscriptions]);
+  const iapAllowed = ENABLE_IAP && isIapSupported();
+  const purchaseEnabled = iapAllowed && subscriptions.length > 0;
 
   const statusMeta = useMemo<{
     badge: string;
@@ -271,14 +393,134 @@ export default function PremiumScreen() {
     Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
   };
 
-  const handleSelectPlan = (planId: PremiumPlanId) => {
-    haptics.selection();
-    setSelectedPlan(planId);
-    toast.info(
-      "Mağaza ürünleri şu an ulaşılamaz durumda. Deneme başlat veya erişim kodu kullan.",
-      "Mağaza Bağlantısı Yok"
-    );
-  };
+  const handleSelectPlan = useCallback(
+    async (planId: PremiumPlanId) => {
+      haptics.selection();
+      setSelectedPlan(planId);
+
+      if (purchasingRef.current) return;
+
+      if (!iapAllowed) {
+        toast.info(
+          "Satın alma bu cihazda desteklenmiyor.",
+          "Mağaza Bağlantısı Yok"
+        );
+        return;
+      }
+
+      if (!purchaseEnabled) {
+        toast.warning(
+          "Mağaza ürünleri henüz yüklenmedi. Birkaç saniye sonra tekrar dene.",
+          "Mağaza Hazır Değil"
+        );
+        return;
+      }
+
+      const sku = SUBSCRIPTION_SKUS[planId];
+      purchasingRef.current = true;
+      setPurchasingSku(sku);
+      addBreadcrumb("premium.purchase", "start", { sku });
+
+      try {
+        const purchase = await purchaseSubscription(sku);
+        const receipt = purchase.purchaseToken ?? "";
+
+        if (receipt) {
+          try {
+            await activatePremium({
+              receipt,
+              productId: purchase.productId ?? sku,
+              platform: "ios",
+            });
+            addBreadcrumb("premium.serverActivate", "success", { sku });
+          } catch (serverError) {
+            reportError(serverError, {
+              scope: "premium.serverActivate",
+              level: "warning",
+            });
+            addBreadcrumb("premium.serverActivate", "failed", { sku });
+          }
+        }
+
+        await finishPurchase(purchase);
+        const state = await setPremiumActive("iap");
+        setPremiumState(state);
+        addBreadcrumb("premium.purchase", "success", { sku });
+        haptics.success();
+        toast.success("Premium aboneliğin aktif edildi.", "Teşekkürler");
+      } catch (error) {
+        if (error instanceof IapUserCancelledError) {
+          addBreadcrumb("premium.purchase", "cancelled", { sku });
+          return;
+        }
+        reportError(error, { scope: "premium.purchase", level: "warning" });
+        haptics.error();
+        toast.error(
+          "Satın alma tamamlanamadı. Lütfen tekrar dene.",
+          "Satın Alma Hatası"
+        );
+      } finally {
+        purchasingRef.current = false;
+        setPurchasingSku(null);
+      }
+    },
+    [iapAllowed, purchaseEnabled, toast]
+  );
+
+  const handleRestore = useCallback(async () => {
+    if (restoring) return;
+    haptics.tapLight();
+
+    if (!iapAllowed) {
+      toast.info(
+        "Satın alma geri yükleme bu cihazda desteklenmiyor.",
+        "Geri Yükleme"
+      );
+      return;
+    }
+
+    setRestoring(true);
+    addBreadcrumb("premium.restore", "start");
+    try {
+      const purchases = await getActivePurchases();
+      const active = purchases.find((p) => PLAN_BY_SKU[p.productId]);
+      if (!active) {
+        toast.info(
+          "Bu Apple ID için aktif premium aboneliği bulunamadı.",
+          "Geri Yükleme"
+        );
+        return;
+      }
+      const receipt = active.purchaseToken ?? "";
+      if (receipt) {
+        try {
+          await activatePremium({
+            receipt,
+            productId: active.productId,
+            platform: "ios",
+          });
+        } catch (serverError) {
+          reportError(serverError, {
+            scope: "premium.serverRestore",
+            level: "warning",
+          });
+        }
+      }
+      const state = await setPremiumActive("iap");
+      setPremiumState(state);
+      haptics.success();
+      toast.success("Premium erişimin geri yüklendi.", "Geri Yüklendi");
+    } catch (error) {
+      reportError(error, { scope: "premium.restore", level: "warning" });
+      haptics.error();
+      toast.error(
+        "Geri yükleme başarısız oldu. Lütfen tekrar dene.",
+        "Geri Yükleme Hatası"
+      );
+    } finally {
+      setRestoring(false);
+    }
+  }, [iapAllowed, restoring, toast]);
 
   return (
     <LinearGradient
@@ -418,10 +660,16 @@ export default function PremiumScreen() {
             <SectionHeader
               title="Bir plan seç"
               icon="pricetags"
-              subtitle="Mağaza ürünleri yapılandırıldığında fiyatlar burada görünür."
+              subtitle={
+                purchaseEnabled
+                  ? "Tüm planlar dilediğin zaman iptal edilebilir."
+                  : pricesLoading
+                  ? "Mağaza fiyatları yükleniyor..."
+                  : "Mağaza fiyatlarına ulaşılamadı. Yaklaşık fiyatlar gösteriliyor."
+              }
             />
             <View style={styles.planList}>
-              {PLANS.map((plan) => (
+              {plans.map((plan) => (
                 <PremiumPlanCard
                   key={plan.id}
                   id={plan.id}
@@ -432,11 +680,38 @@ export default function PremiumScreen() {
                   priceLabel={plan.priceLabel}
                   priceHint={plan.priceHint}
                   saveLabel={plan.saveLabel}
-                  available={false}
+                  available
                   onPress={() => handleSelectPlan(plan.id)}
                 />
               ))}
             </View>
+
+            <Button
+              title={
+                purchasingSku
+                  ? "İşleniyor..."
+                  : `Satın Al — ${
+                      plans.find((p) => p.id === selectedPlan)?.title ?? "Premium"
+                    }`
+              }
+              onPress={() => handleSelectPlan(selectedPlan)}
+              variant="gradient"
+              fullWidth
+              leftIcon="diamond"
+              loading={Boolean(purchasingSku)}
+              disabled={Boolean(purchasingSku) || isPremiumActive}
+              style={styles.purchaseButton}
+            />
+            <Button
+              title="Satın Almaları Geri Yükle"
+              onPress={handleRestore}
+              variant="secondary"
+              fullWidth
+              leftIcon="refresh"
+              loading={restoring}
+              disabled={restoring}
+              style={styles.restoreButton}
+            />
 
             <View style={[styles.trustBox, { backgroundColor: `${colors.primary}0B` }]}>
               <View style={styles.trustHeader}>
@@ -451,42 +726,90 @@ export default function PremiumScreen() {
                   <Text style={[styles.trustText, { color: colors.textMuted }]}>{point}</Text>
                 </View>
               ))}
+              <Text
+                style={[
+                  styles.trustText,
+                  styles.autoRenewText,
+                  { color: colors.textMuted },
+                ]}
+              >
+                {AUTO_RENEW_DISCLOSURE}
+              </Text>
+              <View style={styles.legalLinkRow}>
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.tapLight();
+                    Linking.openURL(TERMS_URL);
+                  }}
+                  accessibilityRole="link"
+                >
+                  <Text style={[styles.legalLink, { color: colors.primary }]}>
+                    Kullanım Koşulları
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.legalSeparator, { color: colors.textMuted }]}>·</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.tapLight();
+                    Linking.openURL(PRIVACY_URL);
+                  }}
+                  accessibilityRole="link"
+                >
+                  <Text style={[styles.legalLink, { color: colors.primary }]}>
+                    Gizlilik Politikası
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.legalSeparator, { color: colors.textMuted }]}>·</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.tapLight();
+                    Linking.openURL(MANAGE_SUBS_URL);
+                  }}
+                  accessibilityRole="link"
+                >
+                  <Text style={[styles.legalLink, { color: colors.primary }]}>
+                    Aboneliği Yönet
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </Card>
 
           {/* Access code */}
-          <Card style={styles.cardSpacing}>
-            <SectionHeader
-              title="Erişim Kodu"
-              icon="key"
-              subtitle="Beta erişim kodunuz varsa girerek premium'u etkinleştirebilirsiniz."
-            />
-            <View style={styles.codeRow}>
-              <TextInput
-                style={[
-                  styles.codeInput,
-                  {
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                    borderColor: colors.cardBorder,
-                  },
-                ]}
-                placeholder="Erişim kodu"
-                placeholderTextColor={colors.textMuted}
-                value={code}
-                onChangeText={setCode}
-                autoCapitalize="characters"
-                accessibilityLabel="Erişim kodu girişi"
+          {ENABLE_PREMIUM_CODE_ACTIVATION ? (
+            <Card style={styles.cardSpacing}>
+              <SectionHeader
+                title="Erişim Kodu"
+                icon="key"
+                subtitle="Beta erişim kodunuz varsa girerek premium'u etkinleştirebilirsiniz."
               />
-              <Button
-                title="Kodu Kullan"
-                onPress={handleApplyCode}
-                disabled={!canApplyCode || redeeming}
-                loading={redeeming}
-                variant="secondary"
-              />
-            </View>
-          </Card>
+              <View style={styles.codeRow}>
+                <TextInput
+                  style={[
+                    styles.codeInput,
+                    {
+                      backgroundColor: colors.card,
+                      color: colors.text,
+                      borderColor: colors.cardBorder,
+                    },
+                  ]}
+                  placeholder="Erişim kodu"
+                  placeholderTextColor={colors.textMuted}
+                  value={code}
+                  onChangeText={setCode}
+                  autoCapitalize="characters"
+                  accessibilityLabel="Erişim kodu girişi"
+                />
+                <Button
+                  title="Kodu Kullan"
+                  onPress={handleApplyCode}
+                  disabled={!canApplyCode || redeeming}
+                  loading={redeeming}
+                  variant="secondary"
+                />
+              </View>
+            </Card>
+          ) : null}
 
           {/* Live support */}
           <Card style={styles.cardSpacing}>
@@ -717,6 +1040,25 @@ const styles = StyleSheet.create({
   },
   trustDot: { width: 4, height: 4, borderRadius: 2, marginTop: 7 },
   trustText: { fontSize: 12, lineHeight: 18, flex: 1 },
+  autoRenewText: {
+    marginTop: 10,
+    flex: 0,
+  },
+  legalLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
+  },
+  legalLink: {
+    fontSize: 12,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  legalSeparator: {
+    fontSize: 12,
+  },
 
   codeRow: {
     flexDirection: "row",
@@ -751,6 +1093,12 @@ const styles = StyleSheet.create({
   resetButton: {
     marginTop: 4,
     marginBottom: 12,
+  },
+  purchaseButton: {
+    marginTop: 16,
+  },
+  restoreButton: {
+    marginTop: 10,
   },
   contactCard: { marginBottom: 8 },
 });

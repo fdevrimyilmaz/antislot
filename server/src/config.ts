@@ -32,6 +32,27 @@ export const config = {
   allowDevReceiptBypass:
     process.env.ALLOW_DEV_RECEIPT_BYPASS === "true" ||
     process.env.ALLOW_DEV_RECEIPT_BYPASS === "1",
+  premiumIdempotencyDbPath:
+    process.env.PREMIUM_IDEMPOTENCY_DB_PATH || "data/premium-idempotency.db",
+  premiumRedeemCodes: (
+    process.env.PREMIUM_CODE_ALLOWLIST ||
+    process.env.PREMIUM_REDEEM_CODES ||
+    ""
+  )
+    .split(",")
+    .map((c) => c.trim().toUpperCase())
+    .filter((c) => c.length > 0),
+  apple: {
+    rootCertDir: process.env.APPLE_ROOT_CERT_DIR || "certs/apple",
+    bundleId: process.env.APPLE_BUNDLE_ID || "com.antislot.app",
+    environment: (process.env.APPLE_ENV || (isProduction ? "production" : "sandbox")).toLowerCase(),
+    appAppleId: process.env.APPLE_APP_APPLE_ID
+      ? Number(process.env.APPLE_APP_APPLE_ID)
+      : undefined,
+    enableOnlineRevocationCheck:
+      process.env.APPLE_VERIFY_ONLINE_REVOCATION === "true" ||
+      process.env.APPLE_VERIFY_ONLINE_REVOCATION === "1",
+  },
   isProduction,
 };
 
