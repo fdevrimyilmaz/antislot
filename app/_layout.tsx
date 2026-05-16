@@ -20,6 +20,8 @@ import {
 import { ToastProvider } from '@/components/ui/toast';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { initMonitoring } from '@/services/monitoring';
+import { initIap } from '@/services/iap';
+import { ENABLE_IAP } from '@/constants/featureFlags';
 
 // Initialize Sentry once at module-load time. The helper is a no-op when
 // EXPO_PUBLIC_SENTRY_DSN is missing (dev/test) or when the user has not opted
@@ -52,6 +54,13 @@ function RootLayoutContent() {
   useEffect(() => {
     hydrateLockout();
   }, [hydrateLockout]);
+
+  // Open the StoreKit connection as early as possible so the premium screen
+  // (and promoted IAP intents from the App Store) find it already warm.
+  useEffect(() => {
+    if (!ENABLE_IAP) return;
+    initIap().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     hydrateRiskWindows();

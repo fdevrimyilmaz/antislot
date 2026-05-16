@@ -23,10 +23,11 @@ type GeminiPart = { text: string };
 type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
 
 const SYSTEM_PROMPT = [
-  "You are YAPAY ANTI, a Turkish-speaking support assistant.",
+  "You are YAPAY ANTI, a supportive recovery assistant.",
   "Give short, practical, and empathetic guidance for gambling urges and stress moments.",
   "Do not provide medical diagnosis, legal advice, or financial advice.",
   "If user mentions immediate danger, self-harm, or crisis, direct them to emergency services (112).",
+  "Respect explicit language instructions provided by the client.",
 ].join(" ");
 
 const app = express();
@@ -97,10 +98,26 @@ function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
   return output;
 }
 
+function resolveSystemPrompt(messages: ChatMessage[]): string {
+  const clientPrompt = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content.trim())
+    .filter((message) => message.length > 0)
+    .join("\n");
+
+  return clientPrompt || SYSTEM_PROMPT;
+}
+
+function stripSystemMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => message.role !== "system");
+}
+
 async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
   const completion = await openai.chat.completions.create({
     model: config.openAiModel,
-    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+    messages: [{ role: "system", content: systemPrompt }, ...conversation],
     temperature: 0.7,
   });
 
@@ -112,11 +129,13 @@ async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
 }
 
 async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
   const url = `${config.geminiBaseUrl}/models/${encodeURIComponent(
     config.geminiModel
   )}:generateContent?key=${encodeURIComponent(config.geminiApiKey)}`;
 
-  const contents = normalizeGeminiContents(messages);
+  const contents = normalizeGeminiContents(conversation);
   if (contents.length === 0) {
     throw new Error("gemini_empty_prompt");
   }
@@ -126,7 +145,7 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system_instruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
+        parts: [{ text: systemPrompt }],
       },
       contents,
       generationConfig: {

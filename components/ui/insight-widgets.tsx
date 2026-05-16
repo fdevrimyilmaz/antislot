@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Pressable,
@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
@@ -25,14 +26,30 @@ import {
   saveCheckin,
   type CheckinMood,
 } from "@/store/checkinStore";
+import { formatLocaleTemplate, getInsightsLocale } from "@/i18n/home";
 
 type SavingsWidgetProps = {
   days: number;
 };
 
+type MoodOption = { id: CheckinMood; emoji: string; label: string };
+
+function buildMoodOptions(copy: ReturnType<typeof getInsightsLocale>): MoodOption[] {
+  return [
+    { id: "kotu", emoji: "\u{1F61E}", label: copy.moodBad },
+    { id: "zor", emoji: "\u{1F623}", label: copy.moodHard },
+    { id: "idare", emoji: "\u{1F610}", label: copy.moodOkay },
+    { id: "iyi", emoji: "\u{1F642}", label: copy.moodGood },
+    { id: "harika", emoji: "\u{1F604}", label: copy.moodGreat },
+  ];
+}
+
 export function SavingsWidget({ days }: SavingsWidgetProps) {
+  const { language } = useLanguage();
+  const copy = useMemo(() => getInsightsLocale(language), [language]);
+
   const [dailyAverage, setDailyAverage] = useState(200);
-  const [currency, setCurrency] = useState("₺");
+  const [currency, setCurrency] = useState("TRY");
 
   useEffect(() => {
     let active = true;
@@ -69,36 +86,34 @@ export function SavingsWidget({ days }: SavingsWidgetProps) {
         <View style={[styles.widgetIcon, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
           <Ionicons name="wallet" size={16} color="#FFFFFF" />
         </View>
-        <Text style={styles.widgetLabel}>TAHMİNİ BİRİKİM</Text>
+        <Text style={styles.widgetLabel}>{copy.savingsLabel}</Text>
       </View>
-      <Text style={styles.widgetValue}>
-        {formatCurrency(total, currency)}
-      </Text>
+      <Text style={styles.widgetValue}>{formatCurrency(total, currency)}</Text>
       <Text style={styles.widgetHint}>
         {days > 0
-          ? `${days} temiz gün · aylık ~${formatCurrency(monthly, currency)}`
-          : "İlk günden itibaren biriken miktarı izle."}
+          ? formatLocaleTemplate(copy.savingsProgressTemplate, {
+              days,
+              monthly: formatCurrency(monthly, currency),
+            })
+          : copy.savingsEmptyHint}
       </Text>
     </LinearGradient>
   );
 }
 
-const MOOD_OPTIONS: { id: CheckinMood; emoji: string; label: string }[] = [
-  { id: "kotu", emoji: "😣", label: "Kötü" },
-  { id: "zor", emoji: "😔", label: "Zor" },
-  { id: "idare", emoji: "😐", label: "İdare" },
-  { id: "iyi", emoji: "🙂", label: "İyi" },
-  { id: "harika", emoji: "😄", label: "Harika" },
-];
-
 export function DailyCheckinWidget() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
+  const copy = useMemo(() => getInsightsLocale(language), [language]);
   const toast = useToast();
+
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState<boolean | null>(null);
   const [urge, setUrge] = useState(5);
   const [mood, setMood] = useState<CheckinMood>("idare");
   const [saving, setSaving] = useState(false);
+
+  const moodOptions = useMemo(() => buildMoodOptions(copy), [copy]);
 
   useEffect(() => {
     let active = true;
@@ -119,7 +134,7 @@ export function DailyCheckinWidget() {
   const handleOpen = () => {
     if (done) {
       haptics.selection();
-      toast.info("Bugünkü check-in zaten tamamlandı. Yarın görüşürüz.");
+      toast.info(copy.checkinAlreadyDoneToast);
       return;
     }
     haptics.tapLight();
@@ -133,11 +148,11 @@ export function DailyCheckinWidget() {
       haptics.success();
       setDone(true);
       setOpen(false);
-      toast.success("Bugünkü check-in kaydedildi.", "Teşekkürler");
+      toast.success(copy.checkinSavedToast, copy.checkinSavedTitle);
     } catch (error) {
       reportError(error, { scope: "checkin.save" });
       haptics.error();
-      toast.error("Kayıt yapılamadı. Lütfen tekrar deneyin.", "Hata");
+      toast.error(copy.checkinSaveErrorToast, copy.checkinSaveErrorTitle);
     } finally {
       setSaving(false);
     }
@@ -167,67 +182,52 @@ export function DailyCheckinWidget() {
             <View
               style={[styles.widgetIcon, { backgroundColor: "rgba(255,255,255,0.18)" }]}
             >
-              <Ionicons
-                name={done ? "checkmark" : "heart"}
-                size={16}
-                color="#FFFFFF"
-              />
+              <Ionicons name={done ? "checkmark" : "heart"} size={16} color="#FFFFFF" />
             </View>
             <Text style={styles.widgetLabel}>
-              {done ? "BUGÜN TAMAMLANDI" : "BUGÜNKÜ CHECK-IN"}
+              {done ? copy.widgetDoneLabel : copy.widgetPendingLabel}
             </Text>
           </View>
           <Text style={styles.widgetValue}>
-            {done ? "Görüşmek üzere" : "Nasıl hissediyorsun?"}
+            {done ? copy.widgetDoneValue : copy.widgetPendingValue}
           </Text>
           <Text style={styles.widgetHint}>
-            {done
-              ? "Yarın yeni bir gün için seni bekliyoruz."
-              : "30 saniyelik kısa bir kayıt."}
+            {done ? copy.widgetDoneHint : copy.widgetPendingHint}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* Check-in sheet */}
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
-      >
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable
           style={styles.backdrop}
           onPress={() => setOpen(false)}
-          accessibilityLabel="Kapat"
+          accessibilityLabel={copy.closeA11y}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
-            style={[
-              styles.sheet,
-              { backgroundColor: colors.card, borderColor: colors.cardBorder },
-            ]}
+            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
           >
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: colors.text }]} accessibilityRole="header">
-                Bugünkü Check-in
+                {copy.modalTitle}
               </Text>
               <TouchableOpacity
                 onPress={() => setOpen(false)}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Kapat"
+                accessibilityLabel={copy.closeA11y}
               >
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.sheetSub, { color: colors.textMuted }]}>
-              Dürtü yoğunluğunu ve genel ruh halini bir cümlede özetle.
+            <Text style={[styles.sheetSub, { color: colors.textMuted }]}> 
+              {copy.modalSubtitle}
             </Text>
 
-            {/* Urge scale */}
-            <Text style={[styles.scaleLabel, { color: colors.text }]}>
-              Dürtü Yoğunluğu: <Text style={{ color: colors.primary, fontWeight: "900" }}>{urge}</Text>/10
+            <Text style={[styles.scaleLabel, { color: colors.text }]}> 
+              {copy.urgeIntensityLabel}:{" "}
+              <Text style={{ color: colors.primary, fontWeight: "900" }}>{urge}</Text>/10
             </Text>
             <View style={styles.urgeRow}>
               {Array.from({ length: 11 }).map((_, i) => {
@@ -246,14 +246,9 @@ export function DailyCheckinWidget() {
                       },
                     ]}
                     accessibilityRole="adjustable"
-                    accessibilityLabel={`Dürtü seviyesi ${i}`}
+                    accessibilityLabel={`${copy.urgeLevelA11yPrefix} ${i}`}
                   >
-                    <Text
-                      style={[
-                        styles.urgePipText,
-                        { color: isActive ? "#FFFFFF" : colors.text },
-                      ]}
-                    >
+                    <Text style={[styles.urgePipText, { color: isActive ? "#FFFFFF" : colors.text }]}>
                       {i}
                     </Text>
                   </TouchableOpacity>
@@ -261,12 +256,11 @@ export function DailyCheckinWidget() {
               })}
             </View>
 
-            {/* Mood selector */}
-            <Text style={[styles.scaleLabel, { color: colors.text, marginTop: 16 }]}>
-              Genel Durum
+            <Text style={[styles.scaleLabel, { color: colors.text, marginTop: 16 }]}> 
+              {copy.overallMoodLabel}
             </Text>
             <View style={styles.moodRow}>
-              {MOOD_OPTIONS.map((opt) => {
+              {moodOptions.map((opt) => {
                 const isActive = opt.id === mood;
                 return (
                   <TouchableOpacity
@@ -287,16 +281,14 @@ export function DailyCheckinWidget() {
                     accessibilityLabel={opt.label}
                   >
                     <Text style={styles.moodEmoji}>{opt.emoji}</Text>
-                    <Text style={[styles.moodLabel, { color: colors.text }]}>
-                      {opt.label}
-                    </Text>
+                    <Text style={[styles.moodLabel, { color: colors.text }]}>{opt.label}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
 
             <Button
-              title={saving ? "Kaydediliyor" : "Kaydet"}
+              title={saving ? copy.saveButtonLoading : copy.saveButtonIdle}
               onPress={handleSave}
               loading={saving}
               disabled={saving}
@@ -418,5 +410,5 @@ const styles = StyleSheet.create({
   },
   moodEmoji: { fontSize: 22 },
   moodLabel: { fontSize: 11, fontWeight: "700" },
-  saveBtn: { marginTop: 20 },
+  saveBtn: { marginTop: 18 },
 });

@@ -33,41 +33,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { LanguageSelector } from "@/components/ui/language-selector";
 import { ProfileSummary } from "@/components/ui/profile-summary";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
+import { getSettingsLocale, type LinkItem } from "@/i18n/settings";
 
-type LinkItem = {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  route: string;
-};
-
-// Settings link sections — grouped by purpose so the screen scans easily.
-// Order: protection > support > legal > developer.
-const PROTECTION_LINKS: LinkItem[] = [
-  { label: "Self-Exclusion", icon: "lock-closed", route: "/self-exclusion" },
-  { label: "Risk Pencereleri", icon: "time", route: "/risk-windows" },
-  { label: "Bildirimler", icon: "notifications", route: "/notifications" },
-];
-
-const SUPPORT_LINKS: LinkItem[] = [
-  { label: "SOS", icon: "alert-circle", route: "/sos" },
-  { label: "Destek Ağı", icon: "people", route: "/support" },
-  { label: "SMS Spam Tanıyıcı", icon: "flask", route: "/sms-filter" },
-];
-
-const LEGAL_LINKS: LinkItem[] = [
-  { label: "Verilerimi Dışa Aktar", icon: "download", route: "/data-export" },
-  { label: "Gizlilik Politikası", icon: "lock-closed", route: "/privacy" },
-  { label: "Kullanım Şartları", icon: "document-text", route: "/terms" },
-  { label: "Sınırlamalar", icon: "information-circle", route: "/limitations" },
-];
-
-const DEV_LINKS: LinkItem[] = [
-  { label: "Tanılamalar", icon: "construct", route: "/diagnostics" },
-];
 
 export default function SettingsScreen() {
+  const { language } = useLanguage();
+  const sx = useMemo(() => getSettingsLocale(language), [language]);
   const { userAddictions, hydrated, setManyAddictions } = useUserAddictionsStore();
   const { theme, preference, colors } = useTheme();
   const toast = useToast();
@@ -94,18 +68,23 @@ export default function SettingsScreen() {
     [draft, userAddictions]
   );
 
+  const protectionLinks = sx.links.protection;
+  const supportLinks = sx.links.support;
+  const legalLinks = sx.links.legal;
+  const devLinks = sx.links.dev;
+
   const handleToggle = (key: (typeof ADDICTION_KEYS)[number]) => {
     if (lockoutActive) {
       haptics.warning();
       toast.warning(
-        `Self-Exclusion aktif — ${lockoutRemaining} kaldı.`,
-        "Kilitli"
+        sx.toast.lockMessage(lockoutRemaining ?? ""),
+        sx.toast.lockTitle
       );
       return;
     }
     if (draft[key] && selectedCount === 1) {
       haptics.warning();
-      toast.warning("En az bir bağımlılık seçili olmalı.", "Seçim Gerekli");
+      toast.warning(sx.toast.minSelectionMessage, sx.toast.minSelectionTitle);
       return;
     }
     haptics.selection();
@@ -113,18 +92,18 @@ export default function SettingsScreen() {
   };
 
   const currentLabel = useMemo(() => {
-    if (preference === "system") return "Otomatik (sistem)";
+    if (preference === "system") return sx.theme.autoSystem;
     const opt = THEME_OPTIONS.find((o) => o.id === theme);
-    return opt ? opt.label : "Özel";
-  }, [preference, theme]);
+    return opt ? opt.label : sx.theme.custom;
+  }, [preference, sx.theme.autoSystem, sx.theme.custom, theme]);
 
   const handleSave = async () => {
     if (selectedCount === 0 || saving) return;
     if (lockoutActive) {
       haptics.warning();
       toast.warning(
-        `Self-Exclusion aktif — ${lockoutRemaining} kaldı.`,
-        "Kilitli"
+        sx.toast.lockMessage(lockoutRemaining ?? ""),
+        sx.toast.lockTitle
       );
       return;
     }
@@ -133,11 +112,11 @@ export default function SettingsScreen() {
     try {
       await setManyAddictions(draft);
       haptics.success();
-      toast.success("Kumar takibi güncellendi.", "Kaydedildi");
+      toast.success(sx.toast.savedMessage, sx.toast.savedTitle);
     } catch (error) {
       reportError(error, { scope: "settings.save" });
       haptics.error();
-      toast.error("Ayarlar kaydedilemedi.", "Hata");
+      toast.error(sx.toast.errorMessage, sx.toast.errorTitle);
     } finally {
       setSaving(false);
     }
@@ -159,7 +138,7 @@ export default function SettingsScreen() {
         <SafeAreaView
           style={styles.container}
           accessible
-          accessibilityLabel="Ayarlar yükleniyor"
+          accessibilityLabel={sx.header.loadingAccessibility}
           accessibilityState={{ busy: true }}
         >
           <View style={styles.content}>
@@ -192,7 +171,7 @@ export default function SettingsScreen() {
               onPress={() => router.back()}
               style={styles.backButton}
               accessibilityRole="button"
-              accessibilityLabel="Geri"
+              accessibilityLabel={sx.header.back}
             >
               <Ionicons
                 name="chevron-back"
@@ -201,12 +180,12 @@ export default function SettingsScreen() {
                 accessibilityElementsHidden
                 importantForAccessibility="no"
               />
-              <Text style={[styles.backButtonText, { color: colors.text }]}>Geri</Text>
+              <Text style={[styles.backButtonText, { color: colors.text }]}>{sx.header.back}</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
-            Ayarlar
+            {sx.header.title}
           </Text>
 
           <ProfileSummary />
@@ -217,9 +196,9 @@ export default function SettingsScreen() {
 
           <Card style={styles.cardSpacing}>
             <SectionHeader
-              title="Görsel Tema"
+              title={sx.theme.sectionTitle}
               icon="color-palette"
-              subtitle="10 hazır palet ve sistem takip seçeneği."
+              subtitle={sx.theme.sectionSubtitle}
             />
             <TouchableOpacity
               onPress={() => {
@@ -228,7 +207,7 @@ export default function SettingsScreen() {
               }}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Tema galerisini aç"
+              accessibilityLabel={sx.theme.openGalleryA11y}
               style={[
                 styles.themeGalleryRow,
                 { backgroundColor: colors.card, borderColor: colors.cardBorder },
@@ -241,13 +220,13 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.themeGalleryText}>
                 <Text style={[styles.themeGalleryTitle, { color: colors.text }]}>
-                  Tema Galerisi
+                  {sx.theme.galleryTitle}
                 </Text>
                 <Text
                   style={[styles.themeGallerySub, { color: colors.textMuted }]}
                   numberOfLines={2}
                 >
-                  Aktif: {currentLabel} · canlı önizlemeyle değiştir
+                  {sx.theme.gallerySubtitle(currentLabel)}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
@@ -256,9 +235,9 @@ export default function SettingsScreen() {
 
           <Card style={styles.cardSpacing}>
             <SectionHeader
-              title="Kumar Takibi"
+              title={sx.tracking.title}
               icon="options"
-              subtitle="Kumar takibini açıp kapatabilirsiniz. En az bir seçim gerekli."
+              subtitle={sx.tracking.subtitle}
             />
             {lockoutActive ? (
               <View
@@ -268,8 +247,8 @@ export default function SettingsScreen() {
                 ]}
               >
                 <Ionicons name="lock-closed" size={14} color={colors.success} />
-                <Text style={[styles.lockoutNoticeText, { color: colors.text }]}>
-                  Self-Exclusion aktif — {lockoutRemaining} kaldı. Değişiklikler kilitli.
+                <Text style={[styles.lockoutNoticeText, { color: colors.text }]}> 
+                  {sx.tracking.lockNotice(lockoutRemaining ?? "")}
                 </Text>
               </View>
             ) : null}
@@ -290,7 +269,7 @@ export default function SettingsScreen() {
                       {ADDICTION_LABELS[key]}
                     </Text>
                     <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
-                      Takibi aç / kapat
+                      {sx.tracking.toggleHint}
                     </Text>
                   </View>
                   <Switch
@@ -299,7 +278,7 @@ export default function SettingsScreen() {
                     disabled={lockoutActive}
                     trackColor={{ false: colors.cardBorder, true: colors.primary }}
                     thumbColor="#FFFFFF"
-                    accessibilityLabel={`${ADDICTION_LABELS[key]} takibi`}
+                    accessibilityLabel={sx.tracking.toggleA11y(ADDICTION_LABELS[key])}
                   />
                 </View>
               ))}
@@ -309,13 +288,13 @@ export default function SettingsScreen() {
               <View style={[styles.inlineWarning, { backgroundColor: `${colors.danger}1A` }]}>
                 <Ionicons name="warning" size={16} color={colors.danger} />
                 <Text style={[styles.inlineWarningText, { color: colors.danger }]}>
-                  En az bir seçim yapmalısınız.
+                  {sx.tracking.inlineWarning}
                 </Text>
               </View>
             ) : null}
 
             <Button
-              title={saving ? "Kaydediliyor" : "Kaydet"}
+              title={saving ? sx.tracking.savingLabel : sx.tracking.saveLabel}
               onPress={handleSave}
               disabled={!hasChanges || selectedCount === 0 || saving || lockoutActive}
               loading={saving}
@@ -327,36 +306,36 @@ export default function SettingsScreen() {
           </Card>
 
           <LinkSection
-            title="Korunma"
+            title={sx.sections.protectionTitle}
             icon="shield-checkmark"
-            subtitle="Self-exclusion, risk pencereleri ve bildirim ayarları."
-            items={PROTECTION_LINKS}
+            subtitle={sx.sections.protectionSubtitle}
+            items={protectionLinks}
             colors={colors}
             onPress={handleLinkPress}
           />
 
           <LinkSection
-            title="Destek ve Yardım"
+            title={sx.sections.supportTitle}
             icon="help-buoy"
-            subtitle="Krizde hızlı erişim ve destek araçları."
-            items={SUPPORT_LINKS}
+            subtitle={sx.sections.supportSubtitle}
+            items={supportLinks}
             colors={colors}
             onPress={handleLinkPress}
           />
 
           <LinkSection
-            title="Gizlilik ve Yasal"
+            title={sx.sections.legalTitle}
             icon="lock-closed"
-            subtitle="Politikalar, sınırlamalar ve veri kullanımı."
-            items={LEGAL_LINKS}
+            subtitle={sx.sections.legalSubtitle}
+            items={legalLinks}
             colors={colors}
             onPress={handleLinkPress}
           />
 
           <LinkSection
-            title="Geliştirici"
+            title={sx.sections.devTitle}
             icon="construct"
-            items={DEV_LINKS}
+            items={devLinks}
             colors={colors}
             onPress={handleLinkPress}
           />

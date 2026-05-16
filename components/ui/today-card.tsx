@@ -1,5 +1,5 @@
 import { type Href, router, useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card } from "@/components/ui/card";
 import { haptics } from "@/services/haptics";
 import { getTodayCheckin } from "@/store/checkinStore";
@@ -19,6 +20,7 @@ import {
   CATEGORY_META,
   pickDailyAffirmation,
 } from "@/app/data/affirmations";
+import { formatLocaleTemplate, getTodayLocale } from "@/i18n/home";
 
 type TaskRow = {
   key: "pledge" | "curriculum" | "checkin";
@@ -30,17 +32,17 @@ type TaskRow = {
 };
 
 /**
- * "Today" checklist — surfaces the 3 daily essentials in one place:
- *   • Bugünün Sözü   (today's pledge)
- *   • Bugünün Dersi  (today's curriculum step)
- *   • Check-in        (mood + urge intensity)
- *
- * Mounted on the home screen between the streak hero and the module
- * grid. Hydration runs once on mount; each row is independently tap-
- * able and routes to the appropriate flow.
+ * "Today" checklist surfaces the 3 daily essentials:
+ * - today's pledge
+ * - today's curriculum step
+ * - daily check-in
  */
 export function TodayCard() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
+  const copy = useMemo(() => getTodayLocale(language), [language]);
+  const isTurkish = language === "tr";
+
   const curriculumState = useCurriculumStore((s) => s.state);
   const curriculumHydrated = useCurriculumStore((s) => s.hydrated);
   const hydrateCurriculum = useCurriculumStore((s) => s.hydrate);
@@ -62,9 +64,7 @@ export function TodayCard() {
     refresh();
   }, [curriculumHydrated, hydrateCurriculum, refresh]);
 
-  // Re-pull pledge/check-in state every time the home regains focus so
-  // an entry made on a sub-screen is reflected immediately when the
-  // user comes back.
+  // Re-pull pledge/check-in state every time home regains focus.
   useFocusEffect(
     useCallback(() => {
       refresh();
@@ -73,31 +73,52 @@ export function TodayCard() {
 
   const nextDayNum = getNextDay(curriculumState);
   const nextDay = getDay(nextDayNum);
-  const curriculumStarted = curriculumState.completed.length > 0 || curriculumState.startedAt !== null;
+  const curriculumStarted =
+    curriculumState.completed.length > 0 || curriculumState.startedAt !== null;
   const curriculumDone =
     curriculumStarted && curriculumState.completed.includes(nextDayNum);
+
+  const curriculumTitle = nextDay
+    ? (() => {
+        const base = formatLocaleTemplate(copy.curriculumDayTemplate, {
+          day: nextDay.day,
+        });
+        if (isTurkish && nextDay.title) {
+          return `${base} - ${nextDay.title}`;
+        }
+        return base;
+      })()
+    : copy.curriculumFallbackTitle;
+
+  const curriculumProgressSubtitle = nextDay
+    ? (() => {
+        const base = formatLocaleTemplate(copy.curriculumProgressTemplate, {
+          minutes: nextDay.durationMin,
+        });
+        if (isTurkish && nextDay.summary) {
+          return `${base} · ${nextDay.summary}`;
+        }
+        return base;
+      })()
+    : copy.curriculumEmptySubtitle;
 
   const tasks: TaskRow[] = [
     {
       key: "pledge",
-      title: "Bugünün sözü",
-      subtitle: pledgeDone
-        ? "Sözünü verdin — krizde bu cümleyi oku."
-        : "Bugün için tek cümlelik niyet.",
+      title: copy.pledgeTitle,
+      subtitle: pledgeDone ? copy.pledgeDoneSubtitle : copy.pledgePendingSubtitle,
       icon: "hand-right",
       done: pledgeDone === true,
       route: "/modules/pledge" as Href,
     },
     {
       key: "curriculum",
-      title: nextDay ? `Gün ${nextDay.day} — ${nextDay.title}` : "30 Günlük Yol",
+      title: curriculumTitle,
       subtitle: !curriculumStarted
-        ? "Yapılandırılmış yolculuğa başla."
+        ? copy.curriculumStartSubtitle
         : curriculumDone
-        ? "Bugün tamamlandı. Yarın yeni bir gün."
-        : nextDay
-        ? `${nextDay.durationMin} dk · ${nextDay.summary}`
-        : "Bu noktada içerik yok.",
+        ? copy.curriculumDoneSubtitle
+        : curriculumProgressSubtitle,
       icon: "leaf",
       done: curriculumDone,
       route: nextDay
@@ -106,17 +127,15 @@ export function TodayCard() {
     },
     {
       key: "checkin",
-      title: "Günlük check-in",
-      subtitle: checkinDone
-        ? "Bugün için kaydettin. Yarın yine görüşürüz."
-        : "Dürtü ve ruh halini 30 saniyede yaz.",
+      title: copy.checkinTitle,
+      subtitle: checkinDone ? copy.checkinDoneSubtitle : copy.checkinPendingSubtitle,
       icon: "heart",
       done: checkinDone === true,
       route: "/modules/urge-log" as Href,
     },
   ];
 
-  const doneCount = tasks.filter((t) => t.done).length;
+  const doneCount = tasks.filter((task) => task.done).length;
   const allDone = doneCount === tasks.length;
   const dailyAffirmation = allDone ? pickDailyAffirmation() : null;
   const affirmationMeta = dailyAffirmation
@@ -148,22 +167,27 @@ export function TodayCard() {
           </View>
           <View style={styles.headerText}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>
-              {allDone ? "Bugün hazır" : "Bugün"}
+              {allDone ? copy.headerReady : copy.headerToday}
             </Text>
-            <Text style={[styles.headerSub, { color: colors.textMuted }]}>
-              {allDone ? "Üç adımı da tamamladın." : `${doneCount}/${tasks.length} tamamlandı`}
+            <Text style={[styles.headerSub, { color: colors.textMuted }]}> 
+              {allDone
+                ? copy.headerDoneSubtitle
+                : formatLocaleTemplate(copy.headerProgressTemplate, {
+                    done: doneCount,
+                    total: tasks.length,
+                  })}
             </Text>
           </View>
         </View>
-        {/* Tiny progress dots */}
+
         <View style={styles.dotsRow}>
-          {tasks.map((t) => (
+          {tasks.map((task) => (
             <View
-              key={t.key}
+              key={task.key}
               style={[
                 styles.progressDot,
                 {
-                  backgroundColor: t.done ? colors.success : colors.cardBorder,
+                  backgroundColor: task.done ? colors.success : colors.cardBorder,
                 },
               ]}
             />
@@ -171,7 +195,7 @@ export function TodayCard() {
         </View>
       </View>
 
-      {allDone && dailyAffirmation && affirmationMeta ? (
+      {isTurkish && allDone && dailyAffirmation && affirmationMeta ? (
         <View
           style={[
             styles.affirmationBlock,
@@ -184,11 +208,11 @@ export function TodayCard() {
           <View style={styles.affirmationHeader}>
             <Text style={styles.affirmationEmoji}>{affirmationMeta.emoji}</Text>
             <Text style={[styles.affirmationLabel, { color: colors.success }]}>
-              Bugünün olumlaması · {affirmationMeta.label}
+              {copy.affirmationLabelPrefix} · {affirmationMeta.label}
             </Text>
           </View>
           <Text style={[styles.affirmationText, { color: colors.text }]}>
-            “{dailyAffirmation.text}”
+            &quot;{dailyAffirmation.text}&quot;
           </Text>
         </View>
       ) : null}
@@ -200,7 +224,7 @@ export function TodayCard() {
             activeOpacity={0.85}
             onPress={() => handlePress(task)}
             accessibilityRole="button"
-            accessibilityLabel={`${task.title}${task.done ? " — tamamlandı" : ""}`}
+            accessibilityLabel={`${task.title}${task.done ? copy.taskDoneA11ySuffix : ""}`}
             style={[
               styles.taskRow,
               idx < tasks.length - 1 && {
@@ -338,3 +362,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+

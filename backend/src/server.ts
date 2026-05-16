@@ -40,13 +40,12 @@ const blocklistStorage = new BlocklistStorage();
 const patternsStorage = new PatternsStorage();
 
 const AI_SYSTEM_PROMPT =
-  'Sen YAPAY ANTI adli, Turkce konusan destek asistanisin. ' +
-  'Amacin: Kumar durtusu ve stres aninda kisa, sakinlestirici ve uygulanabilir adimlar sunmak. ' +
-  'Profesyonel yardimin yerine gecmezsin; tani veya tedavi vermezsin. ' +
-  'Kullanici acil tehlike, kendine zarar verme veya baskasinin guvende olmadigi bir durumdan bahsederse ' +
-  '112\'yi aramasini ve guvendigi birine ulasmasini oner. ' +
-  'Kumar oynama stratejileri, bahis, kazanma taktikleri veya kumar nasil oynanir gibi icerik vermezsin. ' +
-  'Yanitin 3-6 maddelik, kisa ve net olsun; en sonda bir takip sorusu sor.';
+  'You are YAPAY ANTI, a supportive recovery assistant. ' +
+  'Give short, practical, and empathetic guidance for gambling urges and stress moments. ' +
+  'Do not provide gambling tactics, betting strategies, or site recommendations. ' +
+  'Do not provide medical diagnosis or clinical treatment instructions. ' +
+  'If the user mentions immediate danger, self-harm, or crisis, suggest contacting emergency services and a trusted person. ' +
+  'Respect explicit language instructions provided by the client.';
 
 function sanitizeMessages(raw: unknown): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
@@ -80,6 +79,20 @@ function extractChatMessages(body: AiChatRequest | undefined): ChatMessage[] {
 
   const userMessage: ChatMessage = { role: 'user', content: next.slice(0, 1200) };
   return [...history, userMessage].slice(-16);
+}
+
+function resolveSystemPrompt(messages: ChatMessage[]): string {
+  const clientPrompt = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter((message) => message.length > 0)
+    .join('\n');
+
+  return clientPrompt || AI_SYSTEM_PROMPT;
+}
+
+function stripSystemMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => message.role !== 'system');
 }
 
 function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
@@ -122,6 +135,8 @@ type AiCompletion = {
 };
 
 async function completeWithOpenAi(messages: ChatMessage[]): Promise<AiCompletion> {
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
 
@@ -134,7 +149,7 @@ async function completeWithOpenAi(messages: ChatMessage[]): Promise<AiCompletion
       },
       body: JSON.stringify({
         model: config.openAiModel,
-        messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...messages],
+        messages: [{ role: 'system', content: systemPrompt }, ...conversation],
         temperature: 0.4,
         max_tokens: config.openAiMaxTokens
       }),
@@ -166,7 +181,9 @@ async function completeWithOpenAi(messages: ChatMessage[]): Promise<AiCompletion
 }
 
 async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion> {
-  const contents = normalizeGeminiContents(messages);
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
+  const contents = normalizeGeminiContents(conversation);
   if (contents.length === 0) {
     throw new Error('gemini_empty_prompt');
   }
@@ -182,7 +199,7 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion
     },
     body: JSON.stringify({
       system_instruction: {
-        parts: [{ text: AI_SYSTEM_PROMPT }]
+        parts: [{ text: systemPrompt }]
       },
       contents,
       generationConfig: {

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,12 +24,28 @@ type LanguageOption = {
 };
 
 const OPTIONS: LanguageOption[] = [
-  { id: "tr", label: "Turkish", nativeLabel: "Türkçe", flag: "🇹🇷" },
-  { id: "en", label: "English", nativeLabel: "English", flag: "🇬🇧" },
+  { id: "tr", label: "Turkish", nativeLabel: "Turkce", flag: "TR" },
+  { id: "en", label: "English", nativeLabel: "English", flag: "EN" },
+  { id: "de", label: "German", nativeLabel: "Deutsch", flag: "DE" },
+  { id: "fr", label: "French", nativeLabel: "Francais", flag: "FR" },
+  { id: "es", label: "Spanish", nativeLabel: "Espanol", flag: "ES" },
+  { id: "it", label: "Italian", nativeLabel: "Italiano", flag: "IT" },
+  { id: "pt", label: "Portuguese", nativeLabel: "Portugues", flag: "PT" },
+  { id: "ar", label: "Arabic", nativeLabel: "Arabic", flag: "AR" },
+  { id: "ru", label: "Russian", nativeLabel: "Russkiy", flag: "RU" },
+  { id: "fil", label: "Filipino", nativeLabel: "Filipino", flag: "PH" },
+  { id: "sv", label: "Swedish", nativeLabel: "Svenska", flag: "SE" },
+  { id: "fi", label: "Finnish", nativeLabel: "Suomi", flag: "FI" },
+  { id: "nl", label: "Dutch", nativeLabel: "Nederlands", flag: "NL" },
+  { id: "ja", label: "Japanese", nativeLabel: "Nihongo", flag: "JP" },
+  { id: "id", label: "Indonesian", nativeLabel: "Bahasa Indonesia", flag: "ID" },
+  { id: "th", label: "Thai", nativeLabel: "Phasa Thai", flag: "TH" },
+  { id: "hi", label: "Hindi", nativeLabel: "Hindi", flag: "IN" },
+  { id: "km", label: "Khmer", nativeLabel: "Khmer", flag: "KH" },
+  { id: "el", label: "Greek", nativeLabel: "Ellinika", flag: "GR" },
 ];
 
 type LanguageSelectorProps = {
-  /** "card" renders as a full Card (used in settings). "row" renders inline (used in home). */
   variant?: "card" | "row";
 };
 
@@ -41,9 +58,14 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
 
   const handleSelect = async (id: Language) => {
     haptics.selection();
-    setOpen(false);
-    if (id !== language) {
+    if (id === language) {
+      setOpen(false);
+      return;
+    }
+    try {
       await setLanguage(id);
+    } finally {
+      setOpen(false);
     }
   };
 
@@ -58,7 +80,7 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
       onPress={handleOpen}
       accessibilityRole="button"
       accessibilityLabel={`${t.languageSection}: ${current.nativeLabel}`}
-      accessibilityHint="Dil seçenekleri açılır"
+      accessibilityHint={t.languageSectionHint}
       style={[
         styles.trigger,
         {
@@ -67,9 +89,7 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
         },
       ]}
     >
-      <View
-        style={[styles.triggerIcon, { backgroundColor: `${colors.primary}14` }]}
-      >
+      <View style={[styles.triggerIcon, { backgroundColor: `${colors.primary}14` }]}>
         <Ionicons name="language" size={16} color={colors.primary} />
       </View>
       <View style={styles.triggerText}>
@@ -88,36 +108,28 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
     <>
       {variant === "card" ? <Card padding={0}>{Trigger}</Card> : Trigger}
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}
-      >
-        <Pressable
-          style={styles.backdrop}
-          onPress={() => setOpen(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Kapat"
-        >
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={styles.backdrop}>
           <Pressable
-            style={[
-              styles.sheet,
-              { backgroundColor: colors.card, borderColor: colors.cardBorder },
-            ]}
-            onPress={(e) => e.stopPropagation()}
-          >
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel={t.generalBack}
+          />
+
+          <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
             <View style={styles.sheetHeader}>
               <Ionicons name="language" size={18} color={colors.primary} />
-              <Text style={[styles.sheetTitle, { color: colors.text }]}>
-                {t.languageSection}
-              </Text>
+              <Text style={[styles.sheetTitle, { color: colors.text }]}>{t.languageSection}</Text>
             </View>
-            <Text style={[styles.sheetHint, { color: colors.textMuted }]}>
-              {t.languageSectionHint}
-            </Text>
+            <Text style={[styles.sheetHint, { color: colors.textMuted }]}>{t.languageSectionHint}</Text>
 
-            <View style={styles.optionList}>
+            <ScrollView
+              style={styles.optionsScroll}
+              contentContainerStyle={styles.optionList}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps="handled"
+            >
               {OPTIONS.map((opt) => {
                 const selected = opt.id === language;
                 return (
@@ -128,9 +140,7 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
                     style={[
                       styles.option,
                       {
-                        backgroundColor: selected
-                          ? `${colors.primary}14`
-                          : "transparent",
+                        backgroundColor: selected ? `${colors.primary}14` : "transparent",
                         borderColor: selected ? colors.primary : colors.cardBorder,
                       },
                     ]}
@@ -140,35 +150,18 @@ export function LanguageSelector({ variant = "card" }: LanguageSelectorProps) {
                   >
                     <Text style={styles.flag}>{opt.flag}</Text>
                     <View style={styles.optionText}>
-                      <Text
-                        style={[styles.optionNative, { color: colors.text }]}
-                      >
-                        {opt.nativeLabel}
-                      </Text>
-                      <Text
-                        style={[styles.optionLatin, { color: colors.textMuted }]}
-                      >
-                        {opt.label}
-                      </Text>
+                      <Text style={[styles.optionNative, { color: colors.text }]}>{opt.nativeLabel}</Text>
+                      <Text style={[styles.optionLatin, { color: colors.textMuted }]}>{opt.label}</Text>
                     </View>
-                    <View
-                      style={[
-                        styles.radio,
-                        { borderColor: selected ? colors.primary : colors.cardBorder },
-                      ]}
-                    >
-                      {selected ? (
-                        <View
-                          style={[styles.radioInner, { backgroundColor: colors.primary }]}
-                        />
-                      ) : null}
+                    <View style={[styles.radio, { borderColor: selected ? colors.primary : colors.cardBorder }]}>
+                      {selected ? <View style={[styles.radioInner, { backgroundColor: colors.primary }]} /> : null}
                     </View>
                   </TouchableOpacity>
                 );
               })}
-            </View>
-          </Pressable>
-        </Pressable>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -205,6 +198,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     gap: 4,
+    maxHeight: "84%",
   },
   sheetHeader: {
     flexDirection: "row",
@@ -214,6 +208,9 @@ const styles = StyleSheet.create({
   },
   sheetTitle: { fontSize: 18, fontWeight: "800" },
   sheetHint: { fontSize: 13, lineHeight: 18, marginBottom: 14 },
+  optionsScroll: {
+    maxHeight: 500,
+  },
   optionList: { gap: 10 },
   option: {
     flexDirection: "row",

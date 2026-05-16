@@ -4,6 +4,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  formatLocaleTemplate,
+  getLocaleTag,
+  getStreakLocale,
+} from "@/i18n/home";
 
 type DailyStreakCardProps = {
   days: number;
@@ -19,12 +25,21 @@ type DailyStreakCardProps = {
   };
 };
 
-const MONTHS = ["OCA", "ŞUB", "MAR", "NİS", "MAY", "HAZ", "TEM", "AĞU", "EYL", "EKİ", "KAS", "ARA"];
-
 export function DailyStreakCard({ days, headline, message, nextMilestone }: DailyStreakCardProps) {
   const { colors } = useTheme();
+  const { language } = useLanguage();
+  const streakCopy = getStreakLocale(language);
+  const localeTag = getLocaleTag(language);
   const now = new Date();
-  const month = MONTHS[now.getMonth()] ?? MONTHS[0];
+  const month = (() => {
+    try {
+      const raw = new Intl.DateTimeFormat(localeTag, { month: "short" }).format(now);
+      return raw.replaceAll(".", "").trim().toUpperCase();
+    } catch {
+      const fallback = new Intl.DateTimeFormat("en-US", { month: "short" }).format(now);
+      return fallback.replaceAll(".", "").trim().toUpperCase();
+    }
+  })();
   const day = now.getDate();
 
   return (
@@ -34,7 +49,12 @@ export function DailyStreakCard({ days, headline, message, nextMilestone }: Dail
       end={{ x: 1, y: 1 }}
       style={styles.card}
       accessible
-      accessibilityLabel={`${days} gün. ${headline}. ${message}`}
+      accessibilityLabel={formatLocaleTemplate(streakCopy.cardA11yTemplate, {
+        days,
+        daysUnit: streakCopy.daysUnit,
+        headline,
+        message,
+      })}
     >
       {/* Decorative big-circle motif behind */}
       <View style={styles.decorCircleLg} pointerEvents="none" />
@@ -70,9 +90,9 @@ export function DailyStreakCard({ days, headline, message, nextMilestone }: Dail
           <Text style={styles.nextMilestoneEmoji}>{nextMilestone.emoji}</Text>
           <Text style={styles.nextMilestoneText}>
             <Text style={styles.nextMilestoneDays}>
-              {nextMilestone.daysToGo} gün
+              {nextMilestone.daysToGo} {streakCopy.daysUnit}
             </Text>{" "}
-            sonra {nextMilestone.label}
+            {streakCopy.nextMilestoneConnector} {nextMilestone.label}
           </Text>
         </View>
       ) : null}

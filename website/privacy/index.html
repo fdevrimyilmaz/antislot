@@ -3,14 +3,253 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Redirecting to Privacy Policy</title>
-  <meta http-equiv="refresh" content="0; url=../privacy.html" />
+  <title>Antislot — Privacy Policy</title>
+  <meta
+    name="description"
+    content="How Antislot collects, processes, stores, and deletes user data. Effective May 15, 2026."
+  />
+  <meta name="robots" content="index,follow" />
   <link rel="canonical" href="https://antislot-legal.vercel.app/privacy" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Antislot" />
+  <meta property="og:title" content="Antislot — Privacy Policy" />
+  <meta
+    property="og:description"
+    content="How Antislot collects, processes, stores, and deletes user data."
+  />
+  <meta property="og:url" content="https://antislot-legal.vercel.app/privacy" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="../styles.css" />
 </head>
 <body>
-  <p>Redirecting to <a href="../privacy.html">Privacy Policy</a>...</p>
-  <script>
-    window.location.replace("../privacy.html");
-  </script>
+  <main class="page">
+    <section class="hero glass">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow">Antislot Legal</p>
+          <h1>Privacy Policy</h1>
+          <p class="lead">
+            This policy explains what data Antislot collects, why we collect
+            it, how it's stored and protected, and the rights you have over
+            your information.
+          </p>
+          <p class="lead">
+            <strong>Effective date:</strong> May 15, 2026 &middot;
+            <strong>Last updated:</strong> May 15, 2026
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">1. Who we are</h2>
+      <p>
+        Antislot ("we", "us", "our") is a self-help mobile application that
+        supports people building healthier habits around gambling urges. The
+        app is published on the Apple App Store and Google Play and is
+        operated by an independent developer based in Türkiye.
+      </p>
+      <p>
+        For any privacy question, request, or complaint, contact us at
+        <a class="contact-mail" href="mailto:support@antislot.app">support@antislot.app</a>.
+        We act as the data controller for the limited information described
+        below.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">2. Our privacy principles</h2>
+      <ul>
+        <li><strong>On-device by default.</strong> Your recovery progress, journal entries, urge logs, and personal preferences are stored on your device — not on our servers.</li>
+        <li><strong>No advertising.</strong> Antislot contains no third-party advertising and we do not sell or rent your data.</li>
+        <li><strong>No behavioral tracking.</strong> We do not use cross-app tracking identifiers and we do not request the App Tracking Transparency permission.</li>
+        <li><strong>Account-free.</strong> Antislot does not require you to create an account or provide your real name to use the core app.</li>
+        <li><strong>Minimum necessary data.</strong> We only collect what we need to provide the feature you are using.</li>
+      </ul>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">3. Data we process</h2>
+
+      <h3 class="card-title">3.1 Stored on your device only</h3>
+      <p>
+        The following are written to your device's secure storage
+        (<code>expo-secure-store</code> / Keychain on iOS, EncryptedSharedPreferences
+        on Android) and never leave your device unless you explicitly export them:
+      </p>
+      <ul>
+        <li>Recovery progress, streak counters, and milestone history.</li>
+        <li>Urge logs, mood / craving check-ins, and journal entries you create.</li>
+        <li>Mindfulness session history and personal goals.</li>
+        <li>App preferences (theme, language, notification settings, opt-in toggles).</li>
+        <li>Premium subscription state (whether your subscription is currently active).</li>
+      </ul>
+
+      <h3 class="card-title">3.2 Processed by our servers</h3>
+      <ul>
+        <li>
+          <strong>AI coaching messages.</strong> When you send a message in the
+          in-app AI chat, the most recent messages of that conversation are sent
+          to our backend (<code>api.antislot.app</code>) and forwarded to the
+          underlying AI provider (OpenAI or Google Gemini) so a reply can be
+          generated. We do not require your name or contact details to use this
+          feature; we recommend not including identifying personal information
+          in your messages. Messages are not used to train AI models.
+        </li>
+        <li>
+          <strong>Premium purchase receipts.</strong> When you buy or restore an
+          Antislot Premium subscription, the signed App Store receipt
+          (StoreKit 2 JWS) is sent to our backend so we can cryptographically
+          verify it against Apple's certificate chain and activate your
+          subscription. We store only the transaction identifier for
+          duplicate-protection purposes; we do not receive your payment card
+          details, name, or email — those stay with Apple.
+        </li>
+        <li>
+          <strong>Operational logs.</strong> Our servers keep short-lived
+          request logs (timestamp, endpoint, response status, truncated IP)
+          for up to 30 days for security, abuse prevention, and debugging.
+        </li>
+      </ul>
+
+      <h3 class="card-title">3.3 Optional diagnostics</h3>
+      <p>
+        If you enable diagnostics from in-app settings, anonymized crash
+        reports and performance traces are sent to Sentry. These reports
+        contain device model, OS version, app version, and a stack trace; they
+        do not include your journal entries, AI messages, or other personal
+        content. Diagnostics are off by default for end users and can be
+        toggled off at any time.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">4. Why we process this data</h2>
+      <ul>
+        <li><strong>To provide the app's features</strong> (recovery tracking, urge logging, AI coaching, subscription unlocks). Legal basis: performance of a contract / legitimate interest.</li>
+        <li><strong>To validate purchases</strong> and protect against duplicate or fraudulent activations. Legal basis: legitimate interest, contractual necessity.</li>
+        <li><strong>To keep the service secure and reliable</strong> (rate-limiting, abuse prevention, debugging). Legal basis: legitimate interest.</li>
+        <li><strong>To respond to your requests and legal obligations</strong> (support, deletion, regulatory compliance). Legal basis: legal obligation / consent.</li>
+      </ul>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">5. Sharing &amp; sub-processors</h2>
+      <p>
+        We do not sell your personal data. We share limited information with
+        the following service providers strictly to operate the app:
+      </p>
+      <ul>
+        <li><strong>OpenAI</strong> and/or <strong>Google (Gemini API)</strong> — to generate AI coaching replies. Subject to their respective enterprise privacy terms; messages are not used for model training.</li>
+        <li><strong>Apple Inc.</strong> — for App Store payments, subscription billing, and receipt validation. All payment data stays with Apple.</li>
+        <li><strong>Google LLC</strong> — for Google Play payments where the Android app is distributed.</li>
+        <li><strong>Sentry</strong> — only if you have opted in to diagnostic reporting.</li>
+        <li><strong>Hosting provider (Vercel / our cloud provider)</strong> — for serving this website and our API endpoints.</li>
+      </ul>
+      <p>
+        We may also disclose information when required to do so by applicable
+        law, court order, or to protect the rights, safety, and property of
+        Antislot, our users, or the public.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">6. International transfers</h2>
+      <p>
+        Some of our sub-processors (OpenAI, Google, Apple, Sentry) are located
+        in or process data in the United States and other jurisdictions. Where
+        your information is transferred outside Türkiye, the EEA, or the UK,
+        we rely on standard contractual clauses or equivalent safeguards
+        offered by those vendors.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">7. Retention</h2>
+      <ul>
+        <li><strong>On-device data:</strong> retained as long as the app is installed; you can clear it at any time from in-app settings or by uninstalling the app.</li>
+        <li><strong>AI chat messages:</strong> processed in transit; we do not persist conversation history on our servers beyond what is needed to generate a reply.</li>
+        <li><strong>Purchase / transaction records:</strong> retained for the lifetime of the subscription plus the period required to meet legal, tax, and accounting obligations.</li>
+        <li><strong>Operational logs:</strong> typically up to 30 days.</li>
+        <li><strong>Diagnostic reports (opt-in):</strong> retained per Sentry's default retention (typically 30–90 days).</li>
+      </ul>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">8. Your rights</h2>
+      <p>
+        Depending on where you live, you may have the right to access, correct,
+        export, or delete your personal data, to object to or restrict certain
+        processing, and to withdraw consent. Türkiye residents have the rights
+        described in Article 11 of the KVKK; EEA / UK residents have the
+        rights described in Articles 15–22 of the GDPR.
+      </p>
+      <p>
+        To exercise any of these rights, email
+        <a class="contact-mail" href="mailto:support@antislot.app">support@antislot.app</a>.
+        We respond to verified requests within 30 days. You also have the right
+        to lodge a complaint with your local data protection authority (in
+        Türkiye, the KVKK; in the EEA, your national supervisory authority).
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">9. Children</h2>
+      <p>
+        Antislot is not directed to children. The app is intended for users
+        who are at least 18 years old (or the age of legal majority in their
+        jurisdiction). We do not knowingly collect personal data from
+        children. If you believe a child has provided us with personal data,
+        please contact us and we will delete it.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">10. Security</h2>
+      <p>
+        We use industry-standard safeguards to protect your information,
+        including TLS for data in transit, secure platform key stores
+        (Keychain / EncryptedSharedPreferences) for on-device data, signed
+        receipt verification for purchases, and access controls on our
+        backend. No internet service can be guaranteed 100% secure, but we
+        review and update our security practices on an ongoing basis.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">11. Changes to this policy</h2>
+      <p>
+        We may update this Privacy Policy from time to time. When we make
+        material changes, we will update the "Last updated" date at the top
+        of this page and, where appropriate, notify you in the app. Continued
+        use of Antislot after the changes take effect constitutes acceptance
+        of the revised policy.
+      </p>
+    </section>
+
+    <section class="card glass">
+      <h2 class="card-title">12. Contact</h2>
+      <p>
+        For privacy questions, data subject requests, or any concerns about
+        how Antislot handles your information:
+      </p>
+      <p>
+        <a class="contact-mail" href="mailto:support@antislot.app">support@antislot.app</a>
+      </p>
+    </section>
+
+    <section class="footer-nav glass">
+      <a href="../terms/">Terms</a>
+      <a href="../support/">Support</a>
+      <a href="../">Legal Home</a>
+    </section>
+  </main>
 </body>
 </html>

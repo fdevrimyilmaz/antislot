@@ -44,6 +44,7 @@ import { MilestoneCelebration } from "@/components/ui/milestone-celebration";
 import { WelcomeTour } from "@/components/ui/welcome-tour";
 import { useWelcomeTourStore } from "@/store/welcomeTourStore";
 import { pickDailyMotivation } from "../data/dailyMotivations";
+import { formatLocaleTemplate, getHomeLocale } from "@/i18n/home";
 
 const BRAND_ICON = require("@/assets/images/icon.png");
 
@@ -63,9 +64,10 @@ type ModuleDef = {
 // every day.
 
 export default function HomeScreen() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { colors } = useTheme();
   const toast = useToast();
+  const homeCopy = useMemo(() => getHomeLocale(language), [language]);
 
   const { hydrated } = useUserAddictionsStore();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
@@ -94,7 +96,10 @@ export default function HomeScreen() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
-  const motivation = useMemo(() => pickDailyMotivation(safeDays), [safeDays]);
+  const motivation = useMemo(
+    () => pickDailyMotivation(safeDays, new Date(), language),
+    [safeDays, language]
+  );
 
   // Next-milestone preview rendered as a chip on the streak hero.
   const nextMilestoneChip = useMemo(() => {
@@ -202,8 +207,8 @@ export default function HomeScreen() {
     () => [
       {
         key: "sos",
-        title: "Dürtü Desteği",
-        subtitle: "Yönlendirmeli müdahalelerle",
+        title: t.sos,
+        subtitle: t.sosSubtitle,
         icon: "pulse",
         decorativeIcon: "pulse-outline",
         tone: "coral",
@@ -211,8 +216,8 @@ export default function HomeScreen() {
       },
       {
         key: "blocker",
-        title: "Para Koruma",
-        subtitle: "Bugün param güvende mi?",
+        title: homeCopy.quickAccessMoneyProtectionTitle,
+        subtitle: homeCopy.quickAccessMoneyProtectionSubtitle,
         icon: "shield-checkmark",
         decorativeIcon: "shield-outline",
         tone: "teal",
@@ -220,8 +225,8 @@ export default function HomeScreen() {
       },
       {
         key: "self-exclusion",
-        title: "Self-Exclusion",
-        subtitle: "Kararı önceden ver, kilitle",
+        title: homeCopy.quickAccessSelfExclusionTitle,
+        subtitle: homeCopy.quickAccessSelfExclusionSubtitle,
         icon: "lock-closed",
         decorativeIcon: "shield-checkmark",
         tone: "slate",
@@ -229,23 +234,23 @@ export default function HomeScreen() {
       },
       {
         key: "risk-windows",
-        title: "Risk Pencereleri",
-        subtitle: "Riskli saatleri önceden işaretle",
+        title: homeCopy.quickAccessRiskWindowsTitle,
+        subtitle: homeCopy.quickAccessRiskWindowsSubtitle,
         icon: "time",
         decorativeIcon: "alarm",
         tone: "coral",
         route: "/risk-windows" as Href,
       },
     ],
-    []
+    [homeCopy, t.sos, t.sosSubtitle]
   );
 
   const extras = useMemo<ModuleDef[]>(
     () => [
       {
         key: "insights",
-        title: "İçgörüler",
-        subtitle: "Kişisel patern analizi",
+        title: homeCopy.extrasInsightsTitle,
+        subtitle: homeCopy.extrasInsightsSubtitle,
         icon: "analytics",
         decorativeIcon: "stats-chart",
         tone: "indigo",
@@ -253,8 +258,8 @@ export default function HomeScreen() {
       },
       {
         key: "therapy",
-        title: "Destek Seansları",
-        subtitle: "Yönlendirmeli",
+        title: t.therapy,
+        subtitle: t.therapySubtitle,
         icon: "medkit",
         decorativeIcon: "medkit-outline",
         tone: "indigo",
@@ -262,8 +267,8 @@ export default function HomeScreen() {
       },
       {
         key: "mindfulness",
-        title: "Farkındalık",
-        subtitle: "Seanslar",
+        title: t.mindfulness,
+        subtitle: t.mindfulnessSubtitle,
         icon: "leaf",
         decorativeIcon: "leaf-outline",
         tone: "emerald",
@@ -271,8 +276,8 @@ export default function HomeScreen() {
       },
       {
         key: "modules",
-        title: "Modüller",
-        subtitle: "Para alternatifi, gelecek simülasyonu…",
+        title: homeCopy.extrasModulesTitle,
+        subtitle: homeCopy.extrasModulesSubtitle,
         icon: "apps",
         decorativeIcon: "grid",
         tone: "amber",
@@ -280,8 +285,8 @@ export default function HomeScreen() {
       },
       {
         key: "progress",
-        title: "İlerleme",
-        subtitle: "Şimdi incele",
+        title: t.progress,
+        subtitle: t.progressSubtitle,
         icon: "bar-chart",
         decorativeIcon: "stats-chart",
         tone: "ocean",
@@ -289,8 +294,8 @@ export default function HomeScreen() {
       },
       {
         key: "diary",
-        title: "Günlük",
-        subtitle: "Özel günlüğün",
+        title: t.diary,
+        subtitle: t.diarySubtitle,
         icon: "book",
         decorativeIcon: "book-outline",
         tone: "indigo",
@@ -298,8 +303,8 @@ export default function HomeScreen() {
       },
       {
         key: "facts",
-        title: "Gerçekler",
-        subtitle: "Online kumarın gerçek yüzü",
+        title: homeCopy.extrasFactsTitle,
+        subtitle: homeCopy.extrasFactsSubtitle,
         icon: "eye",
         decorativeIcon: "eye-outline",
         tone: "violet",
@@ -307,17 +312,16 @@ export default function HomeScreen() {
       },
       {
         key: "sms-filter",
-        title: "Spam Tanıyıcı",
-        subtitle: "Şüpheli mesajı yapıştır, sınıflandır",
+        title: t.smsFilter,
+        subtitle: t.smsFilterSubtitle,
         icon: "mail-unread",
         decorativeIcon: "mail-outline",
         tone: "slate",
         route: "/sms-filter",
       },
     ],
-    []
+    [homeCopy, t]
   );
-
   if (loading || !done || !hydrated || !progressHydrated) {
     return (
       <LinearGradient
@@ -379,7 +383,7 @@ export default function HomeScreen() {
               onPress={() => router.push("/themes" as Href)}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Tema galerisini aç"
+              accessibilityLabel={homeCopy.themeGalleryA11y}
               style={[
                 styles.themeChip,
                 {
@@ -396,7 +400,9 @@ export default function HomeScreen() {
               >
                 <Ionicons name="color-palette" size={16} color={colors.primary} />
               </View>
-              <Text style={[styles.themeChipLabel, { color: colors.text }]}>Tema</Text>
+              <Text style={[styles.themeChipLabel, { color: colors.text }]}>
+                {homeCopy.themeLabel}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -406,7 +412,9 @@ export default function HomeScreen() {
               activeOpacity={0.9}
               onPress={() => router.push("/self-exclusion" as Href)}
               accessibilityRole="button"
-              accessibilityLabel={`Self-Exclusion aktif, ${lockoutLabel} kaldı`}
+              accessibilityLabel={formatLocaleTemplate(homeCopy.lockoutA11yTemplate, {
+                remaining: lockoutLabel,
+              })}
               style={[
                 styles.lockoutBanner,
                 {
@@ -432,13 +440,13 @@ export default function HomeScreen() {
                   style={[styles.lockoutTitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  Self-Exclusion aktif
+                  {homeCopy.lockoutTitle}
                 </Text>
                 <Text
                   style={[styles.lockoutSub, { color: colors.textMuted }]}
                   numberOfLines={1}
                 >
-                  Kalan: {lockoutLabel} · dokun, detayları gör
+                  {homeCopy.lockoutRemainingLabel}: {lockoutLabel} · {homeCopy.lockoutOpenDetails}
                 </Text>
               </View>
               <Ionicons
@@ -467,7 +475,9 @@ export default function HomeScreen() {
                 activeOpacity={0.9}
                 onPress={() => router.push("/sos")}
                 accessibilityRole="button"
-                accessibilityLabel={`SOS — Risk penceresi aktif: ${activeRiskWindow.label}`}
+                accessibilityLabel={formatLocaleTemplate(homeCopy.riskSosA11yTemplate, {
+                  label: activeRiskWindow.label,
+                })}
                 style={styles.riskMain}
               >
                 <View
@@ -483,7 +493,7 @@ export default function HomeScreen() {
                     style={[styles.riskTitle, { color: colors.text }]}
                     numberOfLines={1}
                   >
-                    Risk penceresi: {activeRiskWindow.label}
+                    {homeCopy.riskTitlePrefix}: {activeRiskWindow.label}
                   </Text>
                   <Text
                     style={[styles.riskSub, { color: colors.textMuted }]}
@@ -491,7 +501,7 @@ export default function HomeScreen() {
                   >
                     {formatHM(activeRiskWindow.startHour, activeRiskWindow.startMinute)}
                     –{formatHM(activeRiskWindow.endHour, activeRiskWindow.endMinute)}
-                    {" · SOS aç"}
+                    {` · ${homeCopy.riskOpenSos}`}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -499,7 +509,7 @@ export default function HomeScreen() {
                 onPress={() => router.push("/risk-windows" as Href)}
                 style={styles.riskSettingsBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Risk pencerelerini düzenle"
+                accessibilityLabel={homeCopy.riskEditA11y}
                 hitSlop={8}
               >
                 <Ionicons
@@ -536,7 +546,7 @@ export default function HomeScreen() {
             activeOpacity={0.85}
             onPress={() => router.push("/modules/urge-log" as Href)}
             accessibilityRole="button"
-            accessibilityLabel="Hızlı dürtü kaydet"
+            accessibilityLabel={homeCopy.quickUrgeA11y}
             style={[
               styles.quickUrgeBtn,
               {
@@ -555,10 +565,10 @@ export default function HomeScreen() {
             </View>
             <View style={styles.quickUrgeText}>
               <Text style={[styles.quickUrgeTitle, { color: colors.text }]}>
-                Dürtü hissettin mi?
+                {homeCopy.quickUrgeTitle}
               </Text>
               <Text style={[styles.quickUrgeSub, { color: colors.textMuted }]}>
-                30 saniyede kaydet — patern oluşsun
+                {homeCopy.quickUrgeSubtitle}
               </Text>
             </View>
             <Ionicons name="add-circle" size={22} color={colors.danger} />
@@ -566,7 +576,7 @@ export default function HomeScreen() {
 
           {/* Quick-access safety + intervention quartet */}
           <Text style={[styles.groupLabel, { color: colors.textMuted }]}>
-            HIZLI ERİŞİM
+            {homeCopy.groupQuickAccess}
           </Text>
           <View style={styles.grid}>
             {quickAccess.map((m) => (
@@ -584,7 +594,7 @@ export default function HomeScreen() {
 
           {/* Supporting tools and content */}
           <Text style={[styles.groupLabel, { color: colors.textMuted, marginTop: 18 }]}>
-            ARAŞTIR VE BÜYÜ
+            {homeCopy.groupExploreGrow}
           </Text>
           <View style={styles.grid}>
             {extras.map((m) => (
@@ -801,3 +811,4 @@ const styles = StyleSheet.create({
   quickUrgeTitle: { fontSize: 14, fontWeight: "800" },
   quickUrgeSub: { fontSize: 12, marginTop: 2 },
 });
+

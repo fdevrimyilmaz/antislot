@@ -6,6 +6,7 @@ import {
   finishTransaction,
   getAvailablePurchases,
   initConnection,
+  promotedProductListenerIOS,
   purchaseErrorListener,
   purchaseUpdatedListener,
   requestPurchase,
@@ -43,9 +44,87 @@ export type SubscriptionInfo = {
 const SKUS: string[] = Object.values(SUBSCRIPTION_SKUS);
 
 let initPromise: Promise<boolean> | null = null;
+let promotedListener: EventSubscription | null = null;
+
+export type PromotedProductEvent = {
+  sku: string;
+  type: "in-app" | "subs";
+};
+
+const promotedEventHandlers = new Set<
+  (event: PromotedProductEvent) => void
+>();
+const pendingPromotedEvents: PromotedProductEvent[] = [];
+const MAX_PENDING_PROMOTED_EVENTS = 8;
 
 export function isIapSupported(): boolean {
   return Platform.OS === "ios" || Platform.OS === "android";
+}
+
+function dispatchPromotedEvent(event: PromotedProductEvent): void {
+  if (promotedEventHandlers.size === 0) {
+    const exists = pendingPromotedEvents.some(
+      (item) => item.sku === event.sku && item.type === event.type
+    );
+    if (!exists) {
+      pendingPromotedEvents.push(event);
+      if (pendingPromotedEvents.length > MAX_PENDING_PROMOTED_EVENTS) {
+        pendingPromotedEvents.shift();
+      }
+    }
+    return;
+  }
+
+  for (const handler of promotedEventHandlers) {
+    try {
+      handler(event);
+    } catch (error) {
+      reportError(error, {
+        scope: "iap.promotedProduct.handler",
+        level: "warning",
+      });
+    }
+  }
+}
+
+function ensurePromotedProductListener(): void {
+  if (Platform.OS !== "ios" || promotedListener) return;
+
+  promotedListener = promotedProductListenerIOS((product) => {
+    if (!product?.id) return;
+    const eventType: "in-app" | "subs" =
+      PLAN_BY_SKU[product.id] ? "subs" : "in-app";
+    dispatchPromotedEvent({
+      sku: product.id,
+      type: eventType,
+    });
+  });
+}
+
+export function addPromotedProductListener(
+  handler: (event: PromotedProductEvent) => void
+): EventSubscription {
+  promotedEventHandlers.add(handler);
+
+  if (pendingPromotedEvents.length > 0) {
+    const snapshot = pendingPromotedEvents.splice(0, pendingPromotedEvents.length);
+    for (const event of snapshot) {
+      try {
+        handler(event);
+      } catch (error) {
+        reportError(error, {
+          scope: "iap.promotedProduct.flush",
+          level: "warning",
+        });
+      }
+    }
+  }
+
+  return {
+    remove: () => {
+      promotedEventHandlers.delete(handler);
+    },
+  };
 }
 
 export async function initIap(): Promise<boolean> {
@@ -55,6 +134,7 @@ export async function initIap(): Promise<boolean> {
   initPromise = (async () => {
     try {
       const ok = await initConnection();
+      if (ok) ensurePromotedProductListener();
       return Boolean(ok);
     } catch (error) {
       reportError(error, { scope: "iap.init", level: "warning" });
@@ -73,6 +153,10 @@ export async function endIap(): Promise<void> {
   } catch (error) {
     reportError(error, { scope: "iap.end", level: "warning" });
   } finally {
+    promotedListener?.remove();
+    promotedListener = null;
+    promotedEventHandlers.clear();
+    pendingPromotedEvents.length = 0;
     initPromise = null;
   }
 }
@@ -137,6 +221,7 @@ export class IapPurchaseFailedError extends Error {
 type PurchaseListenerEntry = {
   updates: EventSubscription;
   errors: EventSubscription;
+  remove: () => void;
 };
 
 function attachOneShotListeners(
@@ -144,12 +229,15 @@ function attachOneShotListeners(
   resolve: (purchase: Purchase) => void,
   reject: (error: unknown) => void
 ): PurchaseListenerEntry {
-  const cleanup = (entry: PurchaseListenerEntry) => {
+  let removed = false;
+  const cleanup = (entry: Omit<PurchaseListenerEntry, "remove">) => {
+    if (removed) return;
+    removed = true;
     entry.updates.remove();
     entry.errors.remove();
   };
 
-  const entry: PurchaseListenerEntry = {
+  const entry: Omit<PurchaseListenerEntry, "remove"> = {
     updates: purchaseUpdatedListener((purchase) => {
       const matchesSku =
         purchase.productId === sku ||
@@ -175,7 +263,10 @@ function attachOneShotListeners(
     }),
   };
 
-  return entry;
+  return {
+    ...entry,
+    remove: () => cleanup(entry),
+  };
 }
 
 export async function purchaseSubscription(sku: string): Promise<Purchase> {
@@ -201,7 +292,7 @@ export async function purchaseSubscription(sku: string): Promise<Purchase> {
       reject(error);
     };
 
-    attachOneShotListeners(sku, wrappedResolve, wrappedReject);
+    const entry = attachOneShotListeners(sku, wrappedResolve, wrappedReject);
 
     requestPurchase({
       request: {
@@ -210,6 +301,7 @@ export async function purchaseSubscription(sku: string): Promise<Purchase> {
       },
       type: "subs",
     }).catch((error: unknown) => {
+      entry.remove();
       const message = error instanceof Error ? error.message : String(error);
       const code = (error as { code?: string })?.code ?? "request-failed";
       if (code === ErrorCode.UserCancelled) {

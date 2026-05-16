@@ -29,16 +29,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const QUICK_PROMPTS = [
-  "Şu an dürtü çok yükseldi.",
-  "Kısa bir nefes egzersizi öner.",
-  "Bugün kendimi suçlu hissediyorum.",
-  "Kriz planı hazırlamama yardım et.",
-];
-
-const FALLBACK_REPLY =
-  "Şu an bağlantı sorunu var. Yalnız değilsin. 10-15 saniye sonra tekrar dene. Bu sırada su içmek, kısa bir yürüyüş veya ortam değiştirmek dürtüyü azaltabilir.";
+import { getAiLocale } from "@/i18n/ai";
 
 // Generous timeout — Gemini 2.5 Flash can take 10–20s on long Turkish
 // prompts. 15s was cutting some valid responses off as "timeout".
@@ -83,14 +74,16 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 type MessageBubbleProps = {
   content: string;
   role: AiMessageRole;
+  userPrefix: string;
+  assistantPrefix: string;
 };
 
-function MessageListSkeleton() {
+function MessageListSkeleton({ loadingLabel }: { loadingLabel: string }) {
   return (
     <View
       style={styles.skeletonList}
       accessible
-      accessibilityLabel="Sohbet yükleniyor"
+      accessibilityLabel={loadingLabel}
       accessibilityState={{ busy: true }}
     >
       <View style={[styles.skeletonBubble, styles.assistantBubble]}>
@@ -109,7 +102,12 @@ function MessageListSkeleton() {
   );
 }
 
-const MessageBubble = React.memo(function MessageBubble({ content, role }: MessageBubbleProps) {
+const MessageBubble = React.memo(function MessageBubble({
+  content,
+  role,
+  userPrefix,
+  assistantPrefix,
+}: MessageBubbleProps) {
   const { colors } = useTheme();
   const isUser = role === "user";
   return (
@@ -123,7 +121,7 @@ const MessageBubble = React.memo(function MessageBubble({ content, role }: Messa
         isUser ? styles.userBubble : styles.assistantBubble,
       ]}
       accessible
-      accessibilityLabel={`${isUser ? "Senin mesajın" : "Yapay ANTI yanıtı"}: ${content}`}
+      accessibilityLabel={`${isUser ? userPrefix : assistantPrefix}: ${content}`}
     >
       <Text
         style={[styles.messageText, { color: isUser ? "#FFFFFF" : colors.text }]}
@@ -136,8 +134,10 @@ const MessageBubble = React.memo(function MessageBubble({ content, role }: Messa
 
 export default function AiScreen() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { colors } = useTheme();
+  const ax = useMemo(() => getAiLocale(language), [language]);
+  const quickPrompts = ax.quickPrompts;
 
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -162,8 +162,15 @@ export default function AiScreen() {
   const keyExtractor = useCallback((item: AiMessage) => item.id, []);
 
   const renderMessage = useCallback<ListRenderItem<AiMessage>>(
-    ({ item }) => <MessageBubble content={item.content} role={item.role} />,
-    []
+    ({ item }) => (
+      <MessageBubble
+        content={item.content}
+        role={item.role}
+        userPrefix={ax.bubbleUserPrefix}
+        assistantPrefix={ax.bubbleAssistantPrefix}
+      />
+    ),
+    [ax.bubbleAssistantPrefix, ax.bubbleUserPrefix]
   );
 
   const { today: todayCount, lastSeven: weeklyTotal } = useMemo(
@@ -198,16 +205,13 @@ export default function AiScreen() {
 
     try {
       const { text, truncated } = await withTimeout(
-        safeAiReply(content, { locale: "tr" }),
+        safeAiReply(content, { locale: language }),
         AI_TIMEOUT_MS
       );
 
       const replyAt = Date.now();
-      // If the model hit its token cap, append a discreet hint so the
-      // user knows to ask for the rest rather than wondering why the
-      // reply stops mid-sentence.
       const decoratedText = truncated
-        ? `${text.replace(/[.!?…]?\s*$/, "…")}\n\n⚠️ Yanıt kesildi — “Devam et” diye yazarsan kaldığım yerden sürdürürüm.`
+        ? `${text.replace(/[.!?…]?\s*$/, "…")}${ax.truncatedSuffix}`
         : text;
       const assistantMessage: AiMessage = {
         id: `${replyAt}-assistant`,
@@ -221,9 +225,7 @@ export default function AiScreen() {
       await saveAiMessages(updatedMessages);
     } catch (error: unknown) {
       const isTimeout = error instanceof Error && error.message === "timeout";
-      const uiError = isTimeout
-        ? "AI yanıtı gecikti (timeout). İnternetini kontrol edip tekrar dene."
-        : "Şu an AI'ye bağlanamıyorum. Biraz sonra tekrar deneyelim.";
+      const uiError = isTimeout ? ax.timeoutError : ax.upstreamError;
 
       setErrorMessage(uiError);
       haptics.error();
@@ -238,7 +240,7 @@ export default function AiScreen() {
       const assistantMessage: AiMessage = {
         id: `${replyAt}-assistant`,
         role: "assistant",
-        content: FALLBACK_REPLY,
+        content: ax.fallbackReply,
         createdAt: replyAt,
       };
 
@@ -252,10 +254,10 @@ export default function AiScreen() {
 
   const handleClear = () => {
     haptics.warning();
-    Alert.alert("Sohbeti Temizle", "Tüm sohbet geçmişi silinecek.", [
-      { text: "İptal", style: "cancel" },
+    Alert.alert(ax.clearTitle, ax.clearMessage, [
+      { text: ax.clearCancel, style: "cancel" },
       {
-        text: "Sil",
+        text: ax.clearDelete,
         style: "destructive",
         onPress: async () => {
           await clearAiMessages();
@@ -289,11 +291,11 @@ export default function AiScreen() {
           <TouchableOpacity
             onPress={handleClear}
             accessibilityRole="button"
-            accessibilityLabel="Sohbeti temizle"
+            accessibilityLabel={ax.clearButtonA11y}
             style={styles.clearButton}
           >
             <Ionicons name="trash-outline" size={16} color={colors.primary} />
-            <Text style={[styles.clearText, { color: colors.primary }]}>Sohbeti temizle</Text>
+            <Text style={[styles.clearText, { color: colors.primary }]}>{ax.clearButtonText}</Text>
           </TouchableOpacity>
         </View>
 
@@ -303,13 +305,13 @@ export default function AiScreen() {
           </View>
           <View style={styles.heroTextWrap}>
             <Text style={styles.heroTitle} accessibilityRole="header">
-              Yapay ANTI Destek
+              {ax.heroTitle}
             </Text>
             <Text
               style={styles.heroSubtitle}
-              accessibilityLabel={`Bugün ${todayCount} mesaj, son 7 günde toplam ${weeklyTotal} mesaj`}
+              accessibilityLabel={ax.heroActivityA11y(todayCount, weeklyTotal)}
             >
-              Bugün: {todayCount} · Son 7 gün: {weeklyTotal}
+              {ax.heroActivityText(todayCount, weeklyTotal)}
             </Text>
           </View>
         </Card>
@@ -329,17 +331,17 @@ export default function AiScreen() {
           removeClippedSubviews
           ListEmptyComponent={
             loading ? (
-              <MessageListSkeleton />
+              <MessageListSkeleton loadingLabel={ax.skeletonLoadingA11y} />
             ) : (
               <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                Bir şey paylaşarak başlayabilirsin.
+                {ax.emptyText}
               </Text>
             )
           }
         />
 
         <View style={styles.quickRow}>
-          {QUICK_PROMPTS.map((prompt) => (
+          {quickPrompts.map((prompt) => (
             <TouchableOpacity
               key={prompt}
               style={[
@@ -371,7 +373,7 @@ export default function AiScreen() {
             accessibilityLiveRegion="polite"
             accessibilityRole="text"
           >
-            Yanıt hazırlanıyor...
+            {ax.sendingText}
           </Text>
         )}
         {!!errorMessage && (
@@ -390,15 +392,15 @@ export default function AiScreen() {
               styles.input,
               { backgroundColor: colors.card, color: colors.text, borderColor: colors.cardBorder },
             ]}
-            placeholder="Ne hissediyorsun?"
+            placeholder={ax.inputPlaceholder}
             placeholderTextColor={colors.textMuted}
             value={input}
             onChangeText={setInput}
             multiline
-            accessibilityLabel="Mesaj girişi"
+            accessibilityLabel={ax.inputA11y}
           />
           <Button
-            title={sending ? "Gönderiliyor" : "Gönder"}
+            title={sending ? ax.sendingButtonText : ax.sendText}
             onPress={() => handleSend()}
             disabled={loading || sending}
             loading={sending}
