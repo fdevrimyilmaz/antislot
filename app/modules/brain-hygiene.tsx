@@ -20,7 +20,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
-import { getPremiumState } from "@/store/premiumStore";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 
 type DayTask = {
   day: number;
@@ -141,7 +141,7 @@ export default function BrainHygieneModule() {
   useEffect(() => {
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({ reason: "screen_load" });
         setPremiumActive(state.isActive);
         const progressRaw = await SecureStore.getItemAsync(PROGRESS_KEY);
         if (progressRaw) {

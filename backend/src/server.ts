@@ -6,7 +6,7 @@
 import { timingSafeEqual } from 'crypto';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import { config, type AiProvider } from './config';
+import { config } from './config';
 import { BlocklistStorage } from './storage/blocklist-storage';
 import { PatternsStorage } from './storage/patterns-storage';
 import { generateSignature } from './utils/signature';
@@ -121,11 +121,8 @@ function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
   return contents;
 }
 
-function isAiConfigured(provider: AiProvider): boolean {
-  if (provider === 'gemini') {
-    return (config.geminiApiKey || '').trim().length > 0;
-  }
-  return (config.openAiApiKey || '').trim().length > 0;
+function isAiConfigured(): boolean {
+  return (config.geminiApiKey || '').trim().length > 0;
 }
 
 type AiCompletion = {
@@ -133,52 +130,6 @@ type AiCompletion = {
   /** True when the upstream truncated due to token limit. */
   truncated?: boolean;
 };
-
-async function completeWithOpenAi(messages: ChatMessage[]): Promise<AiCompletion> {
-  const systemPrompt = resolveSystemPrompt(messages);
-  const conversation = stripSystemMessages(messages);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
-
-  try {
-    const response = await fetch(`${config.openAiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.openAiApiKey}`
-      },
-      body: JSON.stringify({
-        model: config.openAiModel,
-        messages: [{ role: 'system', content: systemPrompt }, ...conversation],
-        temperature: 0.4,
-        max_tokens: config.openAiMaxTokens
-      }),
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => '');
-      throw new Error(`openai_http_${response.status}:${errorBody.slice(0, 300)}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string }; finish_reason?: string }[];
-    };
-
-    const choice = data?.choices?.[0];
-    const replyText = choice?.message?.content?.trim();
-    if (!replyText) {
-      throw new Error('openai_empty_reply');
-    }
-
-    return {
-      text: replyText,
-      truncated: choice?.finish_reason === 'length'
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion> {
   const systemPrompt = resolveSystemPrompt(messages);
@@ -241,12 +192,6 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion
   return { text: replyText, truncated };
 }
 
-async function completeWithProvider(provider: AiProvider, messages: ChatMessage[]): Promise<AiCompletion> {
-  if (provider === 'gemini') {
-    return completeWithGemini(messages);
-  }
-  return completeWithOpenAi(messages);
-}
 
 type RedeemRequest = { code?: unknown };
 type RedeemTypedRequest = FastifyRequest<{ Body: RedeemRequest }>;
@@ -301,17 +246,16 @@ async function handleAiChat(request: AiChatTypedRequest, reply: FastifyReply) {
   }
 
   const provider = config.aiProvider;
-  if (!isAiConfigured(provider)) {
+  if (!isAiConfigured()) {
     return reply.code(503).send({ error: 'AI_NOT_CONFIGURED', provider });
   }
 
   try {
-    const completion = await completeWithProvider(provider, messages);
-    const model = provider === 'gemini' ? config.geminiModel : config.openAiModel;
+    const completion = await completeWithGemini(messages);
     return reply.send({
       reply: completion.text,
       truncated: Boolean(completion.truncated),
-      model,
+      model: config.geminiModel,
       provider
     });
   } catch (error) {

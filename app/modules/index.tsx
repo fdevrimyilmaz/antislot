@@ -16,7 +16,7 @@ import { ThemeTexture } from "@/components/theme-texture";
 import { Card } from "@/components/ui/card";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
-import { getPremiumState } from "@/store/premiumStore";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 import {
   INTERACTIVE_MODULES,
   type InteractiveModule,
@@ -53,7 +53,7 @@ export default function ModulesIndex() {
     let active = true;
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({ reason: "screen_load" });
         if (active) setPremiumActive(state.isActive);
       } catch (error) {
         reportError(error, { scope: "modules.premium", level: "warning" });

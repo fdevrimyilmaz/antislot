@@ -22,8 +22,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 import { incrementSessionsCompleted } from "@/store/progressStore";
-import { getPremiumState } from "@/store/premiumStore";
 import {
   completeSession,
   getSessionState,
@@ -140,7 +140,7 @@ export default function Mindfulness() {
     let active = true;
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({ reason: "screen_load" });
         if (active) setPremiumActive(state.isActive);
       } catch (error) {
         reportError(error, { scope: "mindfulness.premium", level: "warning" });

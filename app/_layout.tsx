@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -21,6 +21,7 @@ import { ToastProvider } from '@/components/ui/toast';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { initMonitoring } from '@/services/monitoring';
 import { initIap } from '@/services/iap';
+import { reconcilePremiumEntitlement } from '@/services/premiumEntitlement';
 import { ENABLE_IAP } from '@/constants/featureFlags';
 
 // Initialize Sentry once at module-load time. The helper is a no-op when
@@ -60,6 +61,25 @@ function RootLayoutContent() {
   useEffect(() => {
     if (!ENABLE_IAP) return;
     initIap().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!ENABLE_IAP) return;
+
+    reconcilePremiumEntitlement({ force: true, reason: "app_launch" }).catch(
+      () => undefined
+    );
+
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      reconcilePremiumEntitlement({ reason: "app_foreground" }).catch(
+        () => undefined
+      );
+    });
+
+    return () => {
+      sub.remove();
+    };
   }, []);
 
   useEffect(() => {

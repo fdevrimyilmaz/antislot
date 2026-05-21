@@ -240,8 +240,8 @@ export const PREMIUM_LOCALES: Record<Language, PremiumLocale> = {
     ],
     plans: {
       monthly: { title: "Monthly Premium", subtitle: "Flexible start", monthsForHint: 1 },
-      quarterly: { title: "3-Month Premium", subtitle: "90-day focused plan", saveLabel: "-15%", monthsForHint: 3 },
-      semiannual: { title: "6-Month Premium", subtitle: "Half-year protection", saveLabel: "-30%", monthsForHint: 6 },
+      quarterly: { title: "3 Months Premium", subtitle: "90-day focused plan", saveLabel: "-15%", monthsForHint: 3 },
+      semiannual: { title: "6 Months Premium", subtitle: "Half-year protection", saveLabel: "-30%", monthsForHint: 6 },
       annual: { title: "Yearly Premium", subtitle: "Best value", saveLabel: "-50%", best: true, monthsForHint: 12 },
     },
     fallbackPrices: FALLBACK_GENERIC("month"),

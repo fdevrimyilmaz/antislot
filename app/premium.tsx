@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/premium-plan-card";
 import {
   clearPremium,
-  getPremiumState,
   setPremiumActive,
   type PremiumState,
 } from "@/store/premiumStore";
@@ -38,11 +37,11 @@ import { useUserAddictionsStore } from "@/store/userAddictionsStore";
 import { activatePremium, redeemAccessCode } from "@/services/premiumApi";
 import { addBreadcrumb, reportError } from "@/services/monitoring";
 import { haptics } from "@/services/haptics";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 import {
   addPromotedProductListener,
   fetchSubscriptions,
   finishPurchase,
-  getActivePurchases,
   IapPurchaseFailedError,
   IapUserCancelledError,
   isIapSupported,
@@ -222,7 +221,10 @@ export default function PremiumScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({
+          force: true,
+          reason: "premium_screen",
+        });
         setPremiumState(state);
       } catch (error) {
         reportError(error, { scope: "premium.load" });
@@ -387,14 +389,26 @@ export default function PremiumScreen() {
         const purchase = await purchaseSubscription(sku);
         const receipt = purchase.purchaseToken ?? "";
         const platform = Platform.OS === "android" ? "android" : "ios";
+        let expiresAt =
+          typeof (purchase as { expirationDateIOS?: number | null }).expirationDateIOS ===
+            "number" &&
+          Number.isFinite((purchase as { expirationDateIOS?: number | null }).expirationDateIOS)
+            ? ((purchase as { expirationDateIOS?: number | null }).expirationDateIOS ?? null)
+            : null;
 
         if (receipt) {
           try {
-            await activatePremium({
+            const serverState = await activatePremium({
               receipt,
               productId: purchase.productId ?? sku,
               platform,
             });
+            if (
+              typeof serverState.expiresAt === "number" &&
+              Number.isFinite(serverState.expiresAt)
+            ) {
+              expiresAt = serverState.expiresAt;
+            }
             addBreadcrumb("premium.serverActivate", "success", { sku });
           } catch (serverError) {
             reportError(serverError, {
@@ -406,7 +420,10 @@ export default function PremiumScreen() {
         }
 
         await finishPurchase(purchase);
-        const state = await setPremiumActive("iap");
+        const state = await setPremiumActive("iap", {
+          expiresAt,
+          lastVerifiedAt: Date.now(),
+        });
         setPremiumState(state);
         addBreadcrumb("premium.purchase", "success", { sku });
         haptics.success();
@@ -476,30 +493,15 @@ export default function PremiumScreen() {
     setRestoring(true);
     addBreadcrumb("premium.restore", "start");
     try {
-      const purchases = await getActivePurchases();
-      const active = purchases.find((p) => PLAN_BY_SKU[p.productId]);
-      if (!active) {
+      const state = await reconcilePremiumEntitlement({
+        force: true,
+        reason: "manual_restore",
+      });
+      setPremiumState(state);
+      if (!state.isActive) {
         toast.info(L.toastRestoreNotFound.message, L.toastRestoreNotFound.title);
         return;
       }
-      const receipt = active.purchaseToken ?? "";
-      if (receipt) {
-        try {
-          const platform = Platform.OS === "android" ? "android" : "ios";
-          await activatePremium({
-            receipt,
-            productId: active.productId,
-            platform,
-          });
-        } catch (serverError) {
-          reportError(serverError, {
-            scope: "premium.serverRestore",
-            level: "warning",
-          });
-        }
-      }
-      const state = await setPremiumActive("iap");
-      setPremiumState(state);
       haptics.success();
       toast.success(L.toastRestoreSuccess.message, L.toastRestoreSuccess.title);
     } catch (error) {

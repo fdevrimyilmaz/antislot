@@ -1,8 +1,7 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import OpenAI from "openai";
-import { config, type AiProvider } from "./config";
+import { config } from "./config";
 import { handleActivate, handleRestore } from "./premium";
 import { initIdempotencyStore } from "./premium-idempotency";
 import {
@@ -33,8 +32,6 @@ const SYSTEM_PROMPT = [
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-
-const openai = new OpenAI({ apiKey: config.openAiApiKey });
 
 async function sendOperationalAlert(
   title: string,
@@ -112,22 +109,6 @@ function stripSystemMessages(messages: ChatMessage[]): ChatMessage[] {
   return messages.filter((message) => message.role !== "system");
 }
 
-async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
-  const systemPrompt = resolveSystemPrompt(messages);
-  const conversation = stripSystemMessages(messages);
-  const completion = await openai.chat.completions.create({
-    model: config.openAiModel,
-    messages: [{ role: "system", content: systemPrompt }, ...conversation],
-    temperature: 0.7,
-  });
-
-  const reply = completion.choices?.[0]?.message?.content?.trim();
-  if (!reply) {
-    throw new Error("openai_empty_reply");
-  }
-  return reply;
-}
-
 async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
   const systemPrompt = resolveSystemPrompt(messages);
   const conversation = stripSystemMessages(messages);
@@ -178,16 +159,6 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
   return reply;
 }
 
-async function completeWithProvider(
-  provider: AiProvider,
-  messages: ChatMessage[]
-): Promise<string> {
-  if (provider === "gemini") {
-    return completeWithGemini(messages);
-  }
-  return completeWithOpenAi(messages);
-}
-
 app.get("/", (_req, res) => {
   return res.status(200).json({
     ok: true,
@@ -211,7 +182,7 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    const reply = await completeWithProvider(config.aiProvider, sanitized);
+    const reply = await completeWithGemini(sanitized);
     return res.json({ reply, provider: config.aiProvider });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

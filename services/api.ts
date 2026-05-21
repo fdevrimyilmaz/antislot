@@ -1,5 +1,13 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { useAiConsentStore } from "@/store/aiConsentStore";
+
+export class AiConsentMissingError extends Error {
+  constructor() {
+    super("ai_consent_missing");
+    this.name = "AiConsentMissingError";
+  }
+}
 
 export type ChatMessage = {
   role: "user" | "assistant" | "system";
@@ -47,6 +55,14 @@ export async function postChat(
   messages: ChatMessage[],
   options: PostChatOptions = {}
 ): Promise<ChatResult> {
+  // Hard gate: refuse to send any data unless the user has granted consent.
+  // The AI screen also checks this — this is the last line of defense for
+  // any future caller that might forget the UI check.
+  const consent = useAiConsentStore.getState();
+  if (consent.status !== "granted") {
+    throw new AiConsentMissingError();
+  }
+
   const baseUrl = normalizeBaseUrl(DEFAULT_API_URL);
   const response = await fetch(`${baseUrl}/chat`, {
     method: "POST",

@@ -179,6 +179,15 @@ function toSubscriptionInfo(product: ProductSubscription): SubscriptionInfo | nu
   };
 }
 
+function normalizeSubscriptionProducts(
+  result: unknown
+): ProductSubscription[] {
+  return (result as ProductSubscription[]).filter(
+    (item): item is ProductSubscription =>
+      item != null && (item.type === "subs" || item.type === undefined)
+  );
+}
+
 export async function fetchSubscriptions(): Promise<SubscriptionInfo[]> {
   if (!isIapSupported()) return [];
 
@@ -187,10 +196,13 @@ export async function fetchSubscriptions(): Promise<SubscriptionInfo[]> {
 
   try {
     const result = await fetchProducts({ skus: SKUS, type: "subs" });
-    const subscriptions = (result as ProductSubscription[]).filter(
-      (item): item is ProductSubscription =>
-        item != null && (item.type === "subs" || item.type === undefined)
-    );
+    let subscriptions = normalizeSubscriptionProducts(result);
+
+    if (subscriptions.length === 0) {
+      const fallbackResult = await fetchProducts({ skus: SKUS, type: "all" });
+      subscriptions = normalizeSubscriptionProducts(fallbackResult);
+    }
+
     return subscriptions
       .map(toSubscriptionInfo)
       .filter((info): info is SubscriptionInfo => info !== null);

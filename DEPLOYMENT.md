@@ -14,7 +14,7 @@ cp backend/.env.example backend/.env
 cp server/.env.example server/.env
 ```
 
-2) Set secrets in those `.env` files (especially `HMAC_SECRET` and `OPENAI_API_KEY`).
+2) Set secrets in those `.env` files (especially `HMAC_SECRET` and `GEMINI_API_KEY`).
 
 3) Build and run:
 

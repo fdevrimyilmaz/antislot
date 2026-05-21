@@ -9,7 +9,6 @@ const HINTS = {
   EXPO_TOKEN: "GitHub Secret (Actions)",
   EXPO_PUBLIC_API_URL: "EAS Secret (project) + GitHub Secret for CI preflight",
   EXPO_PUBLIC_SENTRY_DSN: "EAS Secret (project) + GitHub Secret for CI preflight",
-  OPENAI_API_KEY: "Server runtime secret manager / deploy env",
   GEMINI_API_KEY: "Server runtime secret manager / deploy env",
   SENTRY_DSN: "Server runtime secret manager / deploy env",
   ALERT_WEBHOOK_URL: "Server runtime env (alert receiver endpoint)",
@@ -524,7 +523,7 @@ function main() {
   }
 
   if (target === "full" || target === "backend") {
-    checkAnyEnv(["OPENAI_API_KEY", "GEMINI_API_KEY"], "AI provider key", { enforce: strict });
+    checkEnv("GEMINI_API_KEY", { enforce: strict });
     checkEnv("CORS_ALLOWLIST", { enforce: strict });
     checkEnv("CORE_BACKEND_URL", { enforce: strict });
     checkEnv("DATABASE_URL", { enforce: strict });

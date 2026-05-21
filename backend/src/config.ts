@@ -2,15 +2,10 @@
  * AntiSlot Backend Configuration
  */
 
-export type AiProvider = 'gemini' | 'openai';
-
-function resolveAiProvider(): AiProvider {
-  const raw = (process.env.AI_PROVIDER || '').trim().toLowerCase();
-  if (raw === 'gemini') return 'gemini';
-  if (raw === 'openai') return 'openai';
-  if ((process.env.GEMINI_API_KEY || '').trim()) return 'gemini';
-  return 'openai';
-}
+/** Only Google Gemini is supported. The mobile-app consent prompt and
+ *  the App Privacy declaration name Google as the sole AI processor; do
+ *  not reintroduce other providers without updating those disclosures. */
+export type AiProvider = 'gemini';
 
 function parseAccessCodes(raw: string | undefined): string[] {
   return (raw || '')
@@ -48,21 +43,13 @@ export const config = {
   // Versioning behavior
   autoVersionBump: process.env.AUTO_VERSION_BUMP !== 'false',
 
-  // AI provider and model settings
-  aiProvider: resolveAiProvider(),
-  openAiApiKey: process.env.OPENAI_API_KEY || '',
-  openAiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-  openAiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-  openAiTimeoutMs: parseInt(process.env.OPENAI_TIMEOUT_MS || '30000', 10),
-  // Generous default so long Turkish replies aren't truncated.
-  // Turkish tokenizes worse than English (~1.5–2x tokens for the same content),
-  // so 700 here roughly maps to 350–450 English-token equivalent.
-  openAiMaxTokens: parseInt(process.env.OPENAI_MAX_TOKENS || '700', 10),
+  // AI provider (Google Gemini — the only supported provider)
+  aiProvider: 'gemini' as AiProvider,
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
   geminiBaseUrl: process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta',
-  // Dedicated Gemini cap, independent of OPENAI_MAX_TOKENS. 2048 covers
-  // ~1100–1400 Turkish words — well beyond any single reply we expect.
+  // 2048 covers ~1100–1400 Turkish words — well beyond any single reply
+  // we expect, but bounded so user overrides can't balloon the call.
   geminiMaxOutputTokens: parseInt(process.env.GEMINI_MAX_OUTPUT_TOKENS || '2048', 10),
 
   // Premium access codes (server-side validation). Comma-separated list via env.

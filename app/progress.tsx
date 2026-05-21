@@ -22,7 +22,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
-import { getPremiumState } from "@/store/premiumStore";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 import {
   formatRemaining,
   isLockoutActive,
@@ -86,7 +86,7 @@ export default function Progress() {
     let active = true;
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({ reason: "screen_load" });
         if (active) setPremiumActive(state.isActive);
       } catch (error) {
         reportError(error, { scope: "progress.premium", level: "warning" });

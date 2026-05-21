@@ -37,11 +37,43 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
 import { getSettingsLocale, type LinkItem } from "@/i18n/settings";
+import { getAiConsentLocale } from "@/i18n/aiConsent";
+import { isAiConsentGranted, useAiConsentStore } from "@/store/aiConsentStore";
 
 
 export default function SettingsScreen() {
   const { language } = useLanguage();
   const sx = useMemo(() => getSettingsLocale(language), [language]);
+  const acx = useMemo(() => getAiConsentLocale(language), [language]);
+  const consentHydrated = useAiConsentStore((s) => s.hydrated);
+  const consentStatus = useAiConsentStore((s) => s.status);
+  const hydrateConsent = useAiConsentStore((s) => s.hydrate);
+  const grantConsent = useAiConsentStore((s) => s.grant);
+  const revokeConsent = useAiConsentStore((s) => s.revoke);
+  const consentGranted = isAiConsentGranted(consentStatus);
+
+  useEffect(() => {
+    if (!consentHydrated) {
+      hydrateConsent();
+    }
+  }, [consentHydrated, hydrateConsent]);
+
+  const handleAiConsentToggle = (value: boolean) => {
+    haptics.selection();
+    if (value) {
+      void grantConsent();
+    } else {
+      void revokeConsent();
+    }
+  };
+
+  const consentStatusLabel =
+    consentStatus === "granted"
+      ? acx.settingsStatusGranted
+      : consentStatus === "denied"
+        ? acx.settingsStatusDenied
+        : acx.settingsStatusUnknown;
+
   const { userAddictions, hydrated, setManyAddictions } = useUserAddictionsStore();
   const { theme, preference, colors } = useTheme();
   const toast = useToast();
@@ -322,6 +354,37 @@ export default function SettingsScreen() {
             colors={colors}
             onPress={handleLinkPress}
           />
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={acx.settingsSectionTitle}
+              icon="sparkles"
+              subtitle={acx.settingsSectionSubtitle}
+            />
+            <View style={styles.toggleList}>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleInfo}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>
+                    {acx.settingsToggleLabel}
+                  </Text>
+                  <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
+                    {acx.settingsToggleHint}
+                  </Text>
+                  <Text style={[styles.toggleHint, { color: colors.textMuted, marginTop: 4 }]}>
+                    {consentStatusLabel}
+                  </Text>
+                </View>
+                <Switch
+                  value={consentGranted}
+                  onValueChange={handleAiConsentToggle}
+                  disabled={!consentHydrated}
+                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  accessibilityLabel={acx.settingsToggleLabel}
+                />
+              </View>
+            </View>
+          </Card>
 
           <LinkSection
             title={sx.sections.legalTitle}

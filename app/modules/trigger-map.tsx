@@ -20,7 +20,7 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
-import { getPremiumState } from "@/store/premiumStore";
+import { reconcilePremiumEntitlement } from "@/services/premiumEntitlement";
 
 type TimeBucket = "sabah" | "ogle" | "aksam" | "gece";
 type LocationBucket = "ev" | "is" | "disari" | "yatakta";
@@ -121,7 +121,7 @@ export default function TriggerMapModule() {
   useEffect(() => {
     (async () => {
       try {
-        const state = await getPremiumState();
+        const state = await reconcilePremiumEntitlement({ reason: "screen_load" });
         setPremiumActive(state.isActive);
         const raw = await SecureStore.getItemAsync(STORE_KEY);
         if (raw) {

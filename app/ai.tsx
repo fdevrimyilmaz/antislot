@@ -30,6 +30,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getAiLocale } from "@/i18n/ai";
+import { getAiConsentLocale } from "@/i18n/aiConsent";
+import { isAiConsentGranted, useAiConsentStore } from "@/store/aiConsentStore";
+import { AiConsentPanel } from "@/components/ai-consent-panel";
 
 // Generous timeout — Gemini 2.5 Flash can take 10–20s on long Turkish
 // prompts. 15s was cutting some valid responses off as "timeout".
@@ -137,7 +140,15 @@ export default function AiScreen() {
   const { t, language } = useLanguage();
   const { colors } = useTheme();
   const ax = useMemo(() => getAiLocale(language), [language]);
+  const cx = useMemo(() => getAiConsentLocale(language), [language]);
   const quickPrompts = ax.quickPrompts;
+
+  const consentHydrated = useAiConsentStore((s) => s.hydrated);
+  const consentStatus = useAiConsentStore((s) => s.status);
+  const hydrateConsent = useAiConsentStore((s) => s.hydrate);
+  const grantConsent = useAiConsentStore((s) => s.grant);
+  const denyConsent = useAiConsentStore((s) => s.deny);
+  const consentGranted = isAiConsentGranted(consentStatus);
 
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -146,6 +157,12 @@ export default function AiScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<AiMessage> | null>(null);
+
+  useEffect(() => {
+    if (!consentHydrated) {
+      hydrateConsent();
+    }
+  }, [consentHydrated, hydrateConsent]);
 
   useEffect(() => {
     (async () => {
@@ -180,6 +197,11 @@ export default function AiScreen() {
 
   const handleSend = async (preset?: string) => {
     if (loading || sending) return;
+    if (!consentGranted) {
+      setErrorMessage(cx.blockedNotice);
+      haptics.warning();
+      return;
+    }
 
     const content = (preset ?? input).trim();
     if (!content) return;
@@ -269,6 +291,8 @@ export default function AiScreen() {
     ]);
   };
 
+  const showConsentPanel = consentHydrated && !consentGranted;
+
   return (
     <LinearGradient
       colors={colors.backgroundGradient}
@@ -288,17 +312,32 @@ export default function AiScreen() {
             <Ionicons name="chevron-back" size={20} color={colors.text} />
             <Text style={[styles.backButtonText, { color: colors.text }]}>{t.back}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleClear}
-            accessibilityRole="button"
-            accessibilityLabel={ax.clearButtonA11y}
-            style={styles.clearButton}
-          >
-            <Ionicons name="trash-outline" size={16} color={colors.primary} />
-            <Text style={[styles.clearText, { color: colors.primary }]}>{ax.clearButtonText}</Text>
-          </TouchableOpacity>
+          {!showConsentPanel && (
+            <TouchableOpacity
+              onPress={handleClear}
+              accessibilityRole="button"
+              accessibilityLabel={ax.clearButtonA11y}
+              style={styles.clearButton}
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.primary} />
+              <Text style={[styles.clearText, { color: colors.primary }]}>{ax.clearButtonText}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
+        {showConsentPanel ? (
+          <AiConsentPanel
+            copy={cx}
+            onAccept={async () => {
+              await grantConsent();
+            }}
+            onDecline={async () => {
+              await denyConsent();
+              router.back();
+            }}
+          />
+        ) : (
+          <>
         <Card variant="hero" style={styles.heroCard}>
           <View style={styles.heroIconWrap}>
             <Ionicons name="sparkles" size={26} color="#FFFFFF" />
@@ -408,6 +447,8 @@ export default function AiScreen() {
             leftIcon="send"
           />
         </View>
+          </>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );

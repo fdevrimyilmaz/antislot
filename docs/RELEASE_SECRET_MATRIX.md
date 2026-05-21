@@ -21,9 +21,9 @@ This document defines the strict go-live secret gate used by `release-preflight`
   - Used by: mobile runtime and preflight
 
 ### Backend and server release
-- `OPENAI_API_KEY`
+- `GEMINI_API_KEY`
   - Where: server/backend secret manager
-  - Used by: AI endpoints and strict preflight
+  - Used by: AI endpoints (Google Gemini is the only supported provider) and strict preflight
 - `CORS_ALLOWLIST`
   - Where: server/backend env
   - Used by: runtime CORS policy and strict preflight

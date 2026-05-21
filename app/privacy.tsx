@@ -22,9 +22,9 @@ import { haptics } from "@/services/haptics";
 const DATA_POINTS = [
   "Gezinme geçmişi toplanmaz",
   "DNS sorguları kaydedilmez veya iletilmez",
-  "Kişisel bilgi toplanmaz",
+  "İsim, e-posta, telefon gibi kişisel bilgi toplanmaz",
   "Cihaz tanımlayıcıları toplanmaz",
-  "Analitik veya izleme yoktur",
+  "Reklam veya pazarlama amaçlı izleme yoktur",
   "Çökme ve hata raporları anonim ve isteğe bağlı (Sentry ile)",
 ];
 
@@ -33,17 +33,21 @@ const LOCAL_STORAGE = [
   "İzin listesi (whitelist)",
   "Yerel istatistikler (engellenen/izin verilen sayıları)",
   "Seans ve günlük kayıtları",
+  "AI sohbet geçmişi yalnızca bu cihazda saklanır",
 ];
 
 const NETWORK_USAGE = [
-  "Yalnızca engel listesi güncellemeleri indirilir",
-  "Güncelleme istekleri kullanıcı verisi içermez",
-  "AI destek mesajları cihaz içinde saklanır",
+  "Engel listesi güncellemeleri indirilir; istekler kullanıcı verisi içermez",
+  "AI sohbeti yalnızca kullanıcı açıkça izin verdiğinde çalışır",
+  "İzin verildiğinde yazdığın mesaj metni ve temel teknik loglar (örn. hata/timeout kodları) Antislot sunucumuza iletilir",
+  "Mesaj sunucumuzdan yanıt üretmesi için Google'a (Gemini 2.5 Flash) iletilir; başka bir AI sağlayıcısı kullanılmaz",
+  "Bu veriler reklam veya profilleme için kullanılmaz",
+  "İzni Ayarlar → AI Veri Paylaşımı bölümünden istediğin zaman geri alabilirsin",
 ];
 
 const SECURITY_POINTS = [
   "Engel listesi güncellemeleri HMAC imzası ile doğrulanır",
-  "Senkronizasyonlar TLS/HTTPS üzerinden yapılır",
+  "Tüm ağ istekleri TLS/HTTPS üzerinden yapılır",
   "Geçersiz imza veya sürüm geri düşürme kabul edilmez",
 ];
 
@@ -117,8 +121,9 @@ export default function PrivacyPolicy() {
             Gizlilik Politikası
           </Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            Antislot, kullanıcı gizliliğini temel alır. Aşağıdaki veriler toplanmaz ve
-            paylaşılmaz.
+            Antislot, kullanıcı gizliliğini temel alır. Aşağıda hangi verilerin
+            toplanmadığını, hangi verilerin yalnızca senin onayınla paylaşıldığını
+            ve cihazında ne saklandığını bulabilirsin.
           </Text>
 
           <BulletSection

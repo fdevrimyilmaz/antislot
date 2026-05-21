@@ -1,8 +1,8 @@
 {
   "name": "Antislot",
   "subtitle": "Kumar Dürtüsüne Karşı Destek",
-  "promoText": "Kumar dürtüsü ile başa çıkmak için 7/24 kriz desteği, nefes egzersizleri ve özel ilerleme takibi. Tüm verileriniz cihazınızda kalır.",
-  "description": "Antislot, kumar dürtüleriyle başa çıkmak için yanınızda taşıdığınız sessiz bir destek aracı. Krizde hızlıca ulaşabileceğin yardım hatlarından nefes egzersizlerine, günlük tutmaktan yapay zeka destekli sohbete kadar tüm araçlar tek bir uygulamada.\n\nÖzellikler\n• Acil SOS — 112 ve Yeşilay 115 gibi destek hatlarına tek dokunuşla erişim. 60 saniyelik nefes sıfırlama ve 10 dakikalık dürtü erteleme zamanlayıcıları.\n• 5-4-3-2-1 Topraklama — Dürtü anında şu ana dönmek için duyu tabanlı egzersiz.\n• Günlük — Düşüncelerini, dürtülerini ve duygusal kalıplarını cihazında güvenle kaydet.\n• Yapay ANTI Destek — Türkçe konuşan AI yardımcısı; kısa, sakinleştirici ve uygulanabilir adımlar önerir.\n• İlerleme Paneli — Temiz gün sayacı, haftalık streak haritası ve kilometre taşları.\n• Premium Kontrol Merkezi — Erişim kodu veya 7 günlük deneme ile ek seanslar ve canlı destek.\n• SMS Spam Tanıyıcı — Şüpheli mesajları yapıştırıp kumar, bahis veya dolandırıcılık olup olmadığını sınıflandır.\n\nGizlilik\n• Verileriniz cihazınızda saklanır.\n• Tanı verileri ve çökme raporları varsayılan olarak KAPALIDIR; istediğinizde açabilirsiniz.\n• Anonim — hesap zorunlu değildir.\n\nYasal Uyarı\nAntislot profesyonel yardımın yerine geçmez; tanı veya tedavi vermez. Hayati tehlike anında lütfen 112'yi arayın.\n\nDestek\nsupport@antislot.app",
+  "promoText": "Kumar dürtüsü ile başa çıkmak için 7/24 kriz desteği, nefes egzersizleri ve özel ilerleme takibi. Verilerin cihazında kalır; yapay zekâ desteği yalnızca senin açık izninle çalışır.",
+  "description": "Antislot, kumar dürtüleriyle başa çıkmak için yanınızda taşıdığınız sessiz bir destek aracı. Krizde hızlıca ulaşabileceğin yardım hatlarından nefes egzersizlerine, günlük tutmaktan yapay zeka destekli sohbete kadar tüm araçlar tek bir uygulamada.\n\nÖzellikler\n• Acil SOS — 112 ve Yeşilay 115 gibi destek hatlarına tek dokunuşla erişim. 60 saniyelik nefes sıfırlama ve 10 dakikalık dürtü erteleme zamanlayıcıları.\n• 5-4-3-2-1 Topraklama — Dürtü anında şu ana dönmek için duyu tabanlı egzersiz.\n• Günlük — Düşüncelerini, dürtülerini ve duygusal kalıplarını cihazında güvenle kaydet.\n• Yapay ANTI Destek — Türkçe konuşan AI yardımcısı; kısa, sakinleştirici ve uygulanabilir adımlar önerir.\n• İlerleme Paneli — Temiz gün sayacı, haftalık streak haritası ve kilometre taşları.\n• Premium Kontrol Merkezi — Erişim kodu veya 7 günlük deneme ile ek seanslar ve canlı destek.\n• SMS Spam Tanıyıcı — Şüpheli mesajları yapıştırıp kumar, bahis veya dolandırıcılık olup olmadığını sınıflandır.\n\nGizlilik\n• Günlük, kişiler ve ilerleme gibi içerikler cihazında saklanır.\n• Yapay ANTI sohbeti yalnızca uygulama içindeki açık izninle çalışır. İzin verirsen yazdığın mesaj metni Antislot sunucumuza ve yanıt üretmesi için Google'a (Gemini 2.5 Flash) iletilir; başka bir AI sağlayıcısı kullanılmaz. İzni Ayarlar → AI Veri Paylaşımı'ndan istediğin zaman geri alabilirsin.\n• Tanı verileri ve çökme raporları varsayılan olarak KAPALIDIR; istediğinde açabilirsin.\n• Anonim — hesap zorunlu değildir.\n\nYasal Uyarı\nAntislot profesyonel yardımın yerine geçmez; tanı veya tedavi vermez. Hayati tehlike anında lütfen 112'yi arayın.\n\nDestek\nsupport@antislot.app\n\nTerms of Use (EULA)\nhttps://www.apple.com/legal/internet-services/itunes/dev/stdeula/\n\nPrivacy Policy\nhttps://antislot-legal.vercel.app/privacy",
   "keywords": "kumar,bağımlılık,dürtü,destek,nefes,topraklama,günlük,sos,iyileşme,farkındalık",
   "privacyPolicyUrl": "https://antislot-legal.vercel.app/privacy",
   "supportUrl": "https://antislot-legal.vercel.app/support",
@@ -14,7 +14,49 @@
     "containsThirdPartyContent": false
   },
   "appPrivacy": {
-    "dataNotCollected": true,
-    "rationale": "Antislot stores all user content (diary entries, AI chat, contacts, progress) locally on device. Anonymous crash reports and diagnostics are opt-in and contain no PII."
+    "dataNotCollected": false,
+    "rationale": "Diary entries, contacts and progress are stored on device only. AI chat input is sent off-device only when the user grants explicit in-app consent (gated by a first-run prompt and revocable from Settings). Crash reports and diagnostics are anonymous and opt-in.",
+    "collectedDataTypes": [
+      {
+        "category": "User Content",
+        "dataType": "Other User Content",
+        "description": "Free-text messages the user types into the AI assistant (Yapay ANTI). Sent to the Antislot backend and forwarded to Google (Gemini 2.5 Flash) only when the user has accepted the in-app AI data-sharing consent prompt. Not associated with the user's identity. No other AI provider receives this data.",
+        "purposes": ["App Functionality"],
+        "linkedToUser": false,
+        "usedForTracking": false,
+        "thirdParties": ["Google (Gemini API)"],
+        "userControl": {
+          "optIn": true,
+          "revocable": true,
+          "where": "First-run consent prompt on the AI screen and a toggle in Settings → AI Data Sharing."
+        }
+      },
+      {
+        "category": "Diagnostics",
+        "dataType": "Crash Data",
+        "description": "Anonymous crash reports via Sentry. Opt-in only.",
+        "purposes": ["App Functionality", "Analytics"],
+        "linkedToUser": false,
+        "usedForTracking": false,
+        "userControl": {
+          "optIn": true,
+          "revocable": true,
+          "where": "Settings → Privacy and Legal → telemetry toggles."
+        }
+      },
+      {
+        "category": "Diagnostics",
+        "dataType": "Performance Data",
+        "description": "Anonymous diagnostics (error/timeout codes, retry counts). Opt-in only.",
+        "purposes": ["App Functionality", "Analytics"],
+        "linkedToUser": false,
+        "usedForTracking": false,
+        "userControl": {
+          "optIn": true,
+          "revocable": true,
+          "where": "Settings → Privacy and Legal → telemetry toggles."
+        }
+      }
+    ]
   }
 }
