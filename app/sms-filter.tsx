@@ -1,9 +1,7 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -13,20 +11,58 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
+import { haptics } from "@/services/haptics";
+import { reportError } from "@/services/monitoring";
 import { FilterSettings, SpamDetectionResult } from "@/services/sms-filter/types";
 import {
   getFilterSettings,
   updateFilterSettings,
   addCustomKeyword,
   removeCustomKeyword,
-  toggleFilter,
 } from "@/store/smsFilterStore";
 import { getAllKeywords } from "@/services/sms-filter/keywords";
 import { SMSFilterService } from "@/services/sms-filter";
-import { getFilterStats, incrementAllowed, incrementBlocked, resetFilterStats } from "@/store/smsFilterStatsStore";
-import { isDefaultSmsApp, requestDefaultSmsRole } from "@/react-native-bridge/SmsRoleModule";
+import {
+  getFilterStats,
+  incrementAllowed,
+  incrementBlocked,
+  resetFilterStats,
+} from "@/store/smsFilterStatsStore";
+
+/**
+ * SMS spam recognizer — manual tester.
+ *
+ * What this screen IS:
+ *   • A spam classifier you can paste a suspicious SMS into.
+ *   • The classifier uses Turkish + English gambling/scam/ad keyword lists
+ *     and regex patterns to score and label the message.
+ *   • The user can extend it with custom keywords.
+ *
+ * What this screen is NOT (yet):
+ *   • An automatic SMS filter that intercepts messages in the background.
+ *     Background interception needs (1) a Kotlin SmsReceiver + default SMS
+ *     app role on Android, and (2) an ILMessageFilterExtension target on iOS.
+ *     Neither is wired up in this build; the prior UI implying otherwise was
+ *     misleading and has been removed.
+ *
+ * Roadmap callout below ("Otomatik Engelleme — Yakında") sets expectations so
+ * we never claim what we don't deliver.
+ */
 
 export default function SMSFilterScreen() {
+  const { colors } = useTheme();
+  const toast = useToast();
+
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<FilterSettings>({
     enabled: true,
@@ -36,99 +72,72 @@ export default function SMSFilterScreen() {
   });
   const [newKeyword, setNewKeyword] = useState("");
   const [testMessage, setTestMessage] = useState("");
-  const [testSender, setTestSender] = useState("Bilinmiyor");
+  const [testSender, setTestSender] = useState("");
   const [testResult, setTestResult] = useState<SpamDetectionResult | null>(null);
   const [stats, setStats] = useState({ blocked: 0, allowed: 0 });
-  const [defaultSms, setDefaultSms] = useState<boolean | null>(null);
-  const [roleLoading, setRoleLoading] = useState(false);
 
   useEffect(() => {
-    loadSettings();
+    (async () => {
+      try {
+        const loadedSettings = await getFilterSettings();
+        setSettings(loadedSettings);
+        const currentStats = await getFilterStats();
+        setStats(currentStats);
+      } catch (error) {
+        reportError(error, { scope: "smsFilter.load" });
+        toast.error("Ayarlar yüklenemedi.", "Hata");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadSettings = async () => {
-    try {
-      const loadedSettings = await getFilterSettings();
-      setSettings(loadedSettings);
-      const currentStats = await getFilterStats();
-      setStats(currentStats);
-      if (Platform.OS === "android") {
-        const isDefault = await isDefaultSmsApp();
-        setDefaultSms(isDefault);
-      }
-    } catch (error) {
-      console.error("Ayarlar yüklenirken hata:", error);
-      Alert.alert("Hata", "Ayarlar yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRequestDefaultSms = async () => {
-    if (Platform.OS !== "android") return;
-    try {
-      setRoleLoading(true);
-      const granted = await requestDefaultSmsRole();
-      setDefaultSms(granted);
-      if (!granted) {
-        Alert.alert("Varsayılan SMS Gerekli", "SMS filtreleme için varsayılan SMS uygulaması olmalısın.");
-      }
-    } finally {
-      setRoleLoading(false);
-    }
-  };
-
-  const handleToggleEnabled = async (value: boolean) => {
-    try {
-      if (Platform.OS === "android" && value && defaultSms === false) {
-        Alert.alert(
-          "Varsayılan SMS Gerekli",
-          "Filtreyi açmak için AntiSlot'u varsayılan SMS uygulaması yapmalısın."
-        );
-        return;
-      }
-      await toggleFilter(value);
-      setSettings({ ...settings, enabled: value });
-    } catch {
-      Alert.alert("Hata", "Ayarlar güncellenemedi.");
-    }
-  };
-
   const handleToggleStrictMode = async (value: boolean) => {
+    haptics.selection();
     try {
       await updateFilterSettings({ strictMode: value });
       setSettings({ ...settings, strictMode: value });
-    } catch {
-      Alert.alert("Hata", "Ayarlar güncellenemedi.");
+    } catch (error) {
+      reportError(error, { scope: "smsFilter.toggleStrict" });
+      haptics.error();
+      toast.error("Ayar güncellenemedi.", "Hata");
     }
   };
 
   const handleAddKeyword = async () => {
     const trimmed = newKeyword.trim().toLowerCase();
     if (!trimmed) {
-      Alert.alert("Geçersiz", "Lütfen bir anahtar kelime girin.");
+      haptics.warning();
+      toast.warning("Lütfen bir anahtar kelime girin.", "Geçersiz");
       return;
     }
-
     if (settings.customKeywords.includes(trimmed)) {
-      Alert.alert("Yinelenen", "Bu anahtar kelime zaten var.");
+      haptics.warning();
+      toast.warning("Bu anahtar kelime zaten var.", "Yinelenen");
       setNewKeyword("");
       return;
     }
-
     try {
       await addCustomKeyword(trimmed);
-      setSettings({ ...settings, customKeywords: [...settings.customKeywords, trimmed] });
+      setSettings({
+        ...settings,
+        customKeywords: [...settings.customKeywords, trimmed],
+      });
       setNewKeyword("");
-    } catch {
-      Alert.alert("Hata", "Anahtar kelime eklenemedi.");
+      haptics.success();
+    } catch (error) {
+      reportError(error, { scope: "smsFilter.addKeyword" });
+      haptics.error();
+      toast.error("Anahtar kelime eklenemedi.", "Hata");
     }
   };
 
-  const handleRemoveKeyword = async (keyword: string) => {
+  const handleRemoveKeyword = (keyword: string) => {
+    haptics.warning();
     Alert.alert(
       "Anahtar Kelimeyi Kaldır",
-      `"${keyword}" anahtar kelimesi engel listesinden çıkarılsın mı?`,
+      `"${keyword}" listesinden çıkarılsın mı?`,
       [
         { text: "İptal", style: "cancel" },
         {
@@ -139,10 +148,13 @@ export default function SMSFilterScreen() {
               await removeCustomKeyword(keyword);
               setSettings({
                 ...settings,
-                customKeywords: settings.customKeywords.filter(k => k !== keyword),
+                customKeywords: settings.customKeywords.filter((k) => k !== keyword),
               });
-            } catch {
-              Alert.alert("Hata", "Anahtar kelime kaldırılamadı.");
+              haptics.success();
+            } catch (error) {
+              reportError(error, { scope: "smsFilter.removeKeyword" });
+              haptics.error();
+              toast.error("Anahtar kelime kaldırılamadı.", "Hata");
             }
           },
         },
@@ -150,16 +162,46 @@ export default function SMSFilterScreen() {
     );
   };
 
-  const handleAutoDeleteChange = async (days: number | null) => {
+  const handleTestMessage = async () => {
+    if (!testMessage.trim()) {
+      haptics.warning();
+      toast.warning("Test etmek için bir mesaj yapıştırın.", "Boş Mesaj");
+      return;
+    }
+    haptics.tapLight();
+    const service = new SMSFilterService(settings.customKeywords, settings.strictMode);
+    const result = service.classify({
+      body: testMessage,
+      sender: testSender.trim() || "Bilinmiyor",
+    });
+    setTestResult(result);
+    if (result.isSpam) {
+      await incrementBlocked();
+      haptics.warning();
+    } else {
+      await incrementAllowed();
+      haptics.success();
+    }
+    const updatedStats = await getFilterStats();
+    setStats(updatedStats);
+  };
+
+  const handleResetStats = async () => {
+    haptics.warning();
     try {
-      await updateFilterSettings({ autoDeleteDays: days });
-      setSettings({ ...settings, autoDeleteDays: days });
-    } catch {
-      Alert.alert("Hata", "Otomatik silme ayarı güncellenemedi.");
+      await resetFilterStats();
+      const updated = await getFilterStats();
+      setStats(updated);
+      haptics.success();
+      toast.info("Test sayaçları sıfırlandı.");
+    } catch (error) {
+      reportError(error, { scope: "smsFilter.resetStats" });
+      haptics.error();
     }
   };
 
   const totalKeywords = getAllKeywords().length + settings.customKeywords.length;
+  const totalTests = stats.blocked + stats.allowed;
   const strengthLabel = useMemo(() => {
     if (settings.strictMode && totalKeywords > 150) return "Maksimum";
     if (settings.strictMode) return "Yüksek";
@@ -169,570 +211,550 @@ export default function SMSFilterScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" />
-        </View>
-      </SafeAreaView>
+      <LinearGradient
+        colors={colors.backgroundGradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradientContainer}
+      >
+        <SafeAreaView
+          style={styles.container}
+          accessible
+          accessibilityLabel="SMS tanıyıcı yükleniyor"
+          accessibilityState={{ busy: true }}
+        >
+          <View style={styles.content}>
+            <Skeleton width={60} height={16} radius={6} style={styles.skelBack} />
+            <Skeleton width="60%" height={28} radius={8} style={styles.skelTitle} />
+            <Card style={styles.cardSpacing}>
+              <Skeleton width="50%" height={18} radius={6} />
+              <Skeleton width="80%" height={12} radius={6} style={styles.skelGap} />
+            </Card>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
-  const handleTestMessage = async () => {
-    if (!testMessage.trim()) {
-      Alert.alert("Boş Mesaj", "Test etmek için bir mesaj girin.");
-      return;
-    }
-    const service = new SMSFilterService(settings.customKeywords, settings.strictMode);
-    const result = service.classify({ body: testMessage, sender: testSender });
-    setTestResult(result);
-    if (result.isSpam) {
-      await incrementBlocked();
-    } else {
-      await incrementAllowed();
-    }
-    const updatedStats = await getFilterStats();
-    setStats(updatedStats);
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>← Geri</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>SMS Spam Filtresi</Text>
-        </View>
-
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>🛡️ Koruma Etkin</Text>
-          <Text style={styles.infoText}>
-            Kumar, bahis, dolandırıcılık ve istenmeyen reklamları içeren spam mesajları engeller.
-          </Text>
-          <Text style={styles.infoStats}>
-            {totalKeywords} anahtar kelime • {settings.customKeywords.length} özel • Güç: {strengthLabel}
-          </Text>
-        </View>
-
-        {Platform.OS === "android" && defaultSms === false && (
-          <View style={styles.roleCard}>
-            <Text style={styles.roleTitle}>Varsayılan SMS Uygulaması</Text>
-            <Text style={styles.roleText}>
-              Android&apos;de SMS filtreleme için AntiSlot&apos;u varsayılan SMS uygulaması olarak ayarlamalısın.
-            </Text>
-            <TouchableOpacity
-              style={styles.roleButton}
-              onPress={handleRequestDefaultSms}
-              disabled={roleLoading}
-            >
-              <Text style={styles.roleButtonText}>
-                {roleLoading ? "İşleniyor..." : "Varsayılan Yap"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.blocked}</Text>
-            <Text style={styles.statLabel}>Engellendi</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{stats.allowed}</Text>
-            <Text style={styles.statLabel}>İzin Verildi</Text>
-          </View>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
           <TouchableOpacity
-            style={styles.resetStatsBtn}
-            onPress={async () => {
-              await resetFilterStats();
-              const updated = await getFilterStats();
-              setStats(updated);
-            }}
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
           >
-            <Text style={styles.resetStatsText}>Sıfırla</Text>
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.backText, { color: colors.text }]}>Geri</Text>
           </TouchableOpacity>
-        </View>
 
-        {/* Etkinleştirme/Devre dışı bırakma anahtarı */}
-        <View style={styles.section}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingTitle}>Spam Filtresini Etkinleştir</Text>
-              <Text style={styles.settingDescription}>
-                Tespit edilen spam mesajları otomatik engeller
+          {/* Hero — repositioned as "recognizer" */}
+          <LinearGradient
+            colors={["#4A5566", "#3F4858", "#353C49"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.heroDecor} pointerEvents="none">
+              <Ionicons name="mail-unread" size={120} color="rgba(255,255,255,0.14)" />
+            </View>
+            <View style={styles.heroBadge}>
+              <Ionicons name="flask" size={11} color="#9DAFC6" />
+              <Text style={styles.heroBadgeText}>TANIYICI</Text>
+            </View>
+            <Text style={styles.heroTitle} accessibilityRole="header">
+              SMS Spam Tanıyıcı
+            </Text>
+            <Text style={styles.heroSubtitle}>
+              Şüpheli bir SMS aldığında içeriğini buraya yapıştır — kumar, bahis,
+              dolandırıcılık veya reklam olup olmadığını tanır ve neden olduğunu açıklar.
+            </Text>
+          </LinearGradient>
+
+          {/* "Coming soon" honesty banner */}
+          <View
+            style={[
+              styles.roadmapBanner,
+              {
+                backgroundColor: `${colors.warning}12`,
+                borderColor: `${colors.warning}55`,
+              },
+            ]}
+          >
+            <Ionicons name="time" size={18} color={colors.warning} />
+            <View style={styles.roadmapText}>
+              <Text style={[styles.roadmapTitle, { color: colors.text }]}>
+                Otomatik engelleme — yakında
+              </Text>
+              <Text style={[styles.roadmapHint, { color: colors.textMuted }]}>
+                Şu an SMS’leri otomatik silmek/engellemek yerine, sen yapıştırınca tanır.
+                Arka planda engelleme yakında bir sürümde gelecek.
               </Text>
             </View>
-            <Switch
-              value={settings.enabled}
-              onValueChange={handleToggleEnabled}
-              trackColor={{ false: "#ccc", true: "#1E7A55" }}
-              thumbColor="#fff"
-              disabled={Platform.OS === "android" && defaultSms === false}
-            />
           </View>
-        </View>
 
-        {/* Strict Mode */}
-        <View style={styles.section}>
-          <View style={styles.settingRow}>
-            <View style={styles.settingLeft}>
-              <Text style={styles.settingTitle}>Sıkı Mod</Text>
-              <Text style={styles.settingDescription}>
-                Daha agresif filtreleme (daha fazla spam yakalayabilir, fakat daha fazla yanlış pozitif de olabilir)
-              </Text>
-            </View>
-            <Switch
-              value={settings.strictMode}
-              onValueChange={handleToggleStrictMode}
-              trackColor={{ false: "#ccc", true: "#D06B5C" }}
-              thumbColor="#fff"
-              disabled={!settings.enabled}
+          {/* Test panel — main feature */}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Mesajı Test Et"
+              icon="flask"
+              subtitle="Şüpheli mesajı yapıştır, sınıflandırıcı sonucu hemen söyler."
             />
-          </View>
-        </View>
-
-        {/* Custom Keywords */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Özel Anahtar Kelimeler</Text>
-          <Text style={styles.sectionDescription}>
-            Engellemek için kendi anahtar kelimelerinizi ekleyin. Bu kelimeleri içeren mesajlar filtrelenir.
-          </Text>
-
-          {/* Anahtar kelime girişi ekle */}
-          <View style={styles.keywordInputContainer}>
             <TextInput
-              style={styles.keywordInput}
-              placeholder="Anahtar kelime girin (ör. 'casino', 'promo')"
-              value={newKeyword}
-              onChangeText={setNewKeyword}
-              onSubmitEditing={handleAddKeyword}
-              autoCapitalize="none"
-              autoCorrect={false}
+              style={[
+                styles.testInput,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Mesaj içeriği..."
+              placeholderTextColor={colors.textMuted}
+              value={testMessage}
+              onChangeText={setTestMessage}
+              multiline
+              accessibilityLabel="Test mesajı"
             />
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddKeyword}
-            >
-              <Text style={styles.addButtonText}>Ekle</Text>
-            </TouchableOpacity>
-          </View>
+            <TextInput
+              style={[
+                styles.testInput,
+                styles.testInputSmall,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="Gönderen (isteğe bağlı)"
+              placeholderTextColor={colors.textMuted}
+              value={testSender}
+              onChangeText={setTestSender}
+              accessibilityLabel="Gönderen"
+            />
+            <Button
+              title="Testi Çalıştır"
+              onPress={handleTestMessage}
+              disabled={!testMessage.trim()}
+              variant="primary"
+              fullWidth
+              leftIcon="play"
+              style={styles.testBtn}
+            />
 
-          {/* Keyword List */}
-          {settings.customKeywords.length > 0 ? (
-            <View style={styles.keywordList}>
-              {settings.customKeywords.map((keyword, index) => (
-                <View key={index} style={styles.keywordTag}>
-                  <Text style={styles.keywordText}>{keyword}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveKeyword(keyword)}
-                    style={styles.removeButton}
-                  >
-                    <Text style={styles.removeButtonText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>Henüz özel anahtar kelime eklenmedi</Text>
-          )}
-        </View>
-
-        {/* Otomatik silme ayarları */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Engellenen Mesajları Otomatik Sil</Text>
-          <Text style={styles.sectionDescription}>
-            Engellenen mesajları belirli bir gün sayısından sonra otomatik sil
-          </Text>
-
-          <View style={styles.autoDeleteOptions}>
-            {[null, 7, 14, 30].map((days) => (
-              <TouchableOpacity
-                key={days || 0}
+            {testResult ? (
+              <View
                 style={[
-                  styles.autoDeleteOption,
-                  settings.autoDeleteDays === days && styles.autoDeleteOptionActive,
+                  styles.testResult,
+                  {
+                    backgroundColor: testResult.isSpam
+                      ? `${colors.danger}12`
+                      : `${colors.success}12`,
+                    borderColor: testResult.isSpam
+                      ? `${colors.danger}55`
+                      : `${colors.success}55`,
+                  },
                 ]}
-                onPress={() => handleAutoDeleteChange(days)}
+                accessibilityLiveRegion="polite"
               >
-                <Text
-                  style={[
-                    styles.autoDeleteOptionText,
-                    settings.autoDeleteDays === days && styles.autoDeleteOptionTextActive,
-                  ]}
-                >
-                  {days === null ? "Hiçbir zaman" : `${days} gün`}
+                <View style={styles.testResultHeader}>
+                  <Ionicons
+                    name={testResult.isSpam ? "ban" : "checkmark-circle"}
+                    size={20}
+                    color={testResult.isSpam ? colors.danger : colors.success}
+                  />
+                  <Text
+                    style={[
+                      styles.testResultTitle,
+                      { color: testResult.isSpam ? colors.danger : colors.success },
+                    ]}
+                  >
+                    {testResult.isSpam ? "Spam tespit edildi" : "Normal görünüyor"}
+                  </Text>
+                </View>
+                <Text style={[styles.testResultText, { color: colors.text }]}>
+                  Kategori: <Text style={styles.testResultEmphasis}>{testResult.category}</Text>
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+                <Text style={[styles.testResultText, { color: colors.text }]}>
+                  Güven: <Text style={styles.testResultEmphasis}>{testResult.confidence}</Text>
+                </Text>
+                {testResult.reasons.length > 0 ? (
+                  <View style={styles.reasonsList}>
+                    <Text style={[styles.reasonsLabel, { color: colors.textMuted }]}>
+                      Nedenler:
+                    </Text>
+                    {testResult.reasons.map((reason, index) => (
+                      <View key={`${reason}-${index}`} style={styles.reasonRow}>
+                        <View
+                          style={[
+                            styles.reasonDot,
+                            { backgroundColor: testResult.isSpam ? colors.danger : colors.success },
+                          ]}
+                        />
+                        <Text style={[styles.reasonText, { color: colors.text }]}>
+                          {reason}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </Card>
 
-        {/* Test Filter */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SMS Filtresini Test Et</Text>
-          <Text style={styles.sectionDescription}>
-            Sınıflandırıcının nasıl tepki verdiğini görmek için bir mesaj yapıştırın.
-          </Text>
-          <TextInput
-            style={styles.testInput}
-            placeholder="Mesaj içeriği..."
-            value={testMessage}
-            onChangeText={setTestMessage}
-            multiline
-          />
-          <TextInput
-            style={styles.testInput}
-            placeholder="Gönderen (isteğe bağlı)"
-            value={testSender}
-            onChangeText={setTestSender}
-          />
-          <TouchableOpacity style={styles.testButton} onPress={handleTestMessage}>
-            <Text style={styles.testButtonText}>Testi Çalıştır</Text>
-          </TouchableOpacity>
-          {testResult && (
-            <View style={styles.testResult}>
-              <Text style={styles.testResultTitle}>
-                Sonuç: {testResult.isSpam ? "Engellendi" : "İzin Verildi"}
-              </Text>
-              <Text style={styles.testResultText}>Kategori: {testResult.category}</Text>
-              <Text style={styles.testResultText}>Güven: {testResult.confidence}</Text>
-              <Text style={styles.testResultText}>Nedenler:</Text>
-              {testResult.reasons.map((reason, index) => (
-                <Text key={`${reason}-${index}`} style={styles.testResultText}>• {reason}</Text>
-              ))}
+          {/* Test stats */}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Test İstatistikleri"
+              icon="bar-chart"
+              meta={totalTests > 0 ? `${totalTests} test` : undefined}
+            />
+            <View style={styles.statRow}>
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: `${colors.danger}12`, borderColor: `${colors.danger}33` },
+                ]}
+              >
+                <Ionicons name="ban" size={22} color={colors.danger} />
+                <Text style={[styles.statNumber, { color: colors.danger }]}>{stats.blocked}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Spam Tespit</Text>
+              </View>
+              <View
+                style={[
+                  styles.statCard,
+                  { backgroundColor: `${colors.success}12`, borderColor: `${colors.success}33` },
+                ]}
+              >
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <Text style={[styles.statNumber, { color: colors.success }]}>{stats.allowed}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Normal</Text>
+              </View>
             </View>
-          )}
-        </View>
+            {totalTests > 0 ? (
+              <Button
+                title="Sayaçları Sıfırla"
+                onPress={handleResetStats}
+                variant="secondary"
+                fullWidth
+                leftIcon="refresh"
+                style={styles.resetStatsBtn}
+              />
+            ) : null}
+          </Card>
 
-        {/* iOS Native Integration Note */}
-        <View style={styles.noteCard}>
-          <Text style={styles.noteTitle}>ℹ️ iOS Entegrasyonu</Text>
-          <Text style={styles.noteText}>
-            iOS&apos;ta otomatik SMS filtreleme için ILMessageFilterExtension ve yerel kurulum gerekir.
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Recognizer settings — affects test output only */}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Tanıyıcı Ayarları"
+              icon="options"
+              subtitle="Bu ayarlar yalnızca test sonuçlarını etkiler."
+            />
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleInfo}>
+                <Text style={[styles.toggleLabel, { color: colors.text }]}>Sıkı Mod</Text>
+                <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
+                  Daha agresif sınıflandırma. Sınırdaki mesajları daha çok spam olarak işaretler.
+                </Text>
+              </View>
+              <Switch
+                value={settings.strictMode}
+                onValueChange={handleToggleStrictMode}
+                trackColor={{ false: colors.cardBorder, true: colors.warning }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Sıkı mod"
+              />
+            </View>
+            <View style={[styles.strengthRow, { borderTopColor: colors.cardBorder }]}>
+              <Text style={[styles.strengthLabel, { color: colors.textMuted }]}>
+                Tanıyıcı Gücü
+              </Text>
+              <View style={[styles.strengthChip, { backgroundColor: `${colors.primary}14` }]}>
+                <Ionicons name="shield" size={11} color={colors.primary} />
+                <Text style={[styles.strengthValue, { color: colors.primary }]}>
+                  {strengthLabel}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.strengthMeta, { color: colors.textMuted }]}>
+              {getAllKeywords().length} hazır anahtar kelime · {settings.customKeywords.length} özel
+            </Text>
+          </Card>
+
+          {/* Custom keywords */}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Özel Anahtar Kelimeler"
+              icon="filter"
+              subtitle="Sınıflandırıcıya kendi tanıyıcı kelimelerinizi ekleyin."
+              meta={
+                settings.customKeywords.length > 0
+                  ? `${settings.customKeywords.length}`
+                  : undefined
+              }
+            />
+            <View style={styles.keywordInputRow}>
+              <TextInput
+                style={[
+                  styles.keywordInput,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.cardBorder,
+                    color: colors.text,
+                  },
+                ]}
+                placeholder="ör. casino, promo, bonus"
+                placeholderTextColor={colors.textMuted}
+                value={newKeyword}
+                onChangeText={setNewKeyword}
+                onSubmitEditing={handleAddKeyword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Yeni anahtar kelime"
+              />
+              <Button
+                title="Ekle"
+                onPress={handleAddKeyword}
+                disabled={!newKeyword.trim()}
+                variant="primary"
+                leftIcon="add"
+              />
+            </View>
+
+            {settings.customKeywords.length > 0 ? (
+              <View style={styles.keywordList}>
+                {settings.customKeywords.map((keyword, index) => (
+                  <TouchableOpacity
+                    key={`${keyword}-${index}`}
+                    style={[
+                      styles.keywordChip,
+                      {
+                        backgroundColor: `${colors.primary}14`,
+                        borderColor: `${colors.primary}33`,
+                      },
+                    ]}
+                    onPress={() => handleRemoveKeyword(keyword)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${keyword} kelimesini kaldır`}
+                  >
+                    <Text style={[styles.keywordText, { color: colors.primary }]}>
+                      {keyword}
+                    </Text>
+                    <Ionicons name="close" size={12} color={colors.primary} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+                Henüz özel anahtar kelime yok
+              </Text>
+            )}
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F9FF",
-  },
-  loader: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 24,
-  },
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
   backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
     marginBottom: 12,
   },
-  backButtonText: {
-    fontSize: 16,
-    color: "#1D4C72",
-    fontWeight: "600",
+  backText: { fontSize: 17, fontWeight: "600" },
+
+  heroCard: {
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  title: {
-    fontSize: 32,
+  heroDecor: {
+    position: "absolute",
+    right: -18,
+    bottom: -18,
+  },
+  heroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(157, 175, 198, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(157, 175, 198, 0.3)",
+    alignSelf: "flex-start",
+    marginBottom: 12,
+  },
+  heroBadgeText: {
+    color: "#9DAFC6",
+    fontSize: 10,
     fontWeight: "900",
-    color: "#1D4C72",
-    marginBottom: 8,
+    letterSpacing: 0.6,
   },
-  infoCard: {
-    backgroundColor: "#1E7A55",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-  },
-  infoTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+  heroTitle: {
     color: "#FFFFFF",
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    opacity: 0.9,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  infoStats: {
-    fontSize: 12,
-    color: "#FFFFFF",
-    opacity: 0.8,
-    marginTop: 4,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-    alignItems: "center",
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 12,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1D4C72",
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#666",
-  },
-  resetStatsBtn: {
-    backgroundColor: "#D06B5C",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  resetStatsText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1D4C72",
-    marginBottom: 8,
-  },
-  sectionDescription: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  settingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  settingLeft: {
-    flex: 1,
-    marginRight: 16,
-  },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1D4C72",
-    marginBottom: 4,
-  },
-  settingDescription: {
-    fontSize: 13,
-    color: "#666",
-    lineHeight: 18,
-  },
-  keywordInputContainer: {
-    flexDirection: "row",
-    marginBottom: 16,
-  },
-  keywordInput: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    marginRight: 8,
-  },
-  addButton: {
-    backgroundColor: "#1D4C72",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    justifyContent: "center",
-  },
-  addButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-    fontSize: 15,
-  },
-  keywordList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 8,
-  },
-  keywordTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E8F4F0",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  keywordText: {
-    fontSize: 14,
-    color: "#1E7A55",
-    fontWeight: "500",
-    marginRight: 6,
-  },
-  removeButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#1E7A55",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  removeButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#999",
-    fontStyle: "italic",
-    marginTop: 8,
-  },
-  autoDeleteOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 8,
-  },
-  autoDeleteOption: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 12,
-    marginBottom: 8,
-  },
-  autoDeleteOptionActive: {
-    backgroundColor: "#1D4C72",
-  },
-  autoDeleteOptionText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  autoDeleteOptionTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "600",
-  },
-  noteCard: {
-    backgroundColor: "#FFF3E0",
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FF9800",
-  },
-  noteTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#E65100",
-    marginBottom: 8,
-  },
-  noteText: {
-    fontSize: 13,
-    color: "#E65100",
-    lineHeight: 18,
-  },
-  roleCard: {
-    backgroundColor: "#FFF7ED",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: "#FB923C",
-  },
-  roleTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#B45309",
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: -0.3,
     marginBottom: 6,
   },
-  roleText: {
+  heroSubtitle: {
+    color: "rgba(255,255,255,0.9)",
     fontSize: 13,
-    color: "#9A3412",
-    lineHeight: 18,
-    marginBottom: 10,
+    lineHeight: 19,
   },
-  roleButton: {
-    backgroundColor: "#FB923C",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
+
+  roadmapBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
   },
-  roleButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  roadmapText: { flex: 1, minWidth: 0 },
+  roadmapTitle: { fontSize: 14, fontWeight: "800", marginBottom: 2 },
+  roadmapHint: { fontSize: 12, lineHeight: 17 },
+
+  cardSpacing: { marginBottom: 14 },
+
   testInput: {
-    backgroundColor: "#F5F5F5",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    borderWidth: 1,
     marginBottom: 10,
+    minHeight: 80,
+    textAlignVertical: "top",
   },
-  testButton: {
-    backgroundColor: "#1D4C72",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  testButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  testInputSmall: { minHeight: 0 },
+  testBtn: { marginTop: 4 },
   testResult: {
-    backgroundColor: "#F8F9FA",
+    marginTop: 14,
+    padding: 14,
     borderRadius: 12,
-    padding: 12,
+    borderWidth: 1,
+    gap: 6,
   },
-  testResultTitle: {
+  testResultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  testResultTitle: { fontSize: 15, fontWeight: "800" },
+  testResultText: { fontSize: 13, lineHeight: 18 },
+  testResultEmphasis: { fontWeight: "800" },
+  reasonsList: { marginTop: 6, gap: 4 },
+  reasonsLabel: { fontSize: 12, fontWeight: "700", marginBottom: 2 },
+  reasonRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  reasonDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 7 },
+  reasonText: { fontSize: 13, lineHeight: 18, flex: 1 },
+
+  statRow: { flexDirection: "row", gap: 10 },
+  statCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    alignItems: "center",
+    gap: 4,
+  },
+  statNumber: { fontSize: 28, fontWeight: "900" },
+  statLabel: { fontSize: 12, fontWeight: "600" },
+  resetStatsBtn: { marginTop: 12 },
+
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+    gap: 12,
+  },
+  toggleInfo: { flex: 1, minWidth: 0 },
+  toggleLabel: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
+  toggleHint: { fontSize: 12, lineHeight: 16 },
+  strengthRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 14,
+    marginTop: 14,
+    borderTopWidth: 1,
+  },
+  strengthLabel: { fontSize: 13, fontWeight: "600" },
+  strengthChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  strengthValue: { fontSize: 12, fontWeight: "800" },
+  strengthMeta: { fontSize: 11, marginTop: 8 },
+
+  keywordInputRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  keywordInput: {
+    flex: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    fontWeight: "700",
-    color: "#1D4C72",
-    marginBottom: 6,
+    borderWidth: 1,
   },
-  testResultText: {
-    fontSize: 12,
-    color: "#555",
-    marginBottom: 2,
+  keywordList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
   },
+  keywordChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  keywordText: { fontSize: 12, fontWeight: "700" },
+  emptyText: { fontSize: 13, fontStyle: "italic", marginTop: 12 },
+
+  skelBack: { marginBottom: 10 },
+  skelTitle: { marginBottom: 16 },
+  skelGap: { marginTop: 8 },
 });

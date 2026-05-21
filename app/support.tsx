@@ -2,7 +2,6 @@ import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Linking,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +10,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { haptics } from "@/services/haptics";
 
 type SupportResource = {
   id: string;
@@ -75,8 +82,16 @@ const RESOURCES: SupportResource[] = [
   },
 ];
 
+const CATEGORY_ICONS: Record<string, React.ComponentProps<typeof Ionicons>["name"]> = {
+  "Kumar Desteği": "ban",
+  "Ruh Sağlığı": "heart",
+  "Finansal Destek": "wallet",
+  "Barınma Desteği": "home",
+  Topluluk: "people",
+};
+
 export default function Support() {
-  const [showIntro, setShowIntro] = useState(true);
+  const { colors } = useTheme();
   const [query, setQuery] = useState("");
 
   const filteredResources = useMemo(() => {
@@ -90,183 +105,241 @@ export default function Support() {
     );
   }, [query]);
 
+  const handleCall = (phone: string) => {
+    haptics.tapMedium();
+    Linking.openURL(`tel:${phone}`);
+  };
+
+  const handleWebsite = (url: string) => {
+    haptics.tapLight();
+    Linking.openURL(url);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← Geri</Text>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.backText, { color: colors.text }]}>Geri</Text>
           </TouchableOpacity>
-        </View>
 
-        <Text style={styles.title}>Destek Ağı</Text>
-        <Text style={styles.subtitle}>Kumar bağımlılığından iyileşme ve iyi oluş için güvenilir kaynaklar.</Text>
+          <Card variant="hero" style={styles.heroCard}>
+            <View style={styles.heroIconWrap}>
+              <Ionicons name="people" size={26} color="#FFFFFF" />
+            </View>
+            <View style={styles.heroTextWrap}>
+              <Text style={styles.heroTitle} accessibilityRole="header">
+                Destek Ağı
+              </Text>
+              <Text style={styles.heroSubtitle}>
+                Kumar bağımlılığından iyileşme ve iyi oluş için güvenilir kaynaklar.
+              </Text>
+            </View>
+          </Card>
 
-        <View style={styles.searchBox}>
-          <TextInput
-            style={styles.searchInput}
+          <View
+            style={[
+              styles.searchBox,
+              { backgroundColor: colors.card, borderColor: colors.cardBorder },
+            ]}
+          >
+            <Ionicons name="search" size={16} color={colors.textMuted} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder="Destek kaynaklarında ara..."
-            value={query}
-            onChangeText={setQuery}
-          />
-        </View>
+              placeholderTextColor={colors.textMuted}
+              value={query}
+              onChangeText={setQuery}
+              accessibilityLabel="Destek araması"
+            />
+            {query.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setQuery("")}
+                accessibilityRole="button"
+                accessibilityLabel="Aramayı temizle"
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-        {filteredResources.map((resource) => (
-          <View key={resource.id} style={styles.resourceCard}>
-            <View style={styles.resourceHeader}>
-              <View>
-                <Text style={styles.resourceCategory}>{resource.category}</Text>
-                <Text style={styles.resourceTitle}>{resource.title}</Text>
+          {filteredResources.length === 0 ? (
+            <Card style={styles.cardSpacing}>
+              <View style={styles.emptyState}>
+                <Ionicons name="search" size={32} color={colors.textMuted} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Sonuç bulunamadı
+                </Text>
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  Farklı bir arama terimi deneyin.
+                </Text>
               </View>
-            </View>
-            <Text style={styles.resourceDescription}>{resource.description}</Text>
-            <View style={styles.resourceActions}>
-              {resource.phone && (
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => Linking.openURL(`tel:${resource.phone}`)}
-                >
-                  <Text style={styles.primaryButtonText}>Ara</Text>
-                </TouchableOpacity>
-              )}
-              {resource.website && (
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => {
-                    const website = resource.website;
-                    if (website) {
-                      Linking.openURL(website);
-                    }
-                  }}
-                >
-                  <Text style={styles.secondaryButtonText}>Web Sitesi</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-
-      <Modal
-        visible={showIntro}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowIntro(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
-
-            <View style={styles.modalIcon}>
-              <Text style={styles.modalIconEmoji}>💙</Text>
-            </View>
-
-            <Text style={styles.modalTitle}>Destek Haritası</Text>
-            <Text style={styles.modalSubtitle}>
-              Kumar bağımlılığından iyileşme, ruh sağlığı, finans ve barınma için doğru desteği bulun.
-            </Text>
-
-            <TouchableOpacity style={styles.modalNextBtn} onPress={() => setShowIntro(false)}>
-              <Text style={styles.modalNextText}>Kaynakları Göster</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+            </Card>
+          ) : (
+            filteredResources.map((resource) => (
+              <Card key={resource.id} style={styles.cardSpacing}>
+                <View style={styles.resourceHeader}>
+                  <View
+                    style={[
+                      styles.categoryIcon,
+                      { backgroundColor: `${colors.primary}14` },
+                    ]}
+                  >
+                    <Ionicons
+                      name={CATEGORY_ICONS[resource.category] ?? "help-circle"}
+                      size={16}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.resourceTexts}>
+                    <Text
+                      style={[styles.resourceCategory, { color: colors.primary }]}
+                      numberOfLines={1}
+                    >
+                      {resource.category.toUpperCase()}
+                    </Text>
+                    <Text style={[styles.resourceTitle, { color: colors.text }]}>
+                      {resource.title}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.resourceDescription, { color: colors.textMuted }]}>
+                  {resource.description}
+                </Text>
+                <View style={styles.resourceActions}>
+                  {resource.phone ? (
+                    <Button
+                      title="Ara"
+                      onPress={() => handleCall(resource.phone!)}
+                      variant="primary"
+                      leftIcon="call"
+                    />
+                  ) : null}
+                  {resource.website ? (
+                    <Button
+                      title="Web Sitesi"
+                      onPress={() => handleWebsite(resource.website!)}
+                      variant="secondary"
+                      leftIcon="open-outline"
+                    />
+                  ) : null}
+                </View>
+              </Card>
+            ))
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  header: { marginBottom: 20 },
-  backBtn: { alignSelf: "flex-start" },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", marginBottom: 6, color: "#222" },
-  subtitle: { fontSize: 16, color: "#666", marginBottom: 16 },
-  searchBox: { marginBottom: 16 },
-  searchInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  resourceCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
     marginBottom: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
   },
-  resourceHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
-  resourceCategory: { fontSize: 12, color: "#7B6CCC", fontWeight: "700" },
-  resourceTitle: { fontSize: 16, fontWeight: "800", color: "#222" },
-  resourceDescription: { fontSize: 14, color: "#555", marginBottom: 12, lineHeight: 20 },
-  resourceActions: { flexDirection: "row", gap: 10 },
-  primaryButton: {
-    backgroundColor: "#7B6CCC",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+  backText: { fontSize: 17, fontWeight: "600" },
+  heroCard: {
+    flexDirection: "row",
     alignItems: "center",
+    marginBottom: 14,
   },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "700" },
-  secondaryButton: {
-    backgroundColor: "#E8E3FF",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+  heroIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
-  secondaryButtonText: { color: "#7B6CCC", fontWeight: "700" },
-  modalOverlay: {
+  heroTextWrap: { flex: 1 },
+  heroTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  heroSubtitle: {
+    color: "#FFFFFF",
+    opacity: 0.92,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginBottom: 14,
+  },
+  searchInput: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    fontSize: 14,
+    paddingVertical: 10,
+  },
+  cardSpacing: { marginBottom: 12 },
+  resourceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  categoryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
   },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 28,
-    width: "100%",
-    maxWidth: 400,
-    alignItems: "center",
+  resourceTexts: { flex: 1, minWidth: 0 },
+  resourceCategory: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
-  closeBtn: { position: "absolute", top: 16, right: 16 },
-  closeText: { fontSize: 24, color: "#999", fontWeight: "300" },
-  modalIcon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#E8E3FF",
+  resourceTitle: { fontSize: 16, fontWeight: "800" },
+  resourceDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  resourceActions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  emptyState: {
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
+    paddingVertical: 24,
+    gap: 8,
   },
-  modalIconEmoji: { fontSize: 54 },
-  modalTitle: { fontSize: 24, fontWeight: "900", color: "#7B6CCC", marginBottom: 8 },
-  modalSubtitle: { fontSize: 14, color: "#555", textAlign: "center", marginBottom: 16 },
-  modalNextBtn: {
-    backgroundColor: "#1D4C72",
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    width: "100%",
-    alignItems: "center",
-  },
-  modalNextText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
+  emptyTitle: { fontSize: 15, fontWeight: "700" },
+  emptyHint: { fontSize: 13, textAlign: "center" },
 });

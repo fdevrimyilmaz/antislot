@@ -1,8 +1,14 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
-import OpenAI from "openai";
-import { config, type AiProvider } from "./config";
+import { config } from "./config";
+import { handleActivate, handleRestore } from "./premium";
+import { initIdempotencyStore } from "./premium-idempotency";
+import {
+  configureAppleVerifier,
+  getAppleVerifierStatus,
+  parseEnvironment,
+} from "./apple-jws-verifier";
 
 type ClientMessage = {
   role?: string;
@@ -16,17 +22,16 @@ type GeminiPart = { text: string };
 type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
 
 const SYSTEM_PROMPT = [
-  "You are YAPAY ANTI, a Turkish-speaking support assistant.",
+  "You are YAPAY ANTI, a supportive recovery assistant.",
   "Give short, practical, and empathetic guidance for gambling urges and stress moments.",
   "Do not provide medical diagnosis, legal advice, or financial advice.",
   "If user mentions immediate danger, self-harm, or crisis, direct them to emergency services (112).",
+  "Respect explicit language instructions provided by the client.",
 ].join(" ");
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-
-const openai = new OpenAI({ apiKey: config.openAiApiKey });
 
 async function sendOperationalAlert(
   title: string,
@@ -90,26 +95,28 @@ function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
   return output;
 }
 
-async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
-  const completion = await openai.chat.completions.create({
-    model: config.openAiModel,
-    messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-    temperature: 0.7,
-  });
+function resolveSystemPrompt(messages: ChatMessage[]): string {
+  const clientPrompt = messages
+    .filter((message) => message.role === "system")
+    .map((message) => message.content.trim())
+    .filter((message) => message.length > 0)
+    .join("\n");
 
-  const reply = completion.choices?.[0]?.message?.content?.trim();
-  if (!reply) {
-    throw new Error("openai_empty_reply");
-  }
-  return reply;
+  return clientPrompt || SYSTEM_PROMPT;
+}
+
+function stripSystemMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => message.role !== "system");
 }
 
 async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
   const url = `${config.geminiBaseUrl}/models/${encodeURIComponent(
     config.geminiModel
   )}:generateContent?key=${encodeURIComponent(config.geminiApiKey)}`;
 
-  const contents = normalizeGeminiContents(messages);
+  const contents = normalizeGeminiContents(conversation);
   if (contents.length === 0) {
     throw new Error("gemini_empty_prompt");
   }
@@ -119,7 +126,7 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       system_instruction: {
-        parts: [{ text: SYSTEM_PROMPT }],
+        parts: [{ text: systemPrompt }],
       },
       contents,
       generationConfig: {
@@ -152,16 +159,6 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
   return reply;
 }
 
-async function completeWithProvider(
-  provider: AiProvider,
-  messages: ChatMessage[]
-): Promise<string> {
-  if (provider === "gemini") {
-    return completeWithGemini(messages);
-  }
-  return completeWithOpenAi(messages);
-}
-
 app.get("/", (_req, res) => {
   return res.status(200).json({
     ok: true,
@@ -185,7 +182,7 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    const reply = await completeWithProvider(config.aiProvider, sanitized);
+    const reply = await completeWithGemini(sanitized);
     return res.json({ reply, provider: config.aiProvider });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -199,6 +196,64 @@ app.post("/chat", async (req, res) => {
       provider: config.aiProvider,
     });
   }
+});
+
+app.post("/v1/premium/activate", async (req, res) => {
+  try {
+    return await handleActivate(req, res);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("premium.activate error:", message);
+    return res.status(500).json({
+      ok: false,
+      isActive: false,
+      source: "none",
+      error: "internal_error",
+    });
+  }
+});
+
+app.post("/v1/premium/restore", async (req, res) => {
+  try {
+    return await handleRestore(req, res);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("premium.restore error:", message);
+    return res.status(500).json({
+      ok: false,
+      isActive: false,
+      source: "none",
+      error: "internal_error",
+    });
+  }
+});
+
+app.post("/v1/premium/sync", (req, res) => {
+  return res.status(200).json({
+    ok: true,
+    isActive: false,
+    source: "none",
+  });
+});
+
+app.post("/v1/premium/redeem", (req, res) => {
+  const codes = config.premiumRedeemCodes;
+  if (codes.length === 0) {
+    return res.status(503).json({
+      ok: false,
+      error: "REDEEM_NOT_CONFIGURED",
+    });
+  }
+  const submittedRaw = (req.body as { code?: unknown })?.code;
+  const submitted =
+    typeof submittedRaw === "string" ? submittedRaw.trim().toUpperCase() : "";
+  if (!submitted) {
+    return res.status(400).json({ ok: false, error: "INVALID_CODE" });
+  }
+  if (!codes.includes(submitted)) {
+    return res.status(400).json({ ok: false, error: "INVALID_CODE" });
+  }
+  return res.status(200).json({ ok: true, source: "code" });
 });
 
 app.post("/iap/webhook", async (req, res) => {
@@ -216,8 +271,29 @@ app.post("/iap/webhook", async (req, res) => {
   }
 });
 
+initIdempotencyStore(config.premiumIdempotencyDbPath);
+
+configureAppleVerifier({
+  rootCertDir: config.apple.rootCertDir,
+  bundleId: config.apple.bundleId,
+  environment: parseEnvironment(config.apple.environment),
+  appAppleId: config.apple.appAppleId,
+  enableOnlineChecks: config.apple.enableOnlineRevocationCheck,
+});
+
+if (config.isProduction && !getAppleVerifierStatus().ready) {
+  throw new Error(
+    `Production requires Apple JWS verifier to be configured. ${
+      getAppleVerifierStatus().lastError ?? "no_root_certs"
+    }`
+  );
+}
+
 app.listen(config.port, config.host, () => {
+  const verifierStatus = getAppleVerifierStatus();
   console.log(
-    `AI chat server running on http://${config.host}:${config.port} (provider=${config.aiProvider})`
+    `AI chat server running on http://${config.host}:${config.port} (provider=${config.aiProvider}, appleVerifier=${
+      verifierStatus.ready ? `ready/${verifierStatus.certCount}` : "off"
+    })`
   );
 });

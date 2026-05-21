@@ -220,4 +220,78 @@ describe('API Server', () => {
       expect(body.provider).toBe('gemini');
     });
   });
+
+  describe('POST /v1/premium/redeem', () => {
+    const original = config.premiumAccessCodes;
+
+    afterEach(() => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = original;
+    });
+
+    it('accepts a configured code (case-insensitive)', async () => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = ['ANTISLOT2026'];
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/premium/redeem',
+        payload: { code: 'antislot2026' }
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ ok: true, source: 'code' });
+    });
+
+    it('rejects an unknown code with 401', async () => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = ['ANTISLOT2026'];
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/premium/redeem',
+        payload: { code: 'WRONG' }
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ ok: false, error: 'INVALID_CODE' });
+    });
+
+    it('rejects empty input with 400', async () => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = ['ANTISLOT2026'];
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/premium/redeem',
+        payload: { code: '   ' }
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('returns 503 when no codes are configured', async () => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = [];
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/premium/redeem',
+        payload: { code: 'ANYTHING' }
+      });
+
+      expect(response.statusCode).toBe(503);
+      const body = JSON.parse(response.body);
+      expect(body).toEqual({ ok: false, error: 'REDEEM_NOT_CONFIGURED' });
+    });
+
+    it('rejects overlong input with 400', async () => {
+      (config as { premiumAccessCodes: string[] }).premiumAccessCodes = ['ANTISLOT2026'];
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/v1/premium/redeem',
+        payload: { code: 'X'.repeat(65) }
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+  });
 });

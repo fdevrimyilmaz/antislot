@@ -3,14 +3,16 @@
  * Fastify + TypeScript
  */
 
+import { timingSafeEqual } from 'crypto';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import { config, type AiProvider } from './config';
+import { config } from './config';
 import { BlocklistStorage } from './storage/blocklist-storage';
 import { PatternsStorage } from './storage/patterns-storage';
 import { generateSignature } from './utils/signature';
 import { setupCacheMiddleware, setCacheControl } from './middleware/cache';
 import { HealthResponse, BlocklistResponse, PatternsResponse } from './types';
+import { handleTelegramUpdate } from './services/telegram';
 
 type ChatRole = 'system' | 'user' | 'assistant';
 type ChatMessage = { role: ChatRole; content: string };
@@ -38,13 +40,12 @@ const blocklistStorage = new BlocklistStorage();
 const patternsStorage = new PatternsStorage();
 
 const AI_SYSTEM_PROMPT =
-  'Sen YAPAY ANTI adli, Turkce konusan destek asistanisin. ' +
-  'Amacin: Kumar durtusu ve stres aninda kisa, sakinlestirici ve uygulanabilir adimlar sunmak. ' +
-  'Profesyonel yardimin yerine gecmezsin; tani veya tedavi vermezsin. ' +
-  'Kullanici acil tehlike, kendine zarar verme veya baskasinin guvende olmadigi bir durumdan bahsederse ' +
-  '112\'yi aramasini ve guvendigi birine ulasmasini oner. ' +
-  'Kumar oynama stratejileri, bahis, kazanma taktikleri veya kumar nasil oynanir gibi icerik vermezsin. ' +
-  'Yanitin 3-6 maddelik, kisa ve net olsun; en sonda bir takip sorusu sor.';
+  'You are YAPAY ANTI, a supportive recovery assistant. ' +
+  'Give short, practical, and empathetic guidance for gambling urges and stress moments. ' +
+  'Do not provide gambling tactics, betting strategies, or site recommendations. ' +
+  'Do not provide medical diagnosis or clinical treatment instructions. ' +
+  'If the user mentions immediate danger, self-harm, or crisis, suggest contacting emergency services and a trusted person. ' +
+  'Respect explicit language instructions provided by the client.';
 
 function sanitizeMessages(raw: unknown): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
@@ -80,6 +81,20 @@ function extractChatMessages(body: AiChatRequest | undefined): ChatMessage[] {
   return [...history, userMessage].slice(-16);
 }
 
+function resolveSystemPrompt(messages: ChatMessage[]): string {
+  const clientPrompt = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter((message) => message.length > 0)
+    .join('\n');
+
+  return clientPrompt || AI_SYSTEM_PROMPT;
+}
+
+function stripSystemMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.filter((message) => message.role !== 'system');
+}
+
 function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
   const contents: GeminiContent[] = [];
 
@@ -106,55 +121,20 @@ function normalizeGeminiContents(messages: ChatMessage[]): GeminiContent[] {
   return contents;
 }
 
-function isAiConfigured(provider: AiProvider): boolean {
-  if (provider === 'gemini') {
-    return (config.geminiApiKey || '').trim().length > 0;
-  }
-  return (config.openAiApiKey || '').trim().length > 0;
+function isAiConfigured(): boolean {
+  return (config.geminiApiKey || '').trim().length > 0;
 }
 
-async function completeWithOpenAi(messages: ChatMessage[]): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), config.openAiTimeoutMs);
+type AiCompletion = {
+  text: string;
+  /** True when the upstream truncated due to token limit. */
+  truncated?: boolean;
+};
 
-  try {
-    const response = await fetch(`${config.openAiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.openAiApiKey}`
-      },
-      body: JSON.stringify({
-        model: config.openAiModel,
-        messages: [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...messages],
-        temperature: 0.4,
-        max_tokens: config.openAiMaxTokens
-      }),
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => '');
-      throw new Error(`openai_http_${response.status}:${errorBody.slice(0, 300)}`);
-    }
-
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-
-    const replyText = data?.choices?.[0]?.message?.content?.trim();
-    if (!replyText) {
-      throw new Error('openai_empty_reply');
-    }
-
-    return replyText;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
-  const contents = normalizeGeminiContents(messages);
+async function completeWithGemini(messages: ChatMessage[]): Promise<AiCompletion> {
+  const systemPrompt = resolveSystemPrompt(messages);
+  const conversation = stripSystemMessages(messages);
+  const contents = normalizeGeminiContents(conversation);
   if (contents.length === 0) {
     throw new Error('gemini_empty_prompt');
   }
@@ -170,12 +150,15 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
     },
     body: JSON.stringify({
       system_instruction: {
-        parts: [{ text: AI_SYSTEM_PROMPT }]
+        parts: [{ text: systemPrompt }]
       },
       contents,
       generationConfig: {
         temperature: 0.4,
-        maxOutputTokens: Math.max(64, Math.min(1024, config.openAiMaxTokens * 2))
+        // Dedicated cap from GEMINI_MAX_OUTPUT_TOKENS (default 2048).
+        // Clamped to [256, 8192] so user overrides can't accidentally
+        // cripple or balloon the call.
+        maxOutputTokens: Math.max(256, Math.min(8192, config.geminiMaxOutputTokens))
       }
     })
   });
@@ -188,10 +171,12 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
   const payload = (await response.json()) as {
     candidates?: {
       content?: { parts?: { text?: string }[] };
+      finishReason?: string;
     }[];
   };
 
-  const replyText = (payload.candidates?.[0]?.content?.parts || [])
+  const candidate = payload.candidates?.[0];
+  const replyText = (candidate?.content?.parts || [])
     .map((part) => part.text || '')
     .join(' ')
     .trim();
@@ -200,14 +185,56 @@ async function completeWithGemini(messages: ChatMessage[]): Promise<string> {
     throw new Error('gemini_empty_reply');
   }
 
-  return replyText;
+  // Surface truncation so the UI can hint the user to rephrase or
+  // continue. `MAX_TOKENS` is the canonical signal from Gemini.
+  const truncated = candidate?.finishReason === 'MAX_TOKENS';
+
+  return { text: replyText, truncated };
 }
 
-async function completeWithProvider(provider: AiProvider, messages: ChatMessage[]): Promise<string> {
-  if (provider === 'gemini') {
-    return completeWithGemini(messages);
+
+type RedeemRequest = { code?: unknown };
+type RedeemTypedRequest = FastifyRequest<{ Body: RedeemRequest }>;
+
+function constantTimeMatch(input: string, allowed: readonly string[]): boolean {
+  const inputBuffer = Buffer.from(input);
+  let matched = false;
+
+  for (const candidate of allowed) {
+    const candidateBuffer = Buffer.from(candidate);
+    if (candidateBuffer.length !== inputBuffer.length) {
+      // Still perform a compare against the candidate to keep timing roughly stable.
+      const padded = Buffer.alloc(candidateBuffer.length);
+      timingSafeEqual(padded, candidateBuffer);
+      continue;
+    }
+    if (timingSafeEqual(inputBuffer, candidateBuffer)) {
+      matched = true;
+    }
   }
-  return completeWithOpenAi(messages);
+
+  return matched;
+}
+
+async function handleRedeem(request: RedeemTypedRequest, reply: FastifyReply) {
+  reply.header('Cache-Control', 'no-store');
+
+  const rawCode = typeof request.body?.code === 'string' ? request.body.code : '';
+  const normalized = rawCode.trim().toUpperCase();
+
+  if (!normalized || normalized.length > 64) {
+    return reply.code(400).send({ ok: false, error: 'INVALID_CODE' });
+  }
+
+  if (config.premiumAccessCodes.length === 0) {
+    return reply.code(503).send({ ok: false, error: 'REDEEM_NOT_CONFIGURED' });
+  }
+
+  if (!constantTimeMatch(normalized, config.premiumAccessCodes)) {
+    return reply.code(401).send({ ok: false, error: 'INVALID_CODE' });
+  }
+
+  return reply.send({ ok: true, source: 'code' });
 }
 
 async function handleAiChat(request: AiChatTypedRequest, reply: FastifyReply) {
@@ -219,14 +246,18 @@ async function handleAiChat(request: AiChatTypedRequest, reply: FastifyReply) {
   }
 
   const provider = config.aiProvider;
-  if (!isAiConfigured(provider)) {
+  if (!isAiConfigured()) {
     return reply.code(503).send({ error: 'AI_NOT_CONFIGURED', provider });
   }
 
   try {
-    const replyText = await completeWithProvider(provider, messages);
-    const model = provider === 'gemini' ? config.geminiModel : config.openAiModel;
-    return reply.send({ reply: replyText, model, provider });
+    const completion = await completeWithGemini(messages);
+    return reply.send({
+      reply: completion.text,
+      truncated: Boolean(completion.truncated),
+      model: config.geminiModel,
+      provider
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown AI error';
     fastify.log.error({ provider, error: errorMessage }, 'AI request failed');
@@ -331,6 +362,61 @@ fastify.get('/v1/patterns', async (_request, reply) => {
  */
 fastify.post('/chat', handleAiChat);
 fastify.post('/v1/ai/chat', handleAiChat);
+
+/**
+ * Premium access code redemption
+ */
+fastify.post('/v1/premium/redeem', handleRedeem);
+
+/**
+ * Telegram admin webhook.
+ *
+ * The path includes a shared secret to thwart drive-by traffic. Telegram itself
+ * additionally sends `X-Telegram-Bot-Api-Secret-Token` when configured via the
+ * setWebhook API — we verify both.
+ *
+ * Configure via env:
+ *   TELEGRAM_BOT_TOKEN
+ *   TELEGRAM_WEBHOOK_SECRET
+ *   TELEGRAM_ADMIN_CHAT_IDS  (comma-separated)
+ */
+type TelegramWebhookParams = { Params: { secret: string }; Body: unknown };
+
+fastify.post(
+  '/v1/telegram/webhook/:secret',
+  async (request: FastifyRequest<TelegramWebhookParams>, reply: FastifyReply) => {
+    reply.header('Cache-Control', 'no-store');
+
+    if (
+      !config.telegramBotToken ||
+      !config.telegramWebhookSecret ||
+      config.telegramAdminChatIds.length === 0
+    ) {
+      return reply.code(503).send({ ok: false, error: 'TELEGRAM_NOT_CONFIGURED' });
+    }
+
+    const provided = request.params?.secret ?? '';
+    const expected = config.telegramWebhookSecret;
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(expected);
+    const pathOk =
+      providedBuf.length === expectedBuf.length &&
+      timingSafeEqual(providedBuf, expectedBuf);
+
+    const headerToken = (request.headers['x-telegram-bot-api-secret-token'] || '') as string;
+    const headerOk = headerToken === expected || headerToken === '';
+
+    if (!pathOk || !headerOk) {
+      // Return 200 anyway so Telegram does not keep retrying with the wrong URL.
+      fastify.log.warn({ pathOk, headerOk }, 'telegram webhook rejected');
+      return reply.code(200).send({ ok: true });
+    }
+
+    const update = (request.body || {}) as Parameters<typeof handleTelegramUpdate>[0];
+    const result = await handleTelegramUpdate(update, blocklistStorage, fastify.log);
+    return reply.code(200).send({ ok: result.ok });
+  }
+);
 
 /**
  * Start server

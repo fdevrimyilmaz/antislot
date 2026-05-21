@@ -9,11 +9,20 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { usePrivacyStore } from "@/store/privacyStore";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { haptics } from "@/services/haptics";
+import { usePrivacyStore } from "@/store/privacyStore";
 
 export default function PrivacyDataScreen() {
   const { t } = useLanguage();
+  const { colors } = useTheme();
   const { preferences, hydrated, updatePreferences, hydrate } = usePrivacyStore();
 
   useEffect(() => {
@@ -23,167 +32,276 @@ export default function PrivacyDataScreen() {
   }, [hydrated, hydrate]);
 
   const handleDiagnosticsToggle = (value: boolean) => {
+    haptics.selection();
     updatePreferences({ shareDiagnostics: value });
   };
 
   const handleCrashReportingToggle = (value: boolean) => {
+    haptics.selection();
     updatePreferences({ crashReporting: value });
   };
 
+  const handleLinkPress = (route: string) => {
+    haptics.tapLight();
+    router.push(route as never);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backText}>← {t.generalBack}</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{t.privacyDataTitle}</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.privacyDataLocalStorage}</Text>
-          <Text style={styles.sectionSubtitle}>
-            {t.privacyDataLocalStorageSubtitle}
-          </Text>
-
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>{t.privacyDataUrgeLogs}</Text>
-            <Text style={styles.infoText}>
-              {t.privacyDataUrgeLogsDesc}
-            </Text>
-          </View>
-
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>{t.privacyDataUrgePatterns}</Text>
-            <Text style={styles.infoText}>
-              {t.privacyDataUrgePatternsDesc}
-            </Text>
-          </View>
-
-          <View style={styles.infoBox}>
-            <Text style={styles.infoTitle}>{t.privacyDataOtherLocalData}</Text>
-            <Text style={styles.infoText}>
-              {t.privacyDataOtherLocalDataDesc}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.privacyDataTelemetry}</Text>
-          <Text style={styles.sectionSubtitle}>
-            {t.privacyDataTelemetrySubtitle}
-          </Text>
-
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>{t.privacyDataDiagnosticsToggle}</Text>
-              <Text style={styles.toggleHint}>
-                {t.privacyDataDiagnosticsHint}
-              </Text>
-            </View>
-            <Switch
-              value={preferences.shareDiagnostics}
-              onValueChange={handleDiagnosticsToggle}
-              trackColor={{ false: "#CBD5E1", true: "#1D4C72" }}
-              thumbColor="#FFFFFF"
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel={t.generalBack}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
             />
-          </View>
+            <Text style={[styles.backText, { color: colors.text }]}>{t.generalBack}</Text>
+          </TouchableOpacity>
 
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleInfo}>
-              <Text style={styles.toggleLabel}>{t.privacyDataCrashReporting}</Text>
-              <Text style={styles.toggleHint}>
-                {t.privacyDataCrashReportingHint}
-              </Text>
-            </View>
-            <Switch
-              value={preferences.crashReporting}
-              onValueChange={handleCrashReportingToggle}
-              trackColor={{ false: "#CBD5E1", true: "#1D4C72" }}
-              thumbColor="#FFFFFF"
+          <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
+            {t.privacyDataTitle}
+          </Text>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={t.privacyDataLocalStorage}
+              icon="phone-portrait"
+              subtitle={t.privacyDataLocalStorageSubtitle}
             />
-          </View>
-        </View>
+            <View style={styles.infoList}>
+              <InfoBlock
+                title={t.privacyDataUrgeLogs}
+                text={t.privacyDataUrgeLogsDesc}
+                colors={colors}
+              />
+              <InfoBlock
+                title={t.privacyDataUrgePatterns}
+                text={t.privacyDataUrgePatternsDesc}
+                colors={colors}
+              />
+              <InfoBlock
+                title={t.privacyDataOtherLocalData}
+                text={t.privacyDataOtherLocalDataDesc}
+                colors={colors}
+              />
+            </View>
+          </Card>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.privacyDataPolicies}</Text>
-          <Text style={styles.sectionSubtitle}>
-            {t.privacyDataPoliciesSubtitle}
-          </Text>
-          <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/privacy")}>
-            <Text style={styles.linkLabel}>{t.privacyDataPrivacyPolicy}</Text>
-            <Text style={styles.linkArrow}>→</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/terms")}>
-            <Text style={styles.linkLabel}>{t.privacyDataTerms}</Text>
-            <Text style={styles.linkArrow}>→</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/limitations")}>
-            <Text style={styles.linkLabel}>{t.privacyDataImportantInfo}</Text>
-            <Text style={styles.linkArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={t.privacyDataTelemetry}
+              icon="analytics"
+              subtitle={t.privacyDataTelemetrySubtitle}
+            />
+            <View style={styles.toggleList}>
+              <View
+                style={[
+                  styles.toggleRow,
+                  { borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
+                ]}
+              >
+                <View style={styles.toggleInfo}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>
+                    {t.privacyDataDiagnosticsToggle}
+                  </Text>
+                  <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
+                    {t.privacyDataDiagnosticsHint}
+                  </Text>
+                </View>
+                <Switch
+                  value={preferences.shareDiagnostics}
+                  onValueChange={handleDiagnosticsToggle}
+                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  accessibilityLabel={t.privacyDataDiagnosticsToggle}
+                />
+              </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.privacyDataSecurity}</Text>
-          <Text style={styles.sectionSubtitle}>
-            {t.privacyDataSecuritySubtitle}
-          </Text>
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleInfo}>
+                  <Text style={[styles.toggleLabel, { color: colors.text }]}>
+                    {t.privacyDataCrashReporting}
+                  </Text>
+                  <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
+                    {t.privacyDataCrashReportingHint}
+                  </Text>
+                </View>
+                <Switch
+                  value={preferences.crashReporting}
+                  onValueChange={handleCrashReportingToggle}
+                  trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                  thumbColor="#FFFFFF"
+                  accessibilityLabel={t.privacyDataCrashReporting}
+                />
+              </View>
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={t.privacyDataPolicies}
+              icon="document-text"
+              subtitle={t.privacyDataPoliciesSubtitle}
+            />
+            <View style={styles.linkList}>
+              <LinkRow
+                label={t.privacyDataPrivacyPolicy}
+                icon="lock-closed"
+                onPress={() => handleLinkPress("/privacy")}
+                colors={colors}
+                divider
+              />
+              <LinkRow
+                label={t.privacyDataTerms}
+                icon="reader"
+                onPress={() => handleLinkPress("/terms")}
+                colors={colors}
+                divider
+              />
+              <LinkRow
+                label={t.privacyDataImportantInfo}
+                icon="information-circle"
+                onPress={() => handleLinkPress("/limitations")}
+                colors={colors}
+              />
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title={t.privacyDataSecurity}
+              icon="shield-checkmark"
+              subtitle={t.privacyDataSecuritySubtitle}
+            />
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+
+function InfoBlock({
+  title,
+  text,
+  colors,
+}: {
+  title: string;
+  text: string;
+  colors: { primary: string; text: string; textMuted: string; cardBorder: string };
+}) {
+  return (
+    <View
+      style={[
+        styles.infoBox,
+        { backgroundColor: `${colors.primary}08`, borderLeftColor: colors.primary },
+      ]}
+    >
+      <Text style={[styles.infoTitle, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.infoText, { color: colors.textMuted }]}>{text}</Text>
+    </View>
+  );
+}
+
+function LinkRow({
+  label,
+  icon,
+  onPress,
+  colors,
+  divider,
+}: {
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  onPress: () => void;
+  colors: { primary: string; text: string; textMuted: string; cardBorder: string };
+  divider?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.linkRow,
+        divider && { borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <View style={styles.linkLeft}>
+        <View style={[styles.linkIcon, { backgroundColor: `${colors.primary}14` }]}>
+          <Ionicons name={icon} size={16} color={colors.primary} />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+        <Text style={[styles.linkLabel, { color: colors.text }]}>{label}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  header: { marginBottom: 20 },
-  backBtn: { marginBottom: 10 },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", color: "#1D4C72" },
-  section: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
+    marginBottom: 10,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "800", color: "#1D4C72", marginBottom: 6 },
-  sectionSubtitle: { fontSize: 13, color: "#555", marginBottom: 16, lineHeight: 18 },
+  backText: { fontSize: 17, fontWeight: "600" },
+  title: { fontSize: 28, fontWeight: "900", marginBottom: 18 },
+  cardSpacing: { marginBottom: 14 },
+  infoList: { gap: 10 },
   infoBox: {
-    backgroundColor: "#F8FAFC",
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
     borderLeftWidth: 3,
-    borderLeftColor: "#1D4C72",
   },
-  infoTitle: { fontSize: 15, fontWeight: "700", color: "#222", marginBottom: 6 },
-  infoText: { fontSize: 13, color: "#666", lineHeight: 18 },
+  infoTitle: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  infoText: { fontSize: 13, lineHeight: 18 },
+  toggleList: { width: "100%" },
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
   },
   toggleInfo: { flex: 1, paddingRight: 12 },
-  toggleLabel: { fontSize: 15, fontWeight: "700", color: "#222" },
-  toggleHint: { fontSize: 12, color: "#777", marginTop: 2 },
+  toggleLabel: { fontSize: 15, fontWeight: "700" },
+  toggleHint: { fontSize: 12, marginTop: 2, lineHeight: 16 },
+  linkList: { width: "100%" },
   linkRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
   },
-  linkLabel: { fontSize: 14, fontWeight: "700", color: "#222" },
-  linkArrow: { fontSize: 16, color: "#1D4C72", fontWeight: "700" },
+  linkLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  linkIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  linkLabel: { fontSize: 14, fontWeight: "700", flex: 1 },
 });

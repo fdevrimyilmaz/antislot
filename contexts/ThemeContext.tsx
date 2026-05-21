@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Theme, getTheme, setTheme } from "@/store/themeStore";
+import { Appearance, type ColorSchemeName } from "react-native";
+
+import {
+  Theme,
+  ThemePreference,
+  getThemePreference,
+  setThemePreference,
+} from "@/store/themeStore";
 
 type GradientColors = readonly [string, string, ...string[]];
 
@@ -25,6 +32,8 @@ export type ThemeOption = {
   label: string;
   emoji: string;
   description: string;
+  /** Used by the gallery to bucket light/dark themes. */
+  mode: "light" | "dark";
 };
 
 export const THEME_OPTIONS: ThemeOption[] = [
@@ -33,36 +42,70 @@ export const THEME_OPTIONS: ThemeOption[] = [
     label: "Arctic Light",
     emoji: "⚪",
     description: "Temiz ve ferah mavi tonlar.",
+    mode: "light",
   },
   {
     id: "twitter-blue",
     label: "Ocean Pulse",
     emoji: "🔵",
-    description: "Canli mavi vurgu ve net kontrast.",
+    description: "Canlı mavi vurgu ve net kontrast.",
+    mode: "light",
   },
   {
-    id: "black",
-    label: "Carbon",
-    emoji: "⚫",
-    description: "Minimal, koyu ve odakli gorunum.",
+    id: "rose",
+    label: "Rose Garden",
+    emoji: "🌸",
+    description: "Sıcak pembe ve gül tonları.",
+    mode: "light",
   },
   {
     id: "sunset",
     label: "Sunset Ember",
     emoji: "🟠",
-    description: "Sicak mercan ve altin gecisler.",
+    description: "Sıcak mercan ve altın geçişler.",
+    mode: "light",
   },
   {
     id: "forest",
     label: "Forest Calm",
     emoji: "🟢",
-    description: "Dogal yesil ve sakin bir atmosfer.",
+    description: "Doğal yeşil ve sakin bir atmosfer.",
+    mode: "light",
+  },
+  {
+    id: "black",
+    label: "Carbon",
+    emoji: "⚫",
+    description: "Minimal, koyu ve odaklı görünüm.",
+    mode: "dark",
+  },
+  {
+    id: "mono-dark",
+    label: "Mono Dark",
+    emoji: "⬛",
+    description: "AMOLED dostu pür siyah, monokrom vurgular.",
+    mode: "dark",
   },
   {
     id: "midnight",
     label: "Midnight Neon",
     emoji: "🟣",
-    description: "Gece tonlari ve modern neon etki.",
+    description: "Gece tonları ve modern neon etki.",
+    mode: "dark",
+  },
+  {
+    id: "aurora",
+    label: "Aurora",
+    emoji: "🌌",
+    description: "Mor-mavi-turkuaz aurora geçişleri.",
+    mode: "dark",
+  },
+  {
+    id: "ocean-deep",
+    label: "Ocean Deep",
+    emoji: "🌊",
+    description: "Derin deniz mavisi, turkuaz vurgu.",
+    mode: "dark",
   },
 ];
 
@@ -163,37 +206,141 @@ const themeColors: Record<Theme, ThemeColors> = {
     warning: "#FBBF24",
     danger: "#F87171",
   },
+  rose: {
+    background: "#FFF1F5",
+    backgroundGradient: ["#FFF5F8", "#FFE2EC", "#FFD0DD"] as const,
+    heroGradient: ["#7A1F3A", "#C03964", "#E66B91"] as const,
+    cardGradient: ["#FFFFFF", "#FFF5F8"] as const,
+    text: "#4A1124",
+    textMuted: "#8E5469",
+    card: "#FFFFFF",
+    cardBorder: "#F5D0DC",
+    primary: "#C8336B",
+    secondary: "#A6275A",
+    accent: "#FF6F9C",
+    success: "#16A34A",
+    warning: "#F59E0B",
+    danger: "#DC2626",
+  },
+  "mono-dark": {
+    background: "#000000",
+    backgroundGradient: ["#000000", "#050505", "#0A0A0A"] as const,
+    heroGradient: ["#1A1A1A", "#2A2A2A", "#3A3A3A"] as const,
+    cardGradient: ["#0F0F0F", "#1A1A1A"] as const,
+    text: "#FFFFFF",
+    textMuted: "#888888",
+    card: "#101010",
+    cardBorder: "#222222",
+    primary: "#FFFFFF",
+    secondary: "#CCCCCC",
+    accent: "#EAEAEA",
+    success: "#22C55E",
+    warning: "#FBBF24",
+    danger: "#EF4444",
+  },
+  aurora: {
+    background: "#0F0B26",
+    backgroundGradient: ["#0F0B26", "#1B1240", "#241456"] as const,
+    heroGradient: ["#3B1C70", "#7A1FA8", "#C04EE6"] as const,
+    cardGradient: ["#1C1640", "#171132"] as const,
+    text: "#F5EEFF",
+    textMuted: "#AFA0D8",
+    card: "#1B1640",
+    cardBorder: "#3A2C75",
+    primary: "#B580FF",
+    secondary: "#8A5BE0",
+    accent: "#5EE0C7",
+    success: "#34D399",
+    warning: "#FACC15",
+    danger: "#F87171",
+  },
+  "ocean-deep": {
+    background: "#0A1929",
+    backgroundGradient: ["#0A1929", "#0E2540", "#13355A"] as const,
+    heroGradient: ["#0E2A4A", "#0A6E8E", "#15B5D6"] as const,
+    cardGradient: ["#10243F", "#0C1B30"] as const,
+    text: "#E5F6FF",
+    textMuted: "#8FB4CC",
+    card: "#10243F",
+    cardBorder: "#22416A",
+    primary: "#3EC9E8",
+    secondary: "#1E9DC2",
+    accent: "#5EE0C7",
+    success: "#34D399",
+    warning: "#FACC15",
+    danger: "#F87171",
+  },
 };
 
+/**
+ * When the user picks "system", we fall back to one of these depending on
+ * the device color scheme. Keeping it explicit makes it predictable and
+ * easy to swap (e.g. "use Mono Dark instead of Midnight for system-dark").
+ */
+const SYSTEM_LIGHT_FALLBACK: Theme = "white";
+const SYSTEM_DARK_FALLBACK: Theme = "midnight";
+
+function resolveTheme(preference: ThemePreference, scheme: ColorSchemeName): Theme {
+  if (preference === "system") {
+    return scheme === "dark" ? SYSTEM_DARK_FALLBACK : SYSTEM_LIGHT_FALLBACK;
+  }
+  return preference;
+}
+
 interface ThemeContextType {
+  /** Resolved theme actually applied (never "system"). */
   theme: Theme;
-  setTheme: (theme: Theme) => Promise<void>;
+  /** User's stored preference (may be "system"). */
+  preference: ThemePreference;
+  /** Resolved color tokens. */
   colors: ThemeColors;
+  /** Update the preference (and persist). */
+  setPreference: (pref: ThemePreference) => Promise<void>;
+  /** Back-compat: sets preference to a concrete theme. */
+  setTheme: (theme: Theme) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("white");
+  const [preference, setPreferenceState] = useState<ThemePreference>("system");
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
+    Appearance.getColorScheme()
+  );
 
   useEffect(() => {
     (async () => {
-      const currentTheme = await getTheme();
-      setThemeState(currentTheme);
+      const stored = await getThemePreference();
+      setPreferenceState(stored);
     })();
   }, []);
 
-  const handleSetTheme = async (newTheme: Theme) => {
-    await setTheme(newTheme);
-    setThemeState(newTheme);
+  useEffect(() => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemScheme(colorScheme);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const handleSetPreference = async (pref: ThemePreference) => {
+    await setThemePreference(pref);
+    setPreferenceState(pref);
   };
+
+  const handleSetTheme = async (next: Theme) => {
+    await handleSetPreference(next);
+  };
+
+  const resolved = resolveTheme(preference, systemScheme);
 
   return (
     <ThemeContext.Provider
       value={{
-        theme,
+        theme: resolved,
+        preference,
+        colors: themeColors[resolved],
+        setPreference: handleSetPreference,
         setTheme: handleSetTheme,
-        colors: themeColors[theme],
       }}
     >
       {children}

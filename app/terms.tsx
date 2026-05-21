@@ -2,6 +2,13 @@ import { router } from "expo-router";
 import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+
+import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeTexture } from "@/components/theme-texture";
+import { Card } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
 
 const TERMS_POINTS = [
   "Uygulama profesyonel tıbbi/psikolojik hizmet yerine geçmez.",
@@ -11,56 +18,93 @@ const TERMS_POINTS = [
 ];
 
 export default function TermsOfService() {
+  const { colors } = useTheme();
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Geri</Text>
-        </TouchableOpacity>
+    <LinearGradient
+      colors={colors.backgroundGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <ThemeTexture primary={colors.primary} secondary={colors.secondary} accent={colors.accent} />
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel="Geri"
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+            <Text style={[styles.backText, { color: colors.text }]}>Geri</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.title}>Kullanım Şartları</Text>
-        <Text style={styles.subtitle}>
-          AntiSlot, destekleyici araçlar sunar. Bu şartlar uygulama kullanımını açıklar.
-        </Text>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Temel Koşullar</Text>
-          {TERMS_POINTS.map((item) => (
-            <Text key={item} style={styles.bulletText}>• {item}</Text>
-          ))}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sorumluluk Reddi</Text>
-          <Text style={styles.cardText}>
-            Uygulama içinde sağlanan öneriler, bilgi amaçlıdır. Acil bir durumda lütfen
-            yerel acil yardım hatlarıyla iletişime geçin.
+          <Text style={[styles.title, { color: colors.text }]} accessibilityRole="header">
+            Kullanım Şartları
           </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            Antislot, destekleyici araçlar sunar. Bu şartlar uygulama kullanımını açıklar.
+          </Text>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Temel Koşullar" icon="document-text" />
+            <View style={styles.bulletList}>
+              {TERMS_POINTS.map((item) => (
+                <View key={item} style={styles.bulletRow}>
+                  <View style={[styles.bulletDot, { backgroundColor: colors.primary }]} />
+                  <Text style={[styles.bulletText, { color: colors.text }]}>{item}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
+            <SectionHeader title="Sorumluluk Reddi" icon="warning" />
+            <Text style={[styles.cardText, { color: colors.text }]}>
+              Uygulama içinde sağlanan öneriler, bilgi amaçlıdır. Acil bir durumda lütfen
+              yerel acil yardım hatlarıyla iletişime geçin.
+            </Text>
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F9FF" },
-  content: { padding: 24, paddingBottom: 40 },
-  backBtn: { alignSelf: "flex-start", marginBottom: 10 },
-  backText: { fontSize: 16, color: "#1D4C72" },
-  title: { fontSize: 28, fontWeight: "900", color: "#1D4C72", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#666", marginBottom: 18, lineHeight: 20 },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+  gradientContainer: { flex: 1 },
+  container: { flex: 1 },
+  content: { padding: 22, paddingBottom: 40 },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
+    marginBottom: 10,
   },
-  cardTitle: { fontSize: 16, fontWeight: "800", color: "#1D4C72", marginBottom: 8 },
-  cardText: { fontSize: 13, color: "#555", lineHeight: 18 },
-  bulletText: { fontSize: 13, color: "#444", marginBottom: 6, lineHeight: 18 },
+  backText: { fontSize: 17, fontWeight: "600" },
+  title: { fontSize: 28, fontWeight: "900", marginBottom: 8 },
+  subtitle: { fontSize: 14, lineHeight: 20, marginBottom: 18 },
+  cardSpacing: { marginBottom: 14 },
+  bulletList: { gap: 10 },
+  bulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 8,
+  },
+  bulletText: { fontSize: 14, lineHeight: 20, flex: 1 },
+  cardText: { fontSize: 14, lineHeight: 20 },
 });

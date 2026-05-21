@@ -21,8 +21,12 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleSetLanguage = async (lang: Language) => {
-    await setLanguage(lang);
     setLanguageState(lang);
+    try {
+      await setLanguage(lang);
+    } catch {
+      // Keep in-memory language even if persistence fails.
+    }
   };
 
   return (

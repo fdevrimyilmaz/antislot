@@ -330,6 +330,9 @@ function checkStoreMetadata() {
   const androidListingPath = "store-metadata/android/play-store-listing.json";
   const assetManifestPath = "store-metadata/assets-manifest.json";
   const realDeviceDocPath = "docs/REAL_DEVICE_RELEASE_VALIDATION.md";
+  const appJson = readJson("app.json");
+  const appTermsUrl = String(appJson?.expo?.extra?.termsUrl || "").trim();
+  const standardEulaUrl = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 
   for (const relPath of [iosListingPath, androidListingPath, assetManifestPath, realDeviceDocPath]) {
     if (!fs.existsSync(path.resolve(root, relPath))) {
@@ -345,6 +348,17 @@ function checkStoreMetadata() {
       fail("iOS listing must include name and description");
     } else {
       ok("iOS listing has name and description");
+    }
+    const iosDescription = String(iosListing?.description || "");
+    const hasStandardEula = iosDescription.includes(standardEulaUrl);
+    const hasCustomTerms = appTermsUrl.length > 0 && iosDescription.includes(appTermsUrl);
+    if (!hasStandardEula && !hasCustomTerms) {
+      fail(
+        "iOS listing description must include a Terms of Use link (standard Apple EULA or custom terms URL)."
+      );
+    } else {
+      const mode = hasStandardEula ? "standard Apple EULA" : "custom terms URL";
+      ok(`iOS listing description includes ${mode}`);
     }
     if (!String(iosListing?.privacyPolicyUrl || "").startsWith("https://")) {
       fail("iOS listing privacyPolicyUrl must be https");

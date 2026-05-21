@@ -75,10 +75,9 @@ npm start
 export PORT=3000
 export NODE_ENV=production
 export HMAC_SECRET=your-secret-key-here
-export OPENAI_API_KEY=your-openai-key-here
+export GEMINI_API_KEY=your-gemini-key-here
 # Opsiyonel:
-# export OPENAI_MODEL=gpt-4o-mini
-# export OPENAI_BASE_URL=https://api.openai.com/v1
-# export OPENAI_TIMEOUT_MS=15000
-# export OPENAI_MAX_TOKENS=300
+# export GEMINI_MODEL=gemini-2.5-flash
+# export GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+# export GEMINI_MAX_OUTPUT_TOKENS=2048
 ```

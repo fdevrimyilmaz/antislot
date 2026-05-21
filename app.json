@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.antislot.app",
-      "buildNumber": "1",
+      "buildNumber": "3",
       "entitlements": {
         "com.apple.security.application-groups": [
           "group.com.antislot.app"
@@ -22,7 +22,9 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "ENABLE_IOS_NE": false
+        "ENABLE_IOS_NE": false,
+        "NSLocalNetworkUsageDescription": "Yerel ağda DNS düzeyinde kumar siteleri filtrelemesi için cihaz içi VPN bağlantısı kurulur. Veri uzaktaki bir sunucuya gönderilmez.",
+        "NSAppleEventsUsageDescription": "Antislot Apple Events kullanmaz."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -30,13 +32,13 @@
     },
     "android": {
       "package": "com.antislot.app",
-      "versionCode": 1,
+      "versionCode": 3,
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#1D4C72",
+        "backgroundColor": "#F0F4FA",
         "foregroundImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
@@ -81,6 +83,6 @@
       "supportUrl": "https://antislot-legal.vercel.app/support"
     },
     "owner": "512ferhat512",
-    "description": "Kumar durtulerini yonetmek icin destek araclari. Kriz destegi, ilerleme takibi ve guvenli veri saklama."
+    "description": "Kumar dürtüleriyle başa çıkmak için destek araçları: kriz desteği, farkındalık ve ilerleme takibi, yapay zeka destekli sohbet ve cihazda güvenli veri saklama."
   }
 }

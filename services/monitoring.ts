@@ -88,7 +88,7 @@ export const registerNavigationContainer = (
 export const reportStorageError = (error: { type: 'read' | 'write' | 'remove'; key: string; errorType: string }): void => {
   if (!Sentry) return;
   if (!canSendTelemetry()) return;
-  
+
   try {
     Sentry.captureMessage('Storage operation failed', {
       level: 'warning',
@@ -106,5 +106,69 @@ export const reportStorageError = (error: { type: 'read' | 'write' | 'remove'; k
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       console.warn('[Monitoring] Failed to report storage error:', err);
     }
+  }
+};
+
+type ReportErrorOptions = {
+  /** Stable identifier for where this error occurred (e.g. "ai.chat", "premium.redeem"). */
+  scope: string;
+  /** "error" (default) for thrown errors, "warning" for handled/expected failures. */
+  level?: 'error' | 'warning';
+  /** Non-PII extra data to attach. Avoid user content, tokens, codes. */
+  extra?: Record<string, unknown>;
+  /** Tags for grouping/filtering in Sentry. Values must be primitives. */
+  tags?: Record<string, string>;
+};
+
+/**
+ * Report a caught error to Sentry, gated by crash-reporting preference.
+ * Falls back to console.warn in dev when telemetry is disabled.
+ */
+export const reportError = (error: unknown, options: ReportErrorOptions): void => {
+  const { scope, level = 'error', extra, tags } = options;
+
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.warn(`[${scope}]`, error);
+  }
+
+  if (!Sentry) return;
+  if (!canSendCrashReports()) return;
+
+  try {
+    const errorObject = error instanceof Error ? error : new Error(String(error));
+    Sentry.captureException(errorObject, {
+      level,
+      tags: { scope, ...(tags ?? {}) },
+      extra,
+    });
+    markTelemetryEventSent().catch(() => {});
+  } catch (err) {
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.warn('[Monitoring] Failed to capture exception:', err);
+    }
+  }
+};
+
+/**
+ * Drop a non-PII breadcrumb for context around future errors.
+ * Privacy-gated by telemetry preference (same as analytics breadcrumbs).
+ */
+export const addBreadcrumb = (
+  category: string,
+  message: string,
+  data?: Record<string, unknown>
+): void => {
+  if (!Sentry) return;
+  if (!canSendTelemetry()) return;
+
+  try {
+    Sentry.addBreadcrumb({
+      category,
+      message,
+      level: 'info',
+      data,
+    });
+  } catch {
+    // best-effort, never throw from breadcrumb path
   }
 };
