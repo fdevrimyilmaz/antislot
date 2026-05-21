@@ -66,6 +66,23 @@ export default function TermsOfService() {
           </Card>
 
           <Card style={styles.cardSpacing}>
+            <SectionHeader title="Yapay Zekâ Özellikleri" icon="sparkles" />
+            <Text style={[styles.cardText, { color: colors.text }]}>
+              Antislot, AI destekli sohbet için Google Gemini API kullanır. AI özelliklerini
+              kullandığında yazdığın mesaj metni güvenli bir bağlantı üzerinden Google
+              (Gemini 2.5 Flash) ile paylaşılır.
+            </Text>
+            <Text style={[styles.cardText, styles.cardTextGap, { color: colors.text }]}>
+              AI özellikleri herhangi bir veri gönderilmeden önce açık iznine tabidir.
+              İzni Ayarlar → AI Veri Paylaşımı bölümünden istediğin zaman geri alabilirsin.
+            </Text>
+            <Text style={[styles.cardText, styles.cardTextGap, { color: colors.text }]}>
+              AI özellikleri üzerinden hassas kişisel bilgi (kimlik numarası, finansal
+              bilgi, sağlık kayıtları vb.) paylaşma.
+            </Text>
+          </Card>
+
+          <Card style={styles.cardSpacing}>
             <SectionHeader title="Sorumluluk Reddi" icon="warning" />
             <Text style={[styles.cardText, { color: colors.text }]}>
               Uygulama içinde sağlanan öneriler, bilgi amaçlıdır. Acil bir durumda lütfen
@@ -107,4 +124,5 @@ const styles = StyleSheet.create({
   },
   bulletText: { fontSize: 14, lineHeight: 20, flex: 1 },
   cardText: { fontSize: 14, lineHeight: 20 },
+  cardTextGap: { marginTop: 10 },
 });
