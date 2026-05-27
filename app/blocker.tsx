@@ -1,11 +1,9 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -24,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
-import GamblingBlocker from "@/react-native-bridge/GamblingBlockerModule";
 import { SharedConfig } from "@/react-native-bridge/SharedConfigModule";
 import {
   addWhitelistDomain,
@@ -33,13 +30,25 @@ import {
   removeWhitelistDomain,
   syncBlocklist,
 } from "@/store/blockerStore";
+import {
+  buildContentBlockerRules,
+  serializeRules,
+} from "@/services/content-blocker/rule-builder";
+import type { BlocklistPattern } from "@/services/gambling-blocker/domain-matcher";
+
+const IOS_SAFARI_STEPS = [
+  "iPhone'un Ayarlar uygulamasını aç.",
+  "Aşağı kaydır ve Safari'ye dokun.",
+  "Uzantılar (Extensions) seçeneğine dokun.",
+  "Listede AntiSlot Block'u bul ve aç.",
+  "Bu ekrana geri dön — durum 'aktif' olarak görünecek.",
+];
 
 export default function BlockerScreen() {
   const { colors } = useTheme();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
-  const [protectionEnabled, setProtectionEnabled] = useState(false);
   const [domainsCount, setDomainsCount] = useState(0);
   const [patternsCount, setPatternsCount] = useState(0);
   const [lastSync, setLastSync] = useState<number | null>(null);
@@ -49,6 +58,30 @@ export default function BlockerScreen() {
   const [testResult, setTestResult] =
     useState<{ blocked: boolean; domain: string | null } | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [safariEnabled, setSafariEnabled] = useState<boolean | null>(null);
+
+  /**
+   * Push the current blocklist into the Safari Content Blocker. The native
+   * module both writes the rule JSON to the App Group AND asks Safari to
+   * reload it; we surface the result so the UI can show whether the user
+   * has the extension enabled yet.
+   */
+  const pushSafariRules = async (
+    domains: string[],
+    whitelistDomains: string[],
+    patterns: BlocklistPattern[]
+  ) => {
+    if (Platform.OS !== "ios") return;
+    const rules = buildContentBlockerRules(domains, whitelistDomains, patterns);
+    const result = await SharedConfig.saveSafariContentBlockerRules(
+      serializeRules(rules)
+    );
+    if (result.reason === "extension_not_enabled") {
+      setSafariEnabled(false);
+    } else if (result.reloaded) {
+      setSafariEnabled(true);
+    }
+  };
 
   const loadState = async () => {
     try {
@@ -60,11 +93,18 @@ export default function BlockerScreen() {
       await SharedConfig.saveBlocklist(state.domains);
       await SharedConfig.savePatterns(state.patterns);
       await SharedConfig.saveWhitelist(state.whitelist);
-      try {
-        const enabled = await GamblingBlocker.isProtectionEnabled();
-        setProtectionEnabled(enabled);
-      } catch {
-        setProtectionEnabled(false);
+      if (Platform.OS === "ios") {
+        try {
+          const status = await SharedConfig.getSafariContentBlockerStatus();
+          setSafariEnabled(status.available ? status.enabled : null);
+        } catch {
+          setSafariEnabled(null);
+        }
+        try {
+          await pushSafariRules(state.domains, state.whitelist, state.patterns);
+        } catch (error) {
+          reportError(error, { scope: "blocker.safariPush", level: "warning" });
+        }
       }
     } catch (error) {
       reportError(error, { scope: "blocker.load", level: "warning" });
@@ -84,9 +124,9 @@ export default function BlockerScreen() {
       setPatternsCount(state.patterns.length);
       setLastSync(state.lastSync);
       try {
-        await GamblingBlocker.syncBlocklist(state.apiUrl);
-      } catch {
-        // Native sync unavailable on this platform — JS state still updated.
+        await pushSafariRules(state.domains, state.whitelist, state.patterns);
+      } catch (error) {
+        reportError(error, { scope: "blocker.safariPushAutoSync", level: "warning" });
       }
     } catch (error) {
       reportError(error, { scope: "blocker.sync", level: "warning" });
@@ -102,25 +142,10 @@ export default function BlockerScreen() {
       // the user sees the cached list either way, and we log to Sentry.
       void handleAutoSync();
     })();
+    // Both helpers are stable closures over local setters; depending on them
+    // would re-run sync on every render. Mount-only is intentional here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const toggleProtection = async (value: boolean) => {
-    haptics.selection();
-    try {
-      if (value) {
-        await GamblingBlocker.startProtection();
-      } else {
-        await GamblingBlocker.stopProtection();
-      }
-      setProtectionEnabled(value);
-      haptics.success();
-    } catch (error) {
-      reportError(error, { scope: "blocker.protection", level: "warning" });
-      haptics.error();
-      toast.error("Bu cihazda koruma açılıp kapatılamıyor.", "Hata");
-      setProtectionEnabled(false);
-    }
-  };
 
   const handleManualSync = async () => {
     haptics.tapMedium();
@@ -131,12 +156,12 @@ export default function BlockerScreen() {
       setPatternsCount(state.patterns.length);
       setLastSync(state.lastSync);
       try {
-        await GamblingBlocker.syncBlocklist(state.apiUrl);
-      } catch {
-        // No-op
+        await pushSafariRules(state.domains, state.whitelist, state.patterns);
+      } catch (error) {
+        reportError(error, { scope: "blocker.safariPushManual", level: "warning" });
       }
       haptics.success();
-      toast.success("Engel listesi sunucuyla eşitlendi.", "Güncel");
+      toast.success("Engel listesi güncellendi.", "Güncel");
     } catch (error) {
       reportError(error, { scope: "blocker.manualSync" });
       haptics.error();
@@ -248,94 +273,156 @@ export default function BlockerScreen() {
             </Text>
           </LinearGradient>
 
-          {/* Protection toggle */}
-          <Card style={styles.cardSpacing}>
-            <SectionHeader
-              title="Cihaz Koruması"
-              icon="lock-closed"
-              subtitle="DNS düzeyinde kumar alan adlarını engeller."
-            />
-            <View style={styles.protectionRow}>
-              <View style={styles.protectionInfo}>
-                <Text style={[styles.protectionLabel, { color: colors.text }]}>
-                  Korumayı Etkinleştir
-                </Text>
-                {loading ? (
-                  <Skeleton width={120} height={12} radius={6} style={styles.skelGap} />
-                ) : (
-                  <Text style={[styles.protectionHint, { color: colors.textMuted }]}>
-                    {protectionEnabled ? "Koruma aktif" : "Koruma kapalı"}
-                  </Text>
-                )}
-              </View>
-              <Switch
-                value={protectionEnabled}
-                onValueChange={toggleProtection}
-                disabled={loading}
-                trackColor={{ false: colors.cardBorder, true: colors.success }}
-                thumbColor="#FFFFFF"
-                accessibilityLabel="Koruma anahtarı"
+          {/* Platform-specific blocking — Safari Content Blocker (iOS) /
+              Private DNS (Android). VPN-based protection was intentionally
+              removed for App Store / Play Store policy compliance. */}
+          {Platform.OS === "ios" ? (
+            <Card style={styles.cardSpacing}>
+              <SectionHeader
+                title="Safari'de Engelleme"
+                icon="logo-apple"
+                subtitle="Safari içi içerik engelleyici ile kumar alan adlarını engelle."
               />
-            </View>
-          </Card>
-
-          {/* VPN explanation */}
-          <Card style={styles.cardSpacing}>
-            <SectionHeader
-              title="Nasıl Çalışır?"
-              icon="information-circle"
-              subtitle="Uygulama, cihazda yerel bir VPN kullanır."
-            />
-            <View style={styles.bulletList}>
-              <BulletPoint
-                text="Gezinti verileri toplanmaz, yerelde işlenir."
-                colors={colors}
-              />
-              <BulletPoint
-                text="Liste sunucu tarafında imzalanır; cihaz imzayı doğrular."
-                colors={colors}
-              />
-              <BulletPoint
-                text="DoH ve uygulama içi tarayıcılar filtreyi aşabilir."
-                colors={colors}
-              />
-              <BulletPoint
-                text="En iyi koruma için VPN/Network Extension etkin olmalı."
-                colors={colors}
-              />
-            </View>
-            <View style={styles.linkRow}>
-              {Platform.OS === "ios" ? (
-                <Button
-                  title="VPN Ayarları"
-                  onPress={() => {
-                    haptics.tapLight();
-                    Linking.openURL("app-settings:");
-                  }}
-                  variant="secondary"
-                  leftIcon="open-outline"
+              <View style={styles.bulletList}>
+                <BulletPoint
+                  text="Engelleme yalnızca Safari'de geçerlidir; diğer tarayıcılar etkilenmez."
+                  colors={colors}
                 />
+                <BulletPoint
+                  text="Liste sunucudan otomatik güncellenir; sen ekleme/çıkarma yapamazsın."
+                  colors={colors}
+                />
+                <BulletPoint
+                  text="Gezinme verisi toplanmaz; eşleştirme tamamen cihazda yapılır."
+                  colors={colors}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.statusPill,
+                  {
+                    backgroundColor:
+                      safariEnabled === true
+                        ? `${colors.success}14`
+                        : `${colors.warning}14`,
+                    borderColor:
+                      safariEnabled === true
+                        ? `${colors.success}55`
+                        : `${colors.warning}55`,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={safariEnabled === true ? "checkmark-circle" : "alert-circle"}
+                  size={16}
+                  color={safariEnabled === true ? colors.success : colors.warning}
+                />
+                <Text style={[styles.statusPillText, { color: colors.text }]}>
+                  {safariEnabled === true
+                    ? "Safari engelleyici aktif."
+                    : "Safari engelleyici henüz açık değil — aşağıdaki adımları izle."}
+                </Text>
+              </View>
+
+              {safariEnabled !== true ? (
+                <View style={styles.stepsList}>
+                  {IOS_SAFARI_STEPS.map((step, i) => (
+                    <View key={i} style={styles.stepRow}>
+                      <View
+                        style={[
+                          styles.stepBadge,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      >
+                        <Text style={styles.stepBadgeText}>{i + 1}</Text>
+                      </View>
+                      <Text style={[styles.stepText, { color: colors.text }]}>
+                        {step}
+                      </Text>
+                    </View>
+                  ))}
+                  <Text style={[styles.stepsFooter, { color: colors.textMuted }]}>
+                    iOS, Safari Uzantılar sayfasına doğrudan bir bağlantı
+                    sunmuyor; bu yüzden uygulamadan tek tuşla açılamıyor.
+                    Adımları el ile izlemen gerekir.
+                  </Text>
+                </View>
               ) : null}
-              <Button
-                title="Sınırlamalar"
-                onPress={() => {
-                  haptics.tapLight();
-                  router.push("/limitations");
-                }}
-                variant="secondary"
-                leftIcon="information-circle-outline"
+            </Card>
+          ) : Platform.OS === "android" ? (
+            <Card style={styles.cardSpacing}>
+              <SectionHeader
+                title="Android Sistem Genelinde"
+                icon="logo-android"
+                subtitle="Özel DNS (Private DNS) ile tüm uygulamalarda alan adı engellemesi."
               />
+              <View style={styles.bulletList}>
+                <BulletPoint
+                  text="DoT (DNS-over-TLS) tabanlı; tüm Android sürümlerinde Ayarlar'dan açılır."
+                  colors={colors}
+                />
+                <BulletPoint
+                  text="AntiSlot ayarı senin için değiştirmez — sadece rehberi gösterir."
+                  colors={colors}
+                />
+                <BulletPoint
+                  text="Mağaza politikaları nedeniyle VPN tabanlı koruma yoktur."
+                  colors={colors}
+                />
+              </View>
               <Button
-                title="Gizlilik"
+                title="Özel DNS Kurulumunu Aç"
                 onPress={() => {
-                  haptics.tapLight();
-                  router.push("/privacy");
+                  haptics.tapMedium();
+                  router.push("/android-dns-setup");
                 }}
-                variant="secondary"
-                leftIcon="lock-closed-outline"
+                variant="primary"
+                fullWidth
+                leftIcon="globe"
+                style={styles.platformBtn}
               />
-            </View>
-          </Card>
+            </Card>
+          ) : null}
+
+          {/* Honesty banner — applies on both platforms. */}
+          <View
+            style={[
+              styles.policyBanner,
+              {
+                backgroundColor: `${colors.warning}10`,
+                borderColor: `${colors.warning}40`,
+              },
+            ]}
+          >
+            <Ionicons name="information-circle" size={16} color={colors.warning} />
+            <Text style={[styles.policyBannerText, { color: colors.text }]}>
+              iOS&apos;ta Safari içi engelleme, Android&apos;de güvenli Özel DNS kurulumu
+              desteklenir. VPN tabanlı cihaz koruması mağaza politikaları
+              nedeniyle kullanılmaz.
+            </Text>
+          </View>
+
+          <View style={styles.linkRow}>
+            <Button
+              title="Sınırlamalar"
+              onPress={() => {
+                haptics.tapLight();
+                router.push("/limitations");
+              }}
+              variant="secondary"
+              leftIcon="information-circle-outline"
+            />
+            <Button
+              title="Gizlilik"
+              onPress={() => {
+                haptics.tapLight();
+                router.push("/privacy");
+              }}
+              variant="secondary"
+              leftIcon="lock-closed-outline"
+            />
+          </View>
 
           {/* List status — read only */}
           <Card style={styles.cardSpacing}>
@@ -623,15 +710,48 @@ const styles = StyleSheet.create({
   },
 
   cardSpacing: { marginBottom: 14 },
-  protectionRow: {
+  platformBtn: { marginTop: 14 },
+  statusPill: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 14,
+  },
+  statusPillText: { fontSize: 13, lineHeight: 18, flex: 1, fontWeight: "600" },
+  stepsList: { marginTop: 14, gap: 10 },
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
   },
-  protectionInfo: { flex: 1, minWidth: 0 },
-  protectionLabel: { fontSize: 15, fontWeight: "700" },
-  protectionHint: { fontSize: 12, marginTop: 2 },
+  stepBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  stepBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  stepText: { flex: 1, fontSize: 13, lineHeight: 19 },
+  stepsFooter: { fontSize: 11, lineHeight: 15, fontStyle: "italic", marginTop: 6 },
+  policyBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+  },
+  policyBannerText: { fontSize: 12, lineHeight: 17, flex: 1 },
 
   bulletList: { gap: 8 },
   bulletRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },

@@ -1,5 +1,4 @@
 import * as SecureStore from "expo-secure-store";
-import * as CryptoJS from "crypto-js";
 import { BlocklistEntry, BlocklistPattern, DomainMatcher } from "@/services/gambling-blocker/domain-matcher";
 import { SharedConfig } from "@/react-native-bridge/SharedConfigModule";
 
@@ -20,25 +19,21 @@ const BLOCKLIST_UPDATE_KEY = "antislot_blocklist_update";
 const PATTERNS_UPDATE_KEY = "antislot_patterns_update";
 const BLOCKLIST_VERSION_KEY = "antislot_blocklist_version";
 const PATTERNS_VERSION_KEY = "antislot_patterns_version";
-const HMAC_SECRET_KEY = "antislot_hmac_secret";
 
 const DEFAULT_API_URL = __DEV__ ? "http://localhost:3000" : "https://api.antislot.app";
-const DEFAULT_HMAC_SECRET = "antislot-secret-key-change-in-production";
 const LOCAL_HTTP_HOSTS = new Set(["localhost", "127.0.0.1", "10.0.2.2", "10.0.3.2"]);
 const VALID_PATTERN_TYPES = new Set<BlocklistPattern["type"]>(["exact", "subdomain", "contains", "regex"]);
 
-type SignedBlocklistResponse = {
+type BlocklistResponse = {
   version: number;
   updatedAt: number;
   domains: string[];
-  signature: string;
 };
 
-type SignedPatternsResponse = {
+type PatternsResponse = {
   version: number;
   updatedAt: number;
   patterns: BlocklistPattern[];
-  signature: string;
 };
 const DEFAULT_DOMAINS = [
   "bet365.com",
@@ -65,12 +60,6 @@ const DEFAULT_PATTERNS: BlocklistPattern[] = [
   { pattern: "^casino\\d+\\.", type: "regex", weight: 0.8 },
   { pattern: "^poker\\d+\\.", type: "regex", weight: 0.8 },
 ];
-
-function getEnvSecret(key: string): string | null {
-  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
-  const value = env?.[key];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
 
 function normalizeApiUrl(value: string): string {
   let url = value.trim();
@@ -112,17 +101,6 @@ async function getStoredNumber(key: string): Promise<number | null> {
   if (!value) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-async function getHmacSecret(): Promise<string | null> {
-  const stored = await SecureStore.getItemAsync(HMAC_SECRET_KEY);
-  if (stored) return stored;
-  const envSecret = getEnvSecret("EXPO_PUBLIC_HMAC_SECRET");
-  if (envSecret) {
-    await SecureStore.setItemAsync(HMAC_SECRET_KEY, envSecret);
-    return envSecret;
-  }
-  return __DEV__ ? DEFAULT_HMAC_SECRET : null;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -168,16 +146,7 @@ function normalizePatterns(patterns: BlocklistPattern[]): BlocklistPattern[] {
     .filter((pattern) => pattern.pattern.length > 0);
 }
 
-function computeSignature(payload: object, secret: string): string {
-  return CryptoJS.HmacSHA256(JSON.stringify(payload), secret).toString(CryptoJS.enc.Hex);
-}
-
-function verifySignature(payload: object, signature: string, secret: string): boolean {
-  const expected = computeSignature(payload, secret);
-  return expected === signature.trim().toLowerCase();
-}
-
-function parseBlocklistResponse(data: unknown): SignedBlocklistResponse {
+function parseBlocklistResponse(data: unknown): BlocklistResponse {
   if (!data || typeof data !== "object") {
     throw new Error("Engel listesi yanıtı geçersiz.");
   }
@@ -185,14 +154,13 @@ function parseBlocklistResponse(data: unknown): SignedBlocklistResponse {
   const version = Number(payload.version);
   const updatedAt = Number(payload.updatedAt);
   const domains = payload.domains;
-  const signature = payload.signature;
-  if (!Number.isFinite(version) || !Number.isFinite(updatedAt) || !isStringArray(domains) || !isNonEmptyString(signature)) {
+  if (!Number.isFinite(version) || !Number.isFinite(updatedAt) || !isStringArray(domains)) {
     throw new Error("Engel listesi yanıtı eksik veya hatalı.");
   }
-  return { version, updatedAt, domains, signature: signature.trim() };
+  return { version, updatedAt, domains };
 }
 
-function parsePatternsResponse(data: unknown): SignedPatternsResponse {
+function parsePatternsResponse(data: unknown): PatternsResponse {
   if (!data || typeof data !== "object") {
     throw new Error("Kalıp yanıtı geçersiz.");
   }
@@ -200,11 +168,10 @@ function parsePatternsResponse(data: unknown): SignedPatternsResponse {
   const version = Number(payload.version);
   const updatedAt = Number(payload.updatedAt);
   const patterns = payload.patterns;
-  const signature = payload.signature;
-  if (!Number.isFinite(version) || !Number.isFinite(updatedAt) || !isPatternArray(patterns) || !isNonEmptyString(signature)) {
+  if (!Number.isFinite(version) || !Number.isFinite(updatedAt) || !isPatternArray(patterns)) {
     throw new Error("Kalıp yanıtı eksik veya hatalı.");
   }
-  return { version, updatedAt, patterns, signature: signature.trim() };
+  return { version, updatedAt, patterns };
 }
 
 async function getStoredArray<T>(key: string, fallback: T[]): Promise<T[]> {
@@ -253,11 +220,6 @@ export async function syncBlocklist(apiUrl?: string): Promise<BlockerState> {
     throw new Error("Senkronizasyon için HTTPS gerekli.");
   }
 
-  const hmacSecret = await getHmacSecret();
-  if (!hmacSecret) {
-    throw new Error("Güvenlik anahtarı bulunamadı.");
-  }
-
   const [blocklistRes, patternsRes] = await Promise.all([
     fetch(`${baseUrl}/v1/blocklist`),
     fetch(`${baseUrl}/v1/patterns`),
@@ -269,25 +231,6 @@ export async function syncBlocklist(apiUrl?: string): Promise<BlockerState> {
 
   const blocklistData = parseBlocklistResponse(await blocklistRes.json());
   const patternsData = parsePatternsResponse(await patternsRes.json());
-
-  const blocklistPayload = {
-    version: blocklistData.version,
-    updatedAt: blocklistData.updatedAt,
-    domains: blocklistData.domains,
-  };
-
-  const patternsPayload = {
-    version: patternsData.version,
-    updatedAt: patternsData.updatedAt,
-    patterns: patternsData.patterns,
-  };
-
-  if (!verifySignature(blocklistPayload, blocklistData.signature, hmacSecret)) {
-    throw new Error("Engel listesi imzası geçersiz.");
-  }
-  if (!verifySignature(patternsPayload, patternsData.signature, hmacSecret)) {
-    throw new Error("Kalıp imzası geçersiz.");
-  }
 
   const storedBlocklistVersion = await getStoredNumber(BLOCKLIST_VERSION_KEY);
   const storedPatternsVersion = await getStoredNumber(PATTERNS_VERSION_KEY);

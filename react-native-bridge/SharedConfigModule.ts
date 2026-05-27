@@ -34,16 +34,62 @@ async function saveSmsSettings(
   enabled: boolean,
   strictMode: boolean,
   customKeywords: string[],
-  autoDeleteDays: number | null
+  autoDeleteDays: number | null,
+  communityKeywords: string[] = []
 ) {
   if (!isAvailable() || !SharedConfigModule.saveSmsSettings) return false;
   await SharedConfigModule.saveSmsSettings(
     enabled,
     strictMode,
     customKeywords,
-    autoDeleteDays ?? -1
+    autoDeleteDays ?? -1,
+    communityKeywords
   );
   return true;
+}
+
+export interface SafariBlockerReloadResult {
+  wrote: boolean;
+  reloaded: boolean;
+  reason?: "extension_not_enabled";
+}
+
+export interface SafariBlockerStatus {
+  enabled: boolean;
+  available: boolean;
+}
+
+/**
+ * Push the Safari Content Blocker rules into the App Group container and
+ * ask Safari to reload them. Returns whether Safari accepted the reload —
+ * if `reloaded` is false the user likely hasn't enabled the extension in
+ * Settings → Safari → Extensions yet.
+ *
+ * No-ops on Android (returns `{ wrote: false, reloaded: false }`).
+ */
+async function saveSafariContentBlockerRules(
+  rulesJson: string
+): Promise<SafariBlockerReloadResult> {
+  if (!isAvailable() || !SharedConfigModule.saveSafariContentBlockerRules) {
+    return { wrote: false, reloaded: false };
+  }
+  const result = await SharedConfigModule.saveSafariContentBlockerRules(rulesJson);
+  return {
+    wrote: Boolean(result?.wrote),
+    reloaded: Boolean(result?.reloaded),
+    reason: result?.reason,
+  };
+}
+
+async function getSafariContentBlockerStatus(): Promise<SafariBlockerStatus> {
+  if (!isAvailable() || !SharedConfigModule.getSafariContentBlockerStatus) {
+    return { enabled: false, available: false };
+  }
+  const result = await SharedConfigModule.getSafariContentBlockerStatus();
+  return {
+    enabled: Boolean(result?.enabled),
+    available: Boolean(result?.available),
+  };
 }
 
 export const SharedConfig = {
@@ -51,4 +97,6 @@ export const SharedConfig = {
   savePatterns,
   saveWhitelist,
   saveSmsSettings,
+  saveSafariContentBlockerRules,
+  getSafariContentBlockerStatus,
 };

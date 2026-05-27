@@ -2,7 +2,7 @@
   "expo": {
     "name": "Antislot",
     "slug": "antislot",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -32,10 +32,13 @@
     },
     "android": {
       "package": "com.antislot.app",
-      "versionCode": 3,
+      "versionCode": 20,
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.BIND_VPN_SERVICE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#F0F4FA",
@@ -66,7 +69,9 @@
       "expo-font",
       "expo-notifications",
       "react-native-iap",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      "./plugins/with-strip-vpn-service",
+      "./plugins/with-pod-bundle-signing-fix"
     ],
     "experiments": {
       "typedRoutes": true,

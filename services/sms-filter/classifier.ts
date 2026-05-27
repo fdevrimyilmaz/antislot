@@ -1,163 +1,233 @@
-import { SpamCategory, SpamDetectionResult, SMSMessage } from './types';
-import { GAMBLING_KEYWORDS, SCAM_KEYWORDS, ADVERTISEMENT_KEYWORDS } from './keywords';
+import {
+  JunkSubtype,
+  SmsAction,
+  SMSMessage,
+  SpamCategory,
+  SpamDetectionResult,
+} from './types';
+import {
+  GAMBLING_KEYWORDS,
+  SCAM_KEYWORDS,
+  POLITICAL_KEYWORDS,
+  PROMOTION_KEYWORDS,
+  TRANSACTION_KEYWORDS,
+} from './keywords';
 import { SPAM_PATTERNS, analyzeSenderPattern } from './patterns';
 
 export interface ClassifierOptions {
   customKeywords?: string[];
+  communityKeywords?: string[];
   strictMode?: boolean;
 }
 
+/**
+ * Junkman-style SMS classifier — fully on-device, deterministic.
+ *
+ * Decision flow:
+ *   1. Score signals: gambling / scam / political / promo keyword & regex hits.
+ *   2. Score the transaction SHIELD. Strong transaction signals (e.g. an OTP
+ *      keyword + a short numeric code in the body) HARD-PIN the action to
+ *      `transaction` so we never junk a real bank/cargo SMS.
+ *   3. Without shield protection, the highest-scoring junk-flavored category
+ *      wins, gated by `strictMode`'s lower threshold.
+ *
+ * The output `action` maps 1:1 to iOS `ILMessageFilterAction`, so the iOS
+ * extension can take it as-is.
+ */
 export class SMSClassifier {
   private customKeywords: string[];
+  private communityKeywords: string[];
   private strictMode: boolean;
 
   constructor(options: ClassifierOptions = {}) {
-    this.customKeywords = options.customKeywords || [];
-    this.strictMode = options.strictMode || false;
+    this.customKeywords = options.customKeywords ?? [];
+    this.communityKeywords = options.communityKeywords ?? [];
+    this.strictMode = options.strictMode ?? false;
   }
 
-  /**
-   * Classify an SMS message
-   */
   classify(message: SMSMessage): SpamDetectionResult {
     const body = message.body.toLowerCase().trim();
-    const sender = message.sender || '';
+    const sender = message.sender ?? '';
 
     const matchedKeywords: string[] = [];
     const matchedPatterns: string[] = [];
     const reasons: string[] = [];
-    let confidence = 0;
-    let keywordScore = 0;
-    let patternScore = 0;
-    let category = SpamCategory.NORMAL;
 
-    const customMatches = this.checkKeywords(body, this.customKeywords);
-    if (customMatches.length > 0) {
-      matchedKeywords.push(...customMatches);
-      keywordScore += 0.9 * customMatches.length;
-      reasons.push(`Matched ${customMatches.length} custom keyword(s)`);
-      category = SpamCategory.GAMBLING; // Assume gambling for custom keywords
-    }
-
-    // Check gambling keywords
-    const gamblingMatches = this.checkKeywords(body, [
-      ...GAMBLING_KEYWORDS.turkish,
-      ...GAMBLING_KEYWORDS.english,
+    const customHits = this.checkKeywords(body, this.customKeywords);
+    const communityHits = this.checkKeywords(body, this.communityKeywords);
+    const gamblingHits = this.checkKeywords(body, [
+      ...GAMBLING_KEYWORDS.turkish, ...GAMBLING_KEYWORDS.english,
     ]);
-    if (gamblingMatches.length > 0) {
-      matchedKeywords.push(...gamblingMatches);
-      keywordScore += 0.6 * gamblingMatches.length;
-      reasons.push(`Matched ${gamblingMatches.length} gambling keyword(s)`);
-      if (category === SpamCategory.NORMAL) {
-        category = SpamCategory.GAMBLING;
-      }
-    }
-
-    const scamMatches = this.checkKeywords(body, [
-      ...SCAM_KEYWORDS.turkish,
-      ...SCAM_KEYWORDS.english,
+    const scamHits = this.checkKeywords(body, [
+      ...SCAM_KEYWORDS.turkish, ...SCAM_KEYWORDS.english,
     ]);
-    if (scamMatches.length > 0) {
-      matchedKeywords.push(...scamMatches);
-      keywordScore += 0.8 * scamMatches.length;
-      reasons.push(`Matched ${scamMatches.length} scam keyword(s)`);
-      if (category === SpamCategory.NORMAL) {
-        category = SpamCategory.SCAM;
-      }
-    }
-
-    const adMatches = this.checkKeywords(body, [
-      ...ADVERTISEMENT_KEYWORDS.turkish,
-      ...ADVERTISEMENT_KEYWORDS.english,
+    const politicalHits = this.checkKeywords(body, [
+      ...POLITICAL_KEYWORDS.turkish, ...POLITICAL_KEYWORDS.english,
     ]);
-    if (adMatches.length > 0 && category === SpamCategory.NORMAL) {
-      matchedKeywords.push(...adMatches);
-      keywordScore += 0.4 * adMatches.length;
-      reasons.push(`Matched ${adMatches.length} advertisement keyword(s)`);
-      category = SpamCategory.ADVERTISEMENT;
+    const promotionHits = this.checkKeywords(body, [
+      ...PROMOTION_KEYWORDS.turkish, ...PROMOTION_KEYWORDS.english,
+    ]);
+    const transactionHits = this.checkKeywords(body, [
+      ...TRANSACTION_KEYWORDS.turkish, ...TRANSACTION_KEYWORDS.english,
+    ]);
+
+    matchedKeywords.push(
+      ...customHits, ...communityHits, ...gamblingHits, ...scamHits,
+      ...politicalHits, ...promotionHits, ...transactionHits,
+    );
+
+    let gamblingScore = gamblingHits.length * 0.6;
+    let scamScore = scamHits.length * 0.8;
+    let politicalScore = politicalHits.length * 0.7;
+    let promotionScore = promotionHits.length * 0.4;
+    let transactionScore = transactionHits.length * 0.9;
+
+    if (customHits.length > 0) {
+      gamblingScore += customHits.length * 0.9;
+      reasons.push(`${customHits.length} özel anahtar kelime eşleşti`);
     }
+    if (communityHits.length > 0) {
+      gamblingScore += communityHits.length * 0.7;
+      reasons.push(`${communityHits.length} topluluk listesi kelimesi eşleşti`);
+    }
+    if (gamblingHits.length > 0) reasons.push(`Kumar: ${gamblingHits.length} kelime`);
+    if (scamHits.length > 0) reasons.push(`Dolandırıcılık: ${scamHits.length} kelime`);
+    if (politicalHits.length > 0) reasons.push(`Siyasi reklam: ${politicalHits.length} kelime`);
+    if (promotionHits.length > 0) reasons.push(`Promosyon: ${promotionHits.length} kelime`);
+    if (transactionHits.length > 0) reasons.push(`İşlem sinyali: ${transactionHits.length} kelime`);
 
     for (const pattern of SPAM_PATTERNS) {
-      const matches = body.match(pattern.regex);
-      if (matches) {
+      if (pattern.regex.test(body)) {
         matchedPatterns.push(pattern.description);
-        patternScore += 0.5;
-        reasons.push(`Matched pattern: ${pattern.description}`);
-
-        if (category === SpamCategory.NORMAL) {
-          if (pattern.category === 'gambling') category = SpamCategory.GAMBLING;
-          else if (pattern.category === 'scam') category = SpamCategory.SCAM;
-          else if (pattern.category === 'advertisement') category = SpamCategory.ADVERTISEMENT;
-        }
+        reasons.push(`Desen: ${pattern.description}`);
+        if (pattern.category === 'gambling') gamblingScore += 0.5;
+        else if (pattern.category === 'scam') scamScore += 0.5;
+        else if (pattern.category === 'advertisement') promotionScore += 0.3;
       }
+      pattern.regex.lastIndex = 0;
+    }
+
+    const hasUrl = /https?:\/\/|www\.|bit\.ly|tinyurl/i.test(body);
+    const hasShortNumericCode = /\b\d{4,8}\b/.test(message.body);
+
+    if (hasUrl) {
+      if (gamblingHits.length > 0) gamblingScore += 0.5;
+      if (scamHits.length > 0) scamScore += 0.5;
+      if (politicalHits.length > 0) politicalScore += 0.4;
     }
 
     if (sender) {
       const senderAnalysis = analyzeSenderPattern(sender);
       if (senderAnalysis.isSuspicious) {
         reasons.push(...senderAnalysis.reasons);
-        confidence += 0.3;
+        scamScore += 0.2;
       }
     }
 
-    // Stronger signals
-    const hasUrl = /https?:\/\/|www\./i.test(body);
-    if (hasUrl && gamblingMatches.length > 0) {
-      confidence += 0.5;
-      reasons.push('Contains URL with gambling keywords');
-      category = SpamCategory.GAMBLING;
-    }
-    if (hasUrl && scamMatches.length > 0) {
-      confidence += 0.5;
-      reasons.push('Contains URL with scam keywords');
-      category = SpamCategory.SCAM;
-    }
-    if (matchedPatterns.length >= 2) {
-      confidence += 0.4;
-    }
-    if (matchedKeywords.length >= 3) {
-      confidence += 0.4;
+    // Transaction shield: a strong OTP/bank signal pins the action.
+    // We require either two distinct transaction keywords, or one keyword
+    // plus a short numeric code — the canonical OTP shape.
+    const shielded =
+      transactionHits.length >= 2 ||
+      (transactionHits.length >= 1 && hasShortNumericCode);
+
+    if (shielded) {
+      return finalize({
+        category: SpamCategory.TRANSACTION,
+        action: 'transaction',
+        junkSubtype: null,
+        confidence: clamp01(0.6 + transactionScore * 0.2),
+        reasons: ['İşlem korumalı: doğrulama kodu / banka / kargo sinyali baskın', ...reasons],
+        matchedKeywords,
+        matchedPatterns,
+      });
     }
 
-    const totalScore = keywordScore + patternScore + confidence;
-    confidence = Math.min(1, totalScore / (this.strictMode ? 1.4 : 2.1));
-    const threshold = this.strictMode ? 0.35 : 0.5;
-    const isSpam = confidence >= threshold && category !== SpamCategory.NORMAL;
+    const scores: { subtype: JunkSubtype; score: number }[] = [
+      { subtype: 'gambling', score: gamblingScore },
+      { subtype: 'scam', score: scamScore },
+      { subtype: 'political', score: politicalScore },
+    ];
+    scores.sort((a, b) => b.score - a.score);
+    const topJunk = scores[0];
 
-    return {
-      isSpam,
-      category,
-      confidence: Math.round(confidence * 100) / 100,
-      reasons,
-      matchedKeywords: [...new Set(matchedKeywords)],
-      matchedPatterns: [...new Set(matchedPatterns)],
-    };
+    const junkThreshold = this.strictMode ? 0.55 : 0.85;
+    const promoThreshold = this.strictMode ? 0.45 : 0.7;
+
+    if (topJunk.score >= junkThreshold) {
+      return finalize({
+        category: SpamCategory.JUNK,
+        action: 'junk',
+        junkSubtype: topJunk.subtype,
+        confidence: clamp01(topJunk.score / 2.0),
+        reasons,
+        matchedKeywords,
+        matchedPatterns,
+      });
+    }
+
+    if (promotionScore >= promoThreshold) {
+      return finalize({
+        category: SpamCategory.PROMOTION,
+        action: 'promotion',
+        junkSubtype: null,
+        confidence: clamp01(promotionScore / 1.5),
+        reasons,
+        matchedKeywords,
+        matchedPatterns,
+      });
+    }
+
+    return finalize({
+      category: SpamCategory.NORMAL,
+      action: 'allow',
+      junkSubtype: null,
+      confidence: clamp01(Math.max(topJunk.score, promotionScore) / 2.0),
+      reasons: reasons.length > 0 ? reasons : ['Zayıf veya hiç sinyal yok'],
+      matchedKeywords,
+      matchedPatterns,
+    });
+  }
+
+  classifyBatch(messages: SMSMessage[]): SpamDetectionResult[] {
+    return messages.map((m) => this.classify(m));
   }
 
   private checkKeywords(body: string, keywords: string[]): string[] {
     const matches: string[] = [];
-
     for (const keyword of keywords) {
-      const keywordLower = keyword.toLowerCase();
-      const wordBoundaryRegex = new RegExp(`\\b${this.escapeRegex(keywordLower)}\\b`, 'gi');
-      if (wordBoundaryRegex.test(body)) {
-        matches.push(keyword);
-      } else if (keywordLower.includes(' ') && body.includes(keywordLower)) {
-        matches.push(keyword);
+      const lower = keyword.toLowerCase();
+      // Multi-word phrases bypass the word-boundary check (\b doesn't span spaces).
+      if (lower.includes(' ')) {
+        if (body.includes(lower)) matches.push(keyword);
+        continue;
       }
+      const rx = new RegExp(`\\b${escapeRegex(lower)}\\b`, 'i');
+      if (rx.test(body)) matches.push(keyword);
     }
-
     return matches;
   }
-
-  /**
-   * Escape special regex characters
-   */
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  classifyBatch(messages: SMSMessage[]): SpamDetectionResult[] {
-    return messages.map(msg => this.classify(msg));
-  }
 }
+
+function finalize(partial: Omit<SpamDetectionResult, 'isSpam'>): SpamDetectionResult {
+  const isSpam =
+    partial.category === SpamCategory.JUNK ||
+    partial.category === SpamCategory.PROMOTION;
+  return {
+    ...partial,
+    isSpam,
+    confidence: Math.round(partial.confidence * 100) / 100,
+    matchedKeywords: [...new Set(partial.matchedKeywords)],
+    matchedPatterns: [...new Set(partial.matchedPatterns)],
+  };
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
+export type { SmsAction };

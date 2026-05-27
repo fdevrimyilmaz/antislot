@@ -10,7 +10,8 @@ export type Theme =
   | "rose"
   | "mono-dark"
   | "aurora"
-  | "ocean-deep";
+  | "ocean-deep"
+  | "lunar-calm";
 
 /**
  * What the user picked in settings.
@@ -35,6 +36,7 @@ const SUPPORTED_THEMES: Theme[] = [
   "mono-dark",
   "aurora",
   "ocean-deep",
+  "lunar-calm",
 ];
 
 const SUPPORTED_PREFERENCES: ThemePreference[] = ["system", ...SUPPORTED_THEMES];

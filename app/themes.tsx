@@ -39,6 +39,7 @@ const PREVIEW_PALETTE: Record<Theme, ThemeColors> = {
   midnight: paletteFor("midnight"),
   aurora: paletteFor("aurora"),
   "ocean-deep": paletteFor("ocean-deep"),
+  "lunar-calm": paletteFor("lunar-calm"),
 };
 
 // Mirrors the table in ThemeContext.tsx for offline rendering of previews.
@@ -214,6 +215,23 @@ function paletteFor(id: Theme): ThemeColors {
         success: "#34D399",
         warning: "#FACC15",
         danger: "#F87171",
+      };
+    case "lunar-calm":
+      return {
+        background: "#0E0B1F",
+        backgroundGradient: ["#0E0B1F", "#181138", "#241852"] as const,
+        heroGradient: ["#2A1856", "#5B36A6", "#9F77F2"] as const,
+        cardGradient: ["#1F1942", "#181235"] as const,
+        text: "#F2EBFF",
+        textMuted: "#9C8FC4",
+        card: "#1B1538",
+        cardBorder: "#2E2454",
+        primary: "#B89EFF",
+        secondary: "#8A6FE0",
+        accent: "#FFB68A",
+        success: "#7FE0B0",
+        warning: "#FFD18A",
+        danger: "#FF8E8E",
       };
   }
 }

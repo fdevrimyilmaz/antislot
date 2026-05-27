@@ -32,7 +32,6 @@ For the Expo app, set public variables in `./.env`:
 
 ```bash
 EXPO_PUBLIC_API_URL=http://localhost:3001
-EXPO_PUBLIC_HMAC_SECRET=change-me
 ```
 
 ## Manual build (backend + AI server)

@@ -63,7 +63,7 @@ export const SETTINGS_LOCALES: Record<Language, SettingsText> = {
   tr: {
     links: {
       protection: [
-        { label: "Self-Exclusion", icon: "lock-closed", route: "/self-exclusion" },
+        { label: "Öz-Kısıtlama", icon: "lock-closed", route: "/self-exclusion" },
         { label: "Risk Pencereleri", icon: "time", route: "/risk-windows" },
         { label: "Bildirimler", icon: "notifications", route: "/notifications" },
       ],
@@ -82,7 +82,7 @@ export const SETTINGS_LOCALES: Record<Language, SettingsText> = {
     },
     toast: {
       lockTitle: "Kilitli",
-      lockMessage: (remaining) => `Self-Exclusion aktif — ${remaining} kaldı.`,
+      lockMessage: (remaining) => `Öz-Kısıtlama aktif — ${remaining} kaldı.`,
       minSelectionTitle: "Seçim Gerekli",
       minSelectionMessage: "En az bir bağımlılık seçili olmalı.",
       savedTitle: "Kaydedildi",
@@ -107,7 +107,7 @@ export const SETTINGS_LOCALES: Record<Language, SettingsText> = {
     tracking: {
       title: "Kumar Takibi",
       subtitle: "Kumar takibini açıp kapatabilirsiniz. En az bir seçim gerekli.",
-      lockNotice: (remaining) => `Self-Exclusion aktif — ${remaining} kaldı. Değişiklikler kilitli.`,
+      lockNotice: (remaining) => `Öz-Kısıtlama aktif — ${remaining} kaldı. Değişiklikler kilitli.`,
       toggleHint: "Takibi aç / kapat",
       toggleA11y: (label) => `${label} takibi`,
       inlineWarning: "En az bir seçim yapmalısınız.",
@@ -116,7 +116,7 @@ export const SETTINGS_LOCALES: Record<Language, SettingsText> = {
     },
     sections: {
       protectionTitle: "Korunma",
-      protectionSubtitle: "Self-exclusion, risk pencereleri ve bildirim ayarları.",
+      protectionSubtitle: "Öz-Kısıtlama, risk pencereleri ve bildirim ayarları.",
       supportTitle: "Destek ve Yardım",
       supportSubtitle: "Krizde hızlı erişim ve destek araçları.",
       legalTitle: "Gizlilik ve Yasal",

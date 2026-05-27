@@ -107,6 +107,13 @@ export const THEME_OPTIONS: ThemeOption[] = [
     description: "Derin deniz mavisi, turkuaz vurgu.",
     mode: "dark",
   },
+  {
+    id: "lunar-calm",
+    label: "Lunar Calm",
+    emoji: "🌙",
+    description: "Sakin mor — kriz anlarında nefes aldırır.",
+    mode: "dark",
+  },
 ];
 
 const themeColors: Record<Theme, ThemeColors> = {
@@ -270,6 +277,26 @@ const themeColors: Record<Theme, ThemeColors> = {
     warning: "#FACC15",
     danger: "#F87171",
   },
+  // Lunar Calm — the calm-by-default palette designed for crisis moments.
+  // Deep indigo→violet base; lavender primary; warm peach accent so the
+  // single CTA on each screen has clear emotional warmth against the cool
+  // background. Tuned for AMOLED with no pure white (text is soft lavender).
+  "lunar-calm": {
+    background: "#0E0B1F",
+    backgroundGradient: ["#0E0B1F", "#181138", "#241852"] as const,
+    heroGradient: ["#2A1856", "#5B36A6", "#9F77F2"] as const,
+    cardGradient: ["#1F1942", "#181235"] as const,
+    text: "#F2EBFF",
+    textMuted: "#9C8FC4",
+    card: "#1B1538",
+    cardBorder: "#2E2454",
+    primary: "#B89EFF",
+    secondary: "#8A6FE0",
+    accent: "#FFB68A",
+    success: "#7FE0B0",
+    warning: "#FFD18A",
+    danger: "#FF8E8E",
+  },
 };
 
 /**
@@ -278,7 +305,7 @@ const themeColors: Record<Theme, ThemeColors> = {
  * easy to swap (e.g. "use Mono Dark instead of Midnight for system-dark").
  */
 const SYSTEM_LIGHT_FALLBACK: Theme = "white";
-const SYSTEM_DARK_FALLBACK: Theme = "midnight";
+const SYSTEM_DARK_FALLBACK: Theme = "lunar-calm";
 
 function resolveTheme(preference: ThemePreference, scheme: ColorSchemeName): Theme {
   if (preference === "system") {

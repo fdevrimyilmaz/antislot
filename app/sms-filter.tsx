@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -23,13 +24,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
 import { reportError } from "@/services/monitoring";
-import { FilterSettings, SpamDetectionResult } from "@/services/sms-filter/types";
+import {
+  FilterSettings,
+  SpamDetectionResult,
+  SpamCategory,
+} from "@/services/sms-filter/types";
 import {
   getFilterSettings,
   updateFilterSettings,
   addCustomKeyword,
   removeCustomKeyword,
+  refreshSharedSettings,
 } from "@/store/smsFilterStore";
+import {
+  getCommunityKeywords,
+  getCommunityLastSync,
+  syncCommunityKeywords,
+} from "@/store/smsCommunityListStore";
 import { getAllKeywords } from "@/services/sms-filter/keywords";
 import { SMSFilterService } from "@/services/sms-filter";
 import {
@@ -40,23 +51,18 @@ import {
 } from "@/store/smsFilterStatsStore";
 
 /**
- * SMS spam recognizer — manual tester.
+ * SMS spam recognizer & filter control panel.
  *
- * What this screen IS:
- *   • A spam classifier you can paste a suspicious SMS into.
- *   • The classifier uses Turkish + English gambling/scam/ad keyword lists
- *     and regex patterns to score and label the message.
- *   • The user can extend it with custom keywords.
+ * iOS: When the user enables "AntiSlot SMS Filter" in
+ *   Settings → Messages → Unknown & Spam, the AntislotMessageFilterExtension
+ *   runs Apple's `ILMessageFilterExtension` callback on every SMS from a
+ *   sender NOT in the user's contacts. The extension's classifier is the
+ *   Swift port of [services/sms-filter/classifier.ts], so the test results
+ *   shown here match what the extension will do for real.
  *
- * What this screen is NOT (yet):
- *   • An automatic SMS filter that intercepts messages in the background.
- *     Background interception needs (1) a Kotlin SmsReceiver + default SMS
- *     app role on Android, and (2) an ILMessageFilterExtension target on iOS.
- *     Neither is wired up in this build; the prior UI implying otherwise was
- *     misleading and has been removed.
- *
- * Roadmap callout below ("Otomatik Engelleme — Yakında") sets expectations so
- * we never claim what we don't deliver.
+ * Android: Background filtering is intentionally NOT wired up — the app
+ *   blocks `RECEIVE_SMS` permission for Play Store policy reasons. The
+ *   in-app paste-and-test flow still works.
  */
 
 export default function SMSFilterScreen() {
@@ -69,20 +75,30 @@ export default function SMSFilterScreen() {
     customKeywords: [],
     autoDeleteDays: null,
     strictMode: false,
+    communityListEnabled: false,
   });
   const [newKeyword, setNewKeyword] = useState("");
   const [testMessage, setTestMessage] = useState("");
   const [testSender, setTestSender] = useState("");
   const [testResult, setTestResult] = useState<SpamDetectionResult | null>(null);
   const [stats, setStats] = useState({ blocked: 0, allowed: 0 });
+  const [communityKeywords, setCommunityKeywords] = useState<string[]>([]);
+  const [communityLastSync, setCommunityLastSync] = useState<number | null>(null);
+  const [communitySyncing, setCommunitySyncing] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const loadedSettings = await getFilterSettings();
+        const [loadedSettings, currentStats, communityList, lastSync] = await Promise.all([
+          getFilterSettings(),
+          getFilterStats(),
+          getCommunityKeywords(),
+          getCommunityLastSync(),
+        ]);
         setSettings(loadedSettings);
-        const currentStats = await getFilterStats();
         setStats(currentStats);
+        setCommunityKeywords(communityList);
+        setCommunityLastSync(lastSync);
       } catch (error) {
         reportError(error, { scope: "smsFilter.load" });
         toast.error("Ayarlar yüklenemedi.", "Hata");
@@ -92,6 +108,40 @@ export default function SMSFilterScreen() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleToggleCommunityList = async (value: boolean) => {
+    haptics.selection();
+    try {
+      await updateFilterSettings({ communityListEnabled: value });
+      setSettings({ ...settings, communityListEnabled: value });
+    } catch (error) {
+      reportError(error, { scope: "smsFilter.toggleCommunity" });
+      haptics.error();
+      toast.error("Topluluk listesi ayarı güncellenemedi.", "Hata");
+    }
+  };
+
+  const handleSyncCommunity = async () => {
+    haptics.tapMedium();
+    setCommunitySyncing(true);
+    try {
+      const result = await syncCommunityKeywords();
+      setCommunityKeywords(result.keywords);
+      setCommunityLastSync(result.lastSync);
+      if (settings.communityListEnabled) {
+        await refreshSharedSettings();
+      }
+      haptics.success();
+      toast.success(`${result.keywords.length} kelime güncellendi.`, "Topluluk Listesi");
+    } catch (error) {
+      reportError(error, { scope: "smsFilter.syncCommunity" });
+      haptics.error();
+      const message = error instanceof Error ? error.message : "Senkronizasyon başarısız.";
+      toast.error(message, "Bağlantı Hatası");
+    } finally {
+      setCommunitySyncing(false);
+    }
+  };
 
   const handleToggleStrictMode = async (value: boolean) => {
     haptics.selection();
@@ -169,7 +219,11 @@ export default function SMSFilterScreen() {
       return;
     }
     haptics.tapLight();
-    const service = new SMSFilterService(settings.customKeywords, settings.strictMode);
+    const service = new SMSFilterService({
+      customKeywords: settings.customKeywords,
+      communityKeywords: settings.communityListEnabled ? communityKeywords : [],
+      strictMode: settings.strictMode,
+    });
     const result = service.classify({
       body: testMessage,
       sender: testSender.trim() || "Bilinmiyor",
@@ -285,27 +339,52 @@ export default function SMSFilterScreen() {
             </Text>
           </LinearGradient>
 
-          {/* "Coming soon" honesty banner */}
-          <View
-            style={[
-              styles.roadmapBanner,
-              {
-                backgroundColor: `${colors.warning}12`,
-                borderColor: `${colors.warning}55`,
-              },
-            ]}
-          >
-            <Ionicons name="time" size={18} color={colors.warning} />
-            <View style={styles.roadmapText}>
-              <Text style={[styles.roadmapTitle, { color: colors.text }]}>
-                Otomatik engelleme — yakında
-              </Text>
-              <Text style={[styles.roadmapHint, { color: colors.textMuted }]}>
-                Şu an SMS’leri otomatik silmek/engellemek yerine, sen yapıştırınca tanır.
-                Arka planda engelleme yakında bir sürümde gelecek.
-              </Text>
+          {/* Platform-specific enable instructions */}
+          {Platform.OS === "ios" ? (
+            <View
+              style={[
+                styles.roadmapBanner,
+                {
+                  backgroundColor: `${colors.primary}12`,
+                  borderColor: `${colors.primary}55`,
+                },
+              ]}
+            >
+              <Ionicons name="phone-portrait" size={18} color={colors.primary} />
+              <View style={styles.roadmapText}>
+                <Text style={[styles.roadmapTitle, { color: colors.text }]}>
+                  iOS otomatik filtreyi aç
+                </Text>
+                <Text style={[styles.roadmapHint, { color: colors.textMuted }]}>
+                  Ayarlar → Mesajlar → Bilinmeyen ve Spam → AntiSlot SMS Filter.
+                  Sadece rehberinizde olmayan numaralardan gelen SMS&apos;ler taranır,
+                  içerikleri cihazdan çıkmaz.
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View
+              style={[
+                styles.roadmapBanner,
+                {
+                  backgroundColor: `${colors.warning}12`,
+                  borderColor: `${colors.warning}55`,
+                },
+              ]}
+            >
+              <Ionicons name="information-circle" size={18} color={colors.warning} />
+              <View style={styles.roadmapText}>
+                <Text style={[styles.roadmapTitle, { color: colors.text }]}>
+                  Android&apos;de otomatik filtre yok
+                </Text>
+                <Text style={[styles.roadmapHint, { color: colors.textMuted }]}>
+                  Google Play SMS izin politikaları nedeniyle bu uygulamada arka planda
+                  SMS engelleme yapılmıyor. Aşağıdaki tanıyıcıyı manuel olarak
+                  kullanabilirsiniz.
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Test panel — main feature */}
           <Card style={styles.cardSpacing}>
@@ -356,38 +435,36 @@ export default function SMSFilterScreen() {
               style={styles.testBtn}
             />
 
-            {testResult ? (
+            {testResult ? (() => {
+              const display = describeCategory(testResult, colors);
+              return (
               <View
                 style={[
                   styles.testResult,
                   {
-                    backgroundColor: testResult.isSpam
-                      ? `${colors.danger}12`
-                      : `${colors.success}12`,
-                    borderColor: testResult.isSpam
-                      ? `${colors.danger}55`
-                      : `${colors.success}55`,
+                    backgroundColor: `${display.color}12`,
+                    borderColor: `${display.color}55`,
                   },
                 ]}
                 accessibilityLiveRegion="polite"
               >
                 <View style={styles.testResultHeader}>
                   <Ionicons
-                    name={testResult.isSpam ? "ban" : "checkmark-circle"}
+                    name={display.icon as any}
                     size={20}
-                    color={testResult.isSpam ? colors.danger : colors.success}
+                    color={display.color}
                   />
                   <Text
                     style={[
                       styles.testResultTitle,
-                      { color: testResult.isSpam ? colors.danger : colors.success },
+                      { color: display.color },
                     ]}
                   >
-                    {testResult.isSpam ? "Spam tespit edildi" : "Normal görünüyor"}
+                    {display.title}
                   </Text>
                 </View>
                 <Text style={[styles.testResultText, { color: colors.text }]}>
-                  Kategori: <Text style={styles.testResultEmphasis}>{testResult.category}</Text>
+                  Kategori: <Text style={styles.testResultEmphasis}>{display.label}</Text>
                 </Text>
                 <Text style={[styles.testResultText, { color: colors.text }]}>
                   Güven: <Text style={styles.testResultEmphasis}>{testResult.confidence}</Text>
@@ -402,7 +479,7 @@ export default function SMSFilterScreen() {
                         <View
                           style={[
                             styles.reasonDot,
-                            { backgroundColor: testResult.isSpam ? colors.danger : colors.success },
+                            { backgroundColor: display.color },
                           ]}
                         />
                         <Text style={[styles.reasonText, { color: colors.text }]}>
@@ -413,7 +490,8 @@ export default function SMSFilterScreen() {
                   </View>
                 ) : null}
               </View>
-            ) : null}
+              );
+            })() : null}
           </Card>
 
           {/* Test stats */}
@@ -492,7 +570,52 @@ export default function SMSFilterScreen() {
             </View>
             <Text style={[styles.strengthMeta, { color: colors.textMuted }]}>
               {getAllKeywords().length} hazır anahtar kelime · {settings.customKeywords.length} özel
+              {settings.communityListEnabled ? ` · ${communityKeywords.length} topluluk` : ""}
             </Text>
+          </Card>
+
+          {/* Community spam list */}
+          <Card style={styles.cardSpacing}>
+            <SectionHeader
+              title="Topluluk Spam Listesi"
+              icon="people"
+              subtitle="Sunucudan paylaşılan, sürekli güncellenen kelime listesi."
+              meta={communityKeywords.length > 0 ? `${communityKeywords.length}` : undefined}
+            />
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleInfo}>
+                <Text style={[styles.toggleLabel, { color: colors.text }]}>Topluluk listesini kullan</Text>
+                <Text style={[styles.toggleHint, { color: colors.textMuted }]}>
+                  Açıkken sınıflandırıcı topluluk kelimelerini de kontrol eder.
+                </Text>
+              </View>
+              <Switch
+                value={settings.communityListEnabled}
+                onValueChange={handleToggleCommunityList}
+                trackColor={{ false: colors.cardBorder, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Topluluk listesi"
+              />
+            </View>
+            <Text style={[styles.communityMeta, { color: colors.textMuted }]}>
+              {communityLastSync
+                ? `Son güncelleme: ${new Date(communityLastSync).toLocaleString("tr-TR", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "Henüz güncellenmedi"}
+            </Text>
+            <Button
+              title={communitySyncing ? "Güncelleniyor..." : "Şimdi Güncelle"}
+              onPress={handleSyncCommunity}
+              disabled={communitySyncing}
+              variant="secondary"
+              fullWidth
+              leftIcon="refresh"
+              style={styles.testBtn}
+            />
           </Card>
 
           {/* Custom keywords */}
@@ -568,6 +691,59 @@ export default function SMSFilterScreen() {
       </SafeAreaView>
     </LinearGradient>
   );
+}
+
+type CategoryDisplay = {
+  title: string;
+  label: string;
+  icon: string;
+  color: string;
+};
+
+function describeCategory(
+  result: SpamDetectionResult,
+  colors: { danger: string; warning: string; success: string; primary: string }
+): CategoryDisplay {
+  switch (result.category) {
+    case SpamCategory.JUNK: {
+      const subLabel =
+        result.junkSubtype === "gambling"
+          ? "Kumar"
+          : result.junkSubtype === "scam"
+          ? "Dolandırıcılık"
+          : result.junkSubtype === "political"
+          ? "Siyasi"
+          : "Spam";
+      return {
+        title: "Junk — engellendi",
+        label: `Junk · ${subLabel}`,
+        icon: "ban",
+        color: colors.danger,
+      };
+    }
+    case SpamCategory.PROMOTION:
+      return {
+        title: "Promosyon",
+        label: "Promosyon",
+        icon: "pricetag",
+        color: colors.warning,
+      };
+    case SpamCategory.TRANSACTION:
+      return {
+        title: "İşlem — korumalı",
+        label: "İşlem (OTP/banka)",
+        icon: "shield-checkmark",
+        color: colors.primary,
+      };
+    case SpamCategory.NORMAL:
+    default:
+      return {
+        title: "Normal görünüyor",
+        label: "Normal",
+        icon: "checkmark-circle",
+        color: colors.success,
+      };
+  }
 }
 
 const styles = StyleSheet.create({
@@ -722,6 +898,7 @@ const styles = StyleSheet.create({
   },
   strengthValue: { fontSize: 12, fontWeight: "800" },
   strengthMeta: { fontSize: 11, marginTop: 8 },
+  communityMeta: { fontSize: 12, marginTop: 8, marginBottom: 4 },
 
   keywordInputRow: {
     flexDirection: "row",

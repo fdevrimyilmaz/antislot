@@ -1,0 +1,24 @@
+[
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "if-domain": [
+        "*bet365.com",
+        "*betway.com",
+        "*bwin.com",
+        "*pinnacle.com",
+        "*williamhill.com",
+        "*888casino.com",
+        "*casino.com",
+        "*pokerstars.com",
+        "*partypoker.com",
+        "*bodog.com",
+        "*unibet.com",
+        "*betfair.com"
+      ]
+    },
+    "action": {
+      "type": "block"
+    }
+  }
+]

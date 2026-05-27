@@ -34,7 +34,7 @@ const SLIDES: Slide[] = [
   {
     key: "self-exclusion",
     icon: "lock-closed",
-    title: "Self-Exclusion — Karar kilidi",
+    title: "Öz-Kısıtlama — Karar kilidi",
     body:
       "Sakin anında 24 saat ila 1 yıl arası bir süre seç; uygulama içindeki yıkıcı işlemleri kendin için kilitle. Süresi dolmadan değişmez — kendi sözünü koruma altına alır.",
     cta: "Şimdi gör",

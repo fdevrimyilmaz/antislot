@@ -142,7 +142,7 @@ export default function Progress() {
     if (lockoutActive) {
       haptics.warning();
       toast.warning(
-        `Self-Exclusion aktif — ${formatRemaining(remainingMs(lockoutState))} kaldı. Süre dolmadan sıfırlanamaz.`,
+        `Öz-Kısıtlama aktif — ${formatRemaining(remainingMs(lockoutState))} kaldı. Süre dolmadan sıfırlanamaz.`,
         "Kilitli"
       );
       return;

@@ -118,7 +118,7 @@ export default function SelfExclusionScreen() {
 
   const handleConfirmActivate = () => {
     Alert.alert(
-      "Onayla: Self-Exclusion",
+      "Onayla: Öz-Kısıtlama",
       `${selectedDays} gün boyunca bazı işlemleri yapamayacaksın. Bu süre kısaltılamaz. Devam edilsin mi?`,
       [
         { text: "Vazgeç", style: "cancel", onPress: () => setConfirming(false) },
@@ -181,7 +181,7 @@ export default function SelfExclusionScreen() {
             style={[styles.title, { color: colors.text }]}
             accessibilityRole="header"
           >
-            Self-Exclusion
+            Öz-Kısıtlama
           </Text>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             Krizde değil, sakin anında ver kararı. Seçtiğin süre boyunca

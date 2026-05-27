@@ -2,15 +2,18 @@ import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 
 import { auth } from "@/lib/firebase";
-import { readProgress, writeProgress } from "@/services/progress";
+import { daysSince, readProgress, writeProgress } from "@/services/progress";
 
 type ProgressStoreState = {
   gamblingFreeDays: number;
+  streakStartedAt: number | null;
   hydrated: boolean;
   loading: boolean;
   error: string | null;
   hydrate: (uid?: string) => Promise<void>;
   reset: (uid?: string) => Promise<void>;
+  /** Recompute the visible day count from the stored start timestamp. */
+  recomputeDays: () => void;
 };
 
 const SESSIONS_COMPLETED_KEY = "antislot_sessions_completed";
@@ -26,6 +29,7 @@ function resolveUid(uid?: string) {
 
 export const useProgressStore = create<ProgressStoreState>((set, get) => ({
   gamblingFreeDays: 0,
+  streakStartedAt: null,
   hydrated: false,
   loading: false,
   error: null,
@@ -38,8 +42,14 @@ export const useProgressStore = create<ProgressStoreState>((set, get) => ({
     }
     set({ loading: true, error: null });
     try {
-      const days = await readProgress(resolvedUid);
-      set({ gamblingFreeDays: days, hydrated: true, loading: false, error: null });
+      const snapshot = await readProgress(resolvedUid);
+      set({
+        gamblingFreeDays: snapshot.gamblingFreeDays,
+        streakStartedAt: snapshot.streakStartedAt,
+        hydrated: true,
+        loading: false,
+        error: null,
+      });
     } catch (error) {
       set({ loading: false, hydrated: true, error: resolveErrorMessage(error) });
     }
@@ -51,12 +61,27 @@ export const useProgressStore = create<ProgressStoreState>((set, get) => ({
       set({ error: "Kullanici bulunamadi." });
       return;
     }
-    set({ gamblingFreeDays: 0, loading: true, error: null, hydrated: true });
+    const now = Date.now();
+    set({
+      gamblingFreeDays: 0,
+      streakStartedAt: now,
+      loading: true,
+      error: null,
+      hydrated: true,
+    });
     try {
-      await writeProgress(resolvedUid, 0);
+      await writeProgress(resolvedUid, now);
       set({ loading: false });
     } catch (error) {
       set({ loading: false, error: resolveErrorMessage(error) });
+    }
+  },
+  recomputeDays: () => {
+    const startedAt = get().streakStartedAt;
+    if (startedAt === null) return;
+    const fresh = daysSince(startedAt);
+    if (fresh !== get().gamblingFreeDays) {
+      set({ gamblingFreeDays: fresh });
     }
   },
 }));

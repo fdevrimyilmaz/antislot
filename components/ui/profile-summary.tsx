@@ -74,7 +74,7 @@ export function ProfileSummary() {
   const commitments = useMemo(() => {
     const items: { icon: React.ComponentProps<typeof Ionicons>["name"]; text: string }[] = [];
     if (lockoutActive && lockoutRemain) {
-      items.push({ icon: "lock-closed", text: `Self-Exclusion — ${lockoutRemain}` });
+      items.push({ icon: "lock-closed", text: `Öz-Kısıtlama — ${lockoutRemain}` });
     }
     if (riskWindows.length > 0) {
       items.push({

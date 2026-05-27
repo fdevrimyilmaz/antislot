@@ -485,7 +485,11 @@ function checkStorePolicySafety() {
   const appPermissions = Array.isArray(appJson?.expo?.android?.permissions)
     ? appJson.expo.android.permissions
     : [];
+  const appBlockedPermissions = Array.isArray(appJson?.expo?.android?.blockedPermissions)
+    ? appJson.expo.android.blockedPermissions
+    : [];
   const restrictedAndroidPermissions = [
+    "android.permission.BIND_VPN_SERVICE",
     "android.permission.READ_SMS",
     "android.permission.RECEIVE_SMS",
     "android.permission.RECEIVE_MMS",
@@ -501,6 +505,12 @@ function checkStorePolicySafety() {
     } else {
       ok(`app.json excludes restricted permission: ${permission}`);
     }
+  }
+
+  if (appBlockedPermissions.includes("android.permission.BIND_VPN_SERVICE")) {
+    ok("app.json blockedPermissions includes android.permission.BIND_VPN_SERVICE");
+  } else {
+    fail("app.json blockedPermissions must include android.permission.BIND_VPN_SERVICE");
   }
 
   if (!hasManifest) {
@@ -522,17 +532,20 @@ function checkStorePolicySafety() {
       }
     }
 
-    const smsEntryRegexes = [
+    const restrictedComponentRegexes = [
+      /com\.antislot\.AntislotVpnService/,
+      /android\.permission\.BIND_VPN_SERVICE/,
+      /android\.net\.VpnService/,
       /com\.antislot\.SmsDeliverReceiver/,
       /com\.antislot\.MmsDeliverReceiver/,
       /com\.antislot\.RespondViaMessageService/,
       /android\.intent\.action\.SENDTO/,
     ];
-    for (const regex of smsEntryRegexes) {
+    for (const regex of restrictedComponentRegexes) {
       if (regex.test(manifest)) {
-        fail(`AndroidManifest contains restricted SMS handler entry: ${regex}`);
+        fail(`AndroidManifest contains restricted policy entry: ${regex}`);
       } else {
-        ok(`AndroidManifest excludes SMS handler entry: ${regex}`);
+        ok(`AndroidManifest excludes restricted policy entry: ${regex}`);
       }
     }
   }

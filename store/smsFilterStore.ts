@@ -1,13 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
 import { FilterSettings } from '@/services/sms-filter/types';
-import { getAllKeywords } from '@/services/sms-filter/keywords';
 import { SharedConfig } from '@/react-native-bridge/SharedConfigModule';
+import { getCommunityKeywords } from '@/store/smsCommunityListStore';
 
 const KEYS = {
   ENABLED: 'sms_filter_enabled',
   KEYWORDS: 'sms_filter_keywords',
   AUTO_DELETE_DAYS: 'sms_filter_auto_delete_days',
   STRICT_MODE: 'sms_filter_strict_mode',
+  COMMUNITY_LIST_ENABLED: 'sms_filter_community_enabled',
 };
 
 const DEFAULT_SETTINGS: FilterSettings = {
@@ -15,32 +16,46 @@ const DEFAULT_SETTINGS: FilterSettings = {
   customKeywords: [],
   autoDeleteDays: null,
   strictMode: false,
+  communityListEnabled: false,
 };
 
-async function syncSharedSettings() {
+/**
+ * Push the merged settings into the App Group so the iOS
+ * MessageFilterExtension picks them up on the next SMS query.
+ *
+ * Customs go in `customKeywords`, the community list (if enabled) goes in
+ * `communityKeywords`. Keeping them separate lets the extension assign
+ * different score weights and lets the user toggle community without
+ * losing their own additions.
+ */
+async function syncSharedSettings(): Promise<void> {
   const settings = await getFilterSettings();
-  const defaultKeywords = getAllKeywords();
-  const combinedKeywords = Array.from(new Set([...defaultKeywords, ...settings.customKeywords]));
+  const community = settings.communityListEnabled ? await getCommunityKeywords() : [];
   await SharedConfig.saveSmsSettings(
     settings.enabled,
     settings.strictMode,
-    combinedKeywords,
-    settings.autoDeleteDays
+    settings.customKeywords,
+    settings.autoDeleteDays,
+    community
   );
 }
 
 export async function getFilterSettings(): Promise<FilterSettings> {
   try {
-    const enabled = await SecureStore.getItemAsync(KEYS.ENABLED);
-    const keywords = await SecureStore.getItemAsync(KEYS.KEYWORDS);
-    const autoDeleteDays = await SecureStore.getItemAsync(KEYS.AUTO_DELETE_DAYS);
-    const strictMode = await SecureStore.getItemAsync(KEYS.STRICT_MODE);
+    const [enabled, keywords, autoDeleteDays, strictMode, communityEnabled] = await Promise.all([
+      SecureStore.getItemAsync(KEYS.ENABLED),
+      SecureStore.getItemAsync(KEYS.KEYWORDS),
+      SecureStore.getItemAsync(KEYS.AUTO_DELETE_DAYS),
+      SecureStore.getItemAsync(KEYS.STRICT_MODE),
+      SecureStore.getItemAsync(KEYS.COMMUNITY_LIST_ENABLED),
+    ]);
 
     return {
-      enabled: enabled === 'true',
-      customKeywords: keywords ? JSON.parse(keywords) : [],
+      enabled: enabled !== 'false',
+      customKeywords: keywords ? safeParseArray(keywords) : [],
       autoDeleteDays: autoDeleteDays ? parseInt(autoDeleteDays, 10) : null,
       strictMode: strictMode === 'true',
+      communityListEnabled: communityEnabled === 'true',
     };
   } catch (error) {
     console.error('Filtre ayarları yüklenirken hata:', error);
@@ -48,45 +63,41 @@ export async function getFilterSettings(): Promise<FilterSettings> {
   }
 }
 
-export async function updateFilterSettings(settings: Partial<FilterSettings>): Promise<void> {
-  try {
-    if (settings.enabled !== undefined) {
-      await SecureStore.setItemAsync(KEYS.ENABLED, settings.enabled.toString());
-    }
-    if (settings.customKeywords !== undefined) {
-      await SecureStore.setItemAsync(KEYS.KEYWORDS, JSON.stringify(settings.customKeywords));
-    }
-    if (settings.autoDeleteDays !== undefined) {
-      await SecureStore.setItemAsync(
-        KEYS.AUTO_DELETE_DAYS,
-        settings.autoDeleteDays?.toString() || ''
-      );
-    }
-    if (settings.strictMode !== undefined) {
-      await SecureStore.setItemAsync(KEYS.STRICT_MODE, settings.strictMode.toString());
-    }
-    await syncSharedSettings();
-  } catch (error) {
-    console.error('Filtre ayarları kaydedilirken hata:', error);
-    throw error;
+export async function updateFilterSettings(patch: Partial<FilterSettings>): Promise<void> {
+  if (patch.enabled !== undefined) {
+    await SecureStore.setItemAsync(KEYS.ENABLED, String(patch.enabled));
   }
+  if (patch.customKeywords !== undefined) {
+    await SecureStore.setItemAsync(KEYS.KEYWORDS, JSON.stringify(patch.customKeywords));
+  }
+  if (patch.autoDeleteDays !== undefined) {
+    await SecureStore.setItemAsync(
+      KEYS.AUTO_DELETE_DAYS,
+      patch.autoDeleteDays === null ? '' : String(patch.autoDeleteDays)
+    );
+  }
+  if (patch.strictMode !== undefined) {
+    await SecureStore.setItemAsync(KEYS.STRICT_MODE, String(patch.strictMode));
+  }
+  if (patch.communityListEnabled !== undefined) {
+    await SecureStore.setItemAsync(KEYS.COMMUNITY_LIST_ENABLED, String(patch.communityListEnabled));
+  }
+  await syncSharedSettings();
 }
 
 export async function addCustomKeyword(keyword: string): Promise<void> {
   const settings = await getFilterSettings();
-  const trimmedKeyword = keyword.trim().toLowerCase();
-  
-  if (trimmedKeyword && !settings.customKeywords.includes(trimmedKeyword)) {
-    await updateFilterSettings({
-      customKeywords: [...settings.customKeywords, trimmedKeyword],
-    });
-  }
+  const trimmed = keyword.trim().toLowerCase();
+  if (!trimmed || settings.customKeywords.includes(trimmed)) return;
+  await updateFilterSettings({
+    customKeywords: [...settings.customKeywords, trimmed],
+  });
 }
 
 export async function removeCustomKeyword(keyword: string): Promise<void> {
   const settings = await getFilterSettings();
   await updateFilterSettings({
-    customKeywords: settings.customKeywords.filter(k => k !== keyword),
+    customKeywords: settings.customKeywords.filter((k) => k !== keyword),
   });
 }
 
@@ -95,13 +106,26 @@ export async function toggleFilter(enabled: boolean): Promise<void> {
 }
 
 export async function resetFilterSettings(): Promise<void> {
+  await Promise.all([
+    SecureStore.deleteItemAsync(KEYS.ENABLED),
+    SecureStore.deleteItemAsync(KEYS.KEYWORDS),
+    SecureStore.deleteItemAsync(KEYS.AUTO_DELETE_DAYS),
+    SecureStore.deleteItemAsync(KEYS.STRICT_MODE),
+    SecureStore.deleteItemAsync(KEYS.COMMUNITY_LIST_ENABLED),
+  ]);
+  await syncSharedSettings();
+}
+
+/** Re-push settings to the App Group — call after a community list sync. */
+export async function refreshSharedSettings(): Promise<void> {
+  await syncSharedSettings();
+}
+
+function safeParseArray(raw: string): string[] {
   try {
-    await SecureStore.deleteItemAsync(KEYS.ENABLED);
-    await SecureStore.deleteItemAsync(KEYS.KEYWORDS);
-    await SecureStore.deleteItemAsync(KEYS.AUTO_DELETE_DAYS);
-    await SecureStore.deleteItemAsync(KEYS.STRICT_MODE);
-    await syncSharedSettings();
-  } catch (error) {
-    console.error('Filtre ayarları sıfırlanırken hata:', error);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((k) => typeof k === 'string') : [];
+  } catch {
+    return [];
   }
 }

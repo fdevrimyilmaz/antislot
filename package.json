@@ -66,8 +66,8 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "@sentry/react-native": "~7.2.0",
-    "crypto-js": "^4.2.0",
-    "expo": "~54.0.33",
+    "expo": "^54.0.0",
+    "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
     "expo-font": "~14.0.11",
@@ -100,7 +100,6 @@
   },
   "devDependencies": {
     "@testing-library/react-native": "^13.3.3",
-    "@types/crypto-js": "^4.2.2",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.0",
     "detox": "^20.29.0",

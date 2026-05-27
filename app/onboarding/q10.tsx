@@ -15,7 +15,7 @@ type ConsentKey = "scope" | "limitations" | "privacy";
 const CONSENTS: { key: ConsentKey; text: string }[] = [
   {
     key: "scope",
-    text: "Antislot bir destek aracıdır — bahis sitelerini cihaz seviyesinde engellemez. Para Koruma, Self-Exclusion ve Risk Pencereleri uygulama içinde devreye girer.",
+    text: "Antislot bir destek aracıdır — bahis sitelerini cihaz seviyesinde engellemez. Para Koruma, Öz-Kısıtlama ve Risk Pencereleri uygulama içinde devreye girer.",
   },
   {
     key: "limitations",

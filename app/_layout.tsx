@@ -75,6 +75,11 @@ function RootLayoutContent() {
       reconcilePremiumEntitlement({ reason: "app_foreground" }).catch(
         () => undefined
       );
+      // Day-boundary refresh: when the app comes back from background, the
+      // wall clock may have crossed local midnight, so the streak counter
+      // and any time-derived state need a recompute right now rather than
+      // waiting for the next periodic tick.
+      useProgressStore.getState().recomputeDays();
     });
 
     return () => {
@@ -186,6 +191,20 @@ function RootLayoutContent() {
             />
             <Stack.Screen
               name="self-exclusion"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="android-dns-setup"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="sos-contacts"
               options={{
                 headerShown: false,
                 presentation: 'card',

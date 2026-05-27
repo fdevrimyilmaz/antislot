@@ -40,11 +40,47 @@
 - When `false`, SMS role module calls are disabled and SMS filter UI is hidden.
 - Set to `true` and rebuild to enable SMS role flows.
 
-## iOS SMS Filter
-- iOS automatic filtering is provided by `AntislotMessageFilterExtension` (`IdentityLookup`).
-- Build with native iOS project and open device settings:
-  - `Settings` -> `Messages` -> `Unknown & Spam` -> enable `AntiSlot SMS Filter`.
-- App and extension share settings via App Group: `group.com.antislot.app`.
+## SMS Filter (Junkman-style)
+
+The classifier maps every SMS to one of four Junkman-style actions —
+`allow`, `transaction`, `promotion`, `junk` — using only on-device
+keyword + regex matching. No network calls happen at classification time.
+
+### iOS (automatic background filtering)
+
+- Apple `ILMessageFilterExtension` target lives in
+  `ios-extension/`. The Swift sources are checked in there as
+  the canonical copies; `plugins/with-sms-filter-extension.js`
+  copies them into `ios/AntislotMessageFilterExtension/` on every
+  `expo prebuild` and creates the Xcode target.
+- The extension's keyword lists are regenerated from
+  `services/sms-filter/keywords.ts` and `patterns.ts` by the same plugin,
+  so there's only one source of truth.
+- App + extension share settings via App Group `group.com.antislot.app`,
+  written by the native `SharedConfigModule` (also installed by the plugin).
+- User-facing setup: `Settings → Messages → Unknown & Spam → AntiSlot SMS Filter`.
+- Build prerequisites the plugin can't do for you:
+  - Apple Developer App ID `com.antislot.app.MessageFilter` with
+    Messages Filtering capability and App Group `group.com.antislot.app`.
+  - Provisioning profile that includes the extension entitlement.
+  - Run `npx expo prebuild --clean && npx expo run:ios --device` after
+    those exist; without them, code signing fails with a clear message.
+
+### Android
+
+Background SMS interception is intentionally **not** implemented:
+`RECEIVE_SMS`/`READ_SMS` are on the restricted-permission denylist in
+[scripts/prod-final-checks.js](scripts/prod-final-checks.js) for Play
+Store policy reasons. Android users get the in-app paste-and-test
+recognizer only. Enabling auto-filtering on Android requires becoming the
+default SMS app, which is a separate Play Console submission.
+
+### Community spam list
+
+`store/smsCommunityListStore.ts` fetches a versioned keyword bundle from
+`<api>/v1/sms-keywords` and caches it on device. When the user enables
+the community list toggle the classifier merges these into its lexicon
+at a lower weight than the user's own custom keywords.
 
 ## Security Notes
 - Removed client-side secrets from `EXPO_PUBLIC_*` env vars.
