@@ -204,13 +204,6 @@ function RootLayoutContent() {
               }}
             />
             <Stack.Screen
-              name="sos-contacts"
-              options={{
-                headerShown: false,
-                presentation: 'card',
-              }}
-            />
-            <Stack.Screen
               name="risk-windows"
               options={{
                 headerShown: false,
