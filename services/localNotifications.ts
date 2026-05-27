@@ -193,11 +193,19 @@ export type ReverseDebtReminderResult =
 /**
  * Schedule a one-off reminder used by the reverse-debt simulation module.
  * Existing reverse-debt reminders are replaced so only one is active.
+ *
+ * Pass `triggerAt` to fire at a specific wall-clock time (e.g. the
+ * `finishAt` displayed in the result card). Otherwise we fall back to
+ * `now + workHours`, which can drift if the user delays before tapping.
+ *
+ * Sec floor is 60 to avoid instant-fire weirdness when the alarm time has
+ * essentially already passed.
  */
 export async function scheduleReverseDebtReminder(params: {
   amount: number;
   workHours: number;
   currency?: string;
+  triggerAt?: Date;
 }): Promise<ReverseDebtReminderResult> {
   const permission = await ensureLocalPermission();
   if (permission !== "granted") {
@@ -212,7 +220,10 @@ export async function scheduleReverseDebtReminder(params: {
   const currency = (params.currency ?? "TL").trim() || "TL";
   const amount = Math.max(0, Math.round(params.amount));
   const workHours = Math.max(0.1, params.workHours);
-  const seconds = Math.max(60, Math.round(workHours * 3600));
+  const secondsFromTrigger = params.triggerAt
+    ? Math.round((params.triggerAt.getTime() - Date.now()) / 1000)
+    : Math.round(workHours * 3600);
+  const seconds = Math.max(60, secondsFromTrigger);
   const triggerAt = new Date(Date.now() + seconds * 1000);
   const hoursLabel = Number.isInteger(workHours)
     ? String(workHours)
@@ -225,17 +236,29 @@ export async function scheduleReverseDebtReminder(params: {
     await Notifications.scheduleNotificationAsync({
       identifier: `reverse_debt_${Date.now()}`,
       content: {
-        title: "Tersine borc alarmi",
-        body: `${amount} ${currency} icin ${hoursLabel} saatlik emek suresi doldu. Bu parayi calisarak kazandigin hissi hatirla.`,
+        title: "Tersine borç hatırlatması",
+        body: `${amount} ${currency} için ${hoursLabel} saatlik emek süresi doldu. Bu parayı çalışarak kazandığın hissi hatırla.`,
         sound: "default",
       },
-      trigger: { seconds } as any,
+      // Use the modern typed trigger shape — earlier `{ seconds }` worked
+      // pre-SDK 50 but the typed form is now canonical and survives SDK
+      // upgrades cleanly.
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds,
+        repeats: false,
+      },
     });
     return { status: "scheduled", triggerAt };
   } catch (error) {
     log("schedule reverse debt error:", error);
     return { status: "unsupported" };
   }
+}
+
+/** Cancel any pending reverse-debt reminder. Safe to call when none scheduled. */
+export async function cancelReverseDebtReminder(): Promise<void> {
+  await cancelByPrefix("reverse_debt");
 }
 
 /** Convenience: clear everything we manage. */

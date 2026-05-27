@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 import { withPremiumGate } from "@/components/ui/premium-gate";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -20,11 +21,43 @@ import { Button } from "@/components/ui/button";
 import { SectionHeader } from "@/components/ui/section-header";
 import { useToast } from "@/components/ui/toast";
 import { haptics } from "@/services/haptics";
-import { scheduleReverseDebtReminder } from "@/services/localNotifications";
-import { formatCurrency } from "@/store/savingsStore";
+import {
+  cancelReverseDebtReminder,
+  scheduleReverseDebtReminder,
+} from "@/services/localNotifications";
+import { reportError } from "@/services/monitoring";
+import { formatCurrency, getSavingsConfig } from "@/store/savingsStore";
+
+/**
+ * Reverse-debt simulator — "1 oyun = saatlerce emek".
+ *
+ * The user picks a hypothetical bet, the dice rolls with the real-world
+ * house-edge of 1% win / 99% loss, and on loss we translate the rupee
+ * loss into hours of labor at their stated hourly recovery rate. Then we
+ * offer a real local-notification reminder for that interval so the
+ * abstract "saatler" lands as a concrete buzz at a future time.
+ *
+ * Implementation notes:
+ *   - Inputs persist via SecureStore so re-entry doesn't reset state.
+ *   - Amount/rate are clamped to sensible bounds so a runaway typo
+ *     can't produce a Date that overflows the notification scheduler.
+ *   - Result includes a deterministic `finishAt`; the alarm uses the
+ *     SAME instant rather than recomputing on tap, so the "saat 21:30'da
+ *     bitirirdin" copy is exactly when the alarm fires.
+ *   - Currency follows the user's savings config — no more hard-coded TL.
+ *   - Win path uses sharper copy than "looks like you won"; the 1%
+ *     outcome is the manipulation, not a victory.
+ */
 
 const WIN_PERCENT = 1;
 const LOSE_PERCENT = 99;
+const STORAGE_KEY = "antislot_reverse_debt_input_v1";
+
+// Upper bounds — prevents a typo (e.g. 99999999) from creating a Date that
+// overflows `Notifications.scheduleNotificationAsync`'s 32-bit seconds
+// trigger and from rendering hours-of-labor numbers that mean nothing.
+const MAX_AMOUNT = 100_000;
+const MAX_HOURLY = 10_000;
 
 const AMOUNT_PRESETS = [100, 250, 500, 1000] as const;
 const HOURLY_PRESETS = [10, 20, 30, 50] as const;
@@ -38,8 +71,16 @@ type SpinResult = {
   amount: number;
   hourlyRate: number;
   workHours: number;
+  /** Wall-clock target the alarm should fire at. Pinned at spin time so
+   *  the displayed "X o'clock" matches the alarm even if the user delays. */
   finishAt: Date;
+  currency: string;
 };
+
+interface StoredInput {
+  amount: string;
+  hourlyRate: string;
+}
 
 function parsePositiveInt(raw: string): number {
   const value = parseInt(raw.replace(/[^\d]/g, ""), 10);
@@ -65,12 +106,12 @@ function formatHours(hours: number): string {
 
 function formatWorkDays(hours: number): string {
   const dayCount = hours / 8;
-  if (dayCount < 1) return "1 is gununden az";
+  if (dayCount < 1) return "1 iş gününden az";
   const rounded = Math.round(dayCount * 10) / 10;
   const label = Number.isInteger(rounded)
     ? `${Math.round(rounded)}`
     : rounded.toFixed(1).replace(".", ",");
-  return `yaklasik ${label} is gunu`;
+  return `yaklaşık ${label} iş günü`;
 }
 
 function ReverseDebtModule() {
@@ -79,16 +120,58 @@ function ReverseDebtModule() {
 
   const [amountInput, setAmountInput] = useState("100");
   const [hourlyInput, setHourlyInput] = useState("10");
+  const [currency, setCurrency] = useState("TL");
   const [result, setResult] = useState<SpinResult | null>(null);
   const [alarmBusy, setAlarmBusy] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 
-  const amount = useMemo(() => Math.max(1, parsePositiveInt(amountInput)), [amountInput]);
+  // One-time hydrate: pull saved input + currency.
+  useEffect(() => {
+    (async () => {
+      try {
+        const [raw, savings] = await Promise.all([
+          SecureStore.getItemAsync(STORAGE_KEY),
+          getSavingsConfig().catch(() => null),
+        ]);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as Partial<StoredInput>;
+            if (typeof parsed.amount === "string") setAmountInput(parsed.amount);
+            if (typeof parsed.hourlyRate === "string") setHourlyInput(parsed.hourlyRate);
+          } catch {
+            // ignore — corrupt entry, keep defaults.
+          }
+        }
+        if (savings?.currency) setCurrency(savings.currency);
+      } catch (error) {
+        reportError(error, { scope: "reverseDebt.hydrate", level: "warning" });
+      }
+    })();
+  }, []);
+
+  // Clamp on display + storage so a multi-digit typo never propagates.
+  const amount = useMemo(
+    () => Math.min(MAX_AMOUNT, Math.max(1, parsePositiveInt(amountInput))),
+    [amountInput]
+  );
   const hourlyRate = useMemo(
-    () => Math.max(1, parsePositiveInt(hourlyInput)),
+    () => Math.min(MAX_HOURLY, Math.max(1, parsePositiveInt(hourlyInput))),
     [hourlyInput]
   );
 
-  const introLine = `Tamam, hayali olarak ${amount} TL ile oynayalim. Kazanma ihtimalin %${WIN_PERCENT}. Kaybetme ihtimalin %${LOSE_PERCENT}. Simdi zari atalim.`;
+  // Persist whenever a debounce-friendly chunk of input lands.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const payload: StoredInput = {
+        amount: amountInput,
+        hourlyRate: hourlyInput,
+      };
+      SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(payload)).catch(() => undefined);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [amountInput, hourlyInput]);
+
+  const introLine = `Tamam, hayalî olarak ${amount} ${currency} ile oynayalım. Kazanma ihtimalin %${WIN_PERCENT}. Kaybetme ihtimalin %${LOSE_PERCENT}. Şimdi zarı atalım.`;
 
   const examples = useMemo(() => {
     const now = Date.now();
@@ -116,7 +199,11 @@ function ReverseDebtModule() {
       hourlyRate,
       workHours,
       finishAt,
+      currency,
     });
+    // Spinning again invalidates any previous alarm state on screen — the
+    // helper will still cancel-and-replace on the OS side when scheduled.
+    setScheduledAt(null);
 
     if (outcome === "loss") {
       haptics.warning();
@@ -134,14 +221,18 @@ function ReverseDebtModule() {
       const scheduled = await scheduleReverseDebtReminder({
         amount: result.amount,
         workHours: result.workHours,
-        currency: "TL",
+        currency: result.currency,
+        // Pin the trigger to the exact moment shown in the result card so
+        // "saat 21:30'da bitirirdin" matches when the notification fires.
+        triggerAt: result.finishAt,
       });
 
       if (scheduled.status === "scheduled") {
         haptics.success();
+        setScheduledAt(scheduled.triggerAt);
         toast.success(
-          `${formatClock(scheduled.triggerAt)} icin hatirlatma ayarlandi.`,
-          "Alarm kuruldu"
+          `${formatClock(scheduled.triggerAt)} için hatırlatma ayarlandı.`,
+          "Hatırlatma kuruldu"
         );
         return;
       }
@@ -149,8 +240,8 @@ function ReverseDebtModule() {
       if (scheduled.status === "denied" || scheduled.status === "undetermined") {
         haptics.warning();
         toast.warning(
-          "Bildirim izni olmadan alarm kurulamaz. Ayarlardan izin verebilirsin.",
-          "Izin gerekli"
+          "Bildirim izni olmadan hatırlatma kurulamaz. Ayarlardan izin verebilirsin.",
+          "İzin gerekli"
         );
         return;
       }
@@ -164,6 +255,19 @@ function ReverseDebtModule() {
       setAlarmBusy(false);
     }
   };
+
+  const handleCancelAlarm = useCallback(async () => {
+    haptics.tapLight();
+    try {
+      await cancelReverseDebtReminder();
+      setScheduledAt(null);
+      toast.info("Hatırlatma iptal edildi.");
+      haptics.success();
+    } catch (error) {
+      reportError(error, { scope: "reverseDebt.cancelAlarm", level: "warning" });
+      haptics.error();
+    }
+  }, [toast]);
 
   return (
     <LinearGradient
@@ -196,14 +300,14 @@ function ReverseDebtModule() {
             </View>
             <View style={styles.heroBadge}>
               <Ionicons name="diamond" size={11} color="#FFD074" />
-              <Text style={styles.heroBadgeText}>PREMIUM MODUL</Text>
+              <Text style={styles.heroBadgeText}>PREMIUM MODÜL</Text>
             </View>
             <Text style={styles.heroTitle} accessibilityRole="header">
-              Kumar Borcunu Simule Et
+              Kumar Borcunu Simüle Et
             </Text>
             <Text style={styles.heroSubtitle}>
-              Tersine borc yaklasimi: oyuna girmeden once, para yerine emek
-              maliyetini gor.
+              Tersine borç yaklaşımı: oyuna girmeden önce, para yerine emek
+              maliyetini gör.
             </Text>
           </LinearGradient>
 
@@ -216,7 +320,7 @@ function ReverseDebtModule() {
 
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
-                Hayali bahis tutari (TL)
+                Hayalî bahis tutarı ({currency})
               </Text>
               <View
                 style={[
@@ -224,7 +328,7 @@ function ReverseDebtModule() {
                   { borderColor: colors.primary, backgroundColor: colors.card },
                 ]}
               >
-                <Text style={[styles.amountPrefix, { color: colors.primary }]}>TL</Text>
+                <Text style={[styles.amountPrefix, { color: colors.primary }]}>{currency}</Text>
                 <TextInput
                   value={amountInput}
                   onChangeText={setAmountInput}
@@ -232,7 +336,7 @@ function ReverseDebtModule() {
                   placeholder="100"
                   placeholderTextColor={colors.textMuted}
                   style={[styles.amountInput, { color: colors.text }]}
-                  accessibilityLabel="Hayali bahis tutari"
+                  accessibilityLabel="Hayalî bahis tutarı"
                 />
               </View>
               <View style={styles.chipRow}>
@@ -259,7 +363,7 @@ function ReverseDebtModule() {
                           { color: active ? "#FFFFFF" : colors.text },
                         ]}
                       >
-                        {preset} TL
+                        {preset} {currency}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -269,7 +373,7 @@ function ReverseDebtModule() {
 
             <View style={styles.fieldGroup}>
               <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
-                Saatlik geri kazanma hizi (TL/saat)
+                Saatlik geri kazanma hızı ({currency}/saat)
               </Text>
               <View
                 style={[
@@ -277,7 +381,9 @@ function ReverseDebtModule() {
                   { borderColor: colors.cardBorder, backgroundColor: colors.card },
                 ]}
               >
-                <Text style={[styles.amountPrefix, { color: colors.primary }]}>TL/s</Text>
+                <Text style={[styles.amountPrefix, { color: colors.primary }]}>
+                  {currency}/s
+                </Text>
                 <TextInput
                   value={hourlyInput}
                   onChangeText={setHourlyInput}
@@ -285,7 +391,7 @@ function ReverseDebtModule() {
                   placeholder="10"
                   placeholderTextColor={colors.textMuted}
                   style={[styles.amountInput, { color: colors.text }]}
-                  accessibilityLabel="Saatlik geri kazanma hizi"
+                  accessibilityLabel="Saatlik geri kazanma hızı"
                 />
               </View>
               <View style={styles.chipRow}>
@@ -323,9 +429,9 @@ function ReverseDebtModule() {
 
           <Card style={styles.cardSpacing}>
             <SectionHeader
-              title="Ihtimal"
+              title="İhtimal"
               icon="analytics"
-              subtitle="%1 kazanma - %99 kaybetme"
+              subtitle="%1 kazanma — %99 kaybetme"
             />
             <View style={styles.oddsRow}>
               <View
@@ -348,7 +454,7 @@ function ReverseDebtModule() {
               </View>
             </View>
             <Button
-              title="Simdi zari at"
+              title="Şimdi zarı at"
               onPress={handleSpin}
               variant="primary"
               fullWidth
@@ -377,7 +483,7 @@ function ReverseDebtModule() {
                     color="#FFFFFF"
                   />
                   <Text style={styles.resultBadgeText}>
-                    {result.outcome === "loss" ? "SONUC: KAYIP" : "SONUC: KAZANCLI TUR"}
+                    {result.outcome === "loss" ? "SONUÇ: KAYIP" : "SONUÇ: %1’LİK TUZAK"}
                   </Text>
                 </View>
                 <Text style={styles.rollLabel}>Zar: {result.roll} / 100</Text>
@@ -386,37 +492,60 @@ function ReverseDebtModule() {
               {result.outcome === "loss" ? (
                 <>
                   <Text style={styles.resultTitle}>
-                    {formatCurrency(result.amount, "TL")} kaybettin.
+                    {formatCurrency(result.amount, result.currency)} kaybettin.
                   </Text>
                   <Text style={styles.resultText}>
-                    {`Bu ${result.amount} TL’yi geri kazanmak icin ${formatHours(result.workHours)} calisman gerekir.`}
+                    {`Bu ${result.amount} ${result.currency}’yi geri kazanmak için ${formatHours(result.workHours)} çalışman gerekir.`}
                   </Text>
                   <Text style={styles.resultText}>
-                    {`Hayali alarm: Su an calismaya baslasan, saat ${formatClock(result.finishAt)}’te bitirirdin.`}
+                    {`Hayalî hatırlatma: Şu an çalışmaya başlasan, saat ${formatClock(result.finishAt)}’te bitirirdin.`}
                   </Text>
                   <Text style={styles.resultMeta}>
-                    {formatWorkDays(result.workHours)} - saatte {result.hourlyRate} TL varsayimi.
+                    {formatWorkDays(result.workHours)} — saatte {result.hourlyRate} {result.currency} varsayımı.
                   </Text>
-                  <Button
-                    title={`${formatHours(result.workHours)} sonra beni uyandir`}
-                    onPress={handleScheduleAlarm}
-                    loading={alarmBusy}
-                    disabled={alarmBusy}
-                    variant="gradient"
-                    fullWidth
-                    size="lg"
-                    leftIcon="alarm"
-                    style={styles.alarmBtn}
-                  />
+                  {scheduledAt ? (
+                    <>
+                      <View style={styles.scheduledBanner}>
+                        <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
+                        <Text style={styles.scheduledText}>
+                          {formatClock(scheduledAt)} için hatırlatma aktif.
+                        </Text>
+                      </View>
+                      <Button
+                        title="Hatırlatmayı iptal et"
+                        onPress={handleCancelAlarm}
+                        variant="secondary"
+                        fullWidth
+                        leftIcon="close-circle"
+                        style={styles.alarmBtn}
+                      />
+                    </>
+                  ) : (
+                    <Button
+                      title={`${formatHours(result.workHours)} sonra hatırlat`}
+                      onPress={handleScheduleAlarm}
+                      loading={alarmBusy}
+                      disabled={alarmBusy}
+                      variant="gradient"
+                      fullWidth
+                      size="lg"
+                      leftIcon="notifications"
+                      style={styles.alarmBtn}
+                    />
+                  )}
                 </>
               ) : (
                 <>
-                  <Text style={styles.resultTitle}>Bu turde kazandin gibi gorunuyor.</Text>
+                  <Text style={styles.resultTitle}>
+                    %1’lik tuzak — bu kazançla seni tutmak istiyor.
+                  </Text>
                   <Text style={styles.resultText}>
-                    {"Ama oran ayni: uzun seride 100 turden ortalama 99’u kayip. Sistem seni oyunda tutmak icin nadir kazanci kullanir."}
+                    Casinolar nadir kazançlarla seni oyunda tutar. Sıradaki 99
+                    tur büyük olasılıkla kayıp olacak — matematik her zaman evin
+                    lehine işliyor.
                   </Text>
                   <Text style={styles.resultMeta}>
-                    Istersen tekrar zari atip oranin nasil isledigini gorebilirsin.
+                    {`Aynı zarı 100 kez atsan, beklenen kayıp ${formatCurrency(result.amount * 99, result.currency)}. Bu turdeki kazanç o kaybı yalnızca biraz geciktirir.`}
                   </Text>
                 </>
               )}
@@ -425,9 +554,9 @@ function ReverseDebtModule() {
 
           <Card style={styles.cardSpacing}>
             <SectionHeader
-              title="Daha fazla ornek"
+              title="Daha fazla örnek"
               icon="list"
-              subtitle={`Saatlik ${hourlyRate} TL hizina gore farkli tutarlarin emek karsiligi.`}
+              subtitle={`Saatlik ${hourlyRate} ${currency} hızına göre farklı tutarların emek karşılığı.`}
             />
             <View style={styles.examplesList}>
               {examples.map((example) => (
@@ -440,14 +569,14 @@ function ReverseDebtModule() {
                 >
                   <View style={styles.exampleTop}>
                     <Text style={[styles.exampleAmount, { color: colors.text }]}>
-                      {example.value} TL
+                      {example.value} {currency}
                     </Text>
                     <Text style={[styles.exampleHours, { color: colors.primary }]}>
                       {formatHours(example.workHours)}
                     </Text>
                   </View>
                   <Text style={[styles.exampleHint, { color: colors.textMuted }]}>
-                    Simdi baslasan: {formatClock(example.finishAt)} - {formatWorkDays(example.workHours)}
+                    Şimdi başlasan: {formatClock(example.finishAt)} — {formatWorkDays(example.workHours)}
                   </Text>
                 </View>
               ))}
@@ -596,6 +725,18 @@ const styles = StyleSheet.create({
   resultText: { color: "rgba(255,255,255,0.92)", fontSize: 13, lineHeight: 19, marginBottom: 6 },
   resultMeta: { color: "rgba(255,255,255,0.8)", fontSize: 12, lineHeight: 17, marginBottom: 10 },
   alarmBtn: { marginTop: 4 },
+  scheduledBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.16)",
+    alignSelf: "flex-start",
+    marginBottom: 10,
+  },
+  scheduledText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
 
   examplesList: { gap: 8 },
   exampleRow: {
@@ -616,6 +757,6 @@ const styles = StyleSheet.create({
 });
 
 export default withPremiumGate(ReverseDebtModule, {
-  title: "Kumar Borcunu Simule Et",
-  subtitle: "Tersine borc: 1 oyun = saatlerce emek",
+  title: "Kumar Borcunu Simüle Et",
+  subtitle: "Tersine borç: 1 oyun = saatlerce emek",
 });
