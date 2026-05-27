@@ -281,6 +281,10 @@ function RootLayoutContent() {
               options={{ headerShown: false, presentation: 'card' }}
             />
             <Stack.Screen
+              name="modules/reverse-debt"
+              options={{ headerShown: false, presentation: 'card' }}
+            />
+            <Stack.Screen
               name="modules/hidden-costs"
               options={{ headerShown: false, presentation: 'card' }}
             />

@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -36,7 +37,7 @@ const SUGGESTIONS = [
   "Bugünkü kazancım: 1 gün daha temiz olmak.",
 ];
 
-export default function PledgeModule() {
+function PledgeModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [todayPledge, setTodayPledge] = useState<PledgeRecord | null>(null);
@@ -408,4 +409,9 @@ const styles = StyleSheet.create({
   tipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   tipTitle: { fontSize: 15, fontWeight: "800" },
   tipBody: { fontSize: 13, lineHeight: 19 },
+});
+
+export default withPremiumGate(PledgeModule, {
+  title: "Bugünün Sözü",
+  subtitle: "Günlük taahhüt — sadece bugün için",
 });

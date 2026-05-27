@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   Alert,
   ScrollView,
@@ -55,7 +56,7 @@ const TRIGGER_ORDER: UrgeTrigger[] = [
   "diger",
 ];
 
-export default function UrgeLogModule() {
+function UrgeLogModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [entries, setEntries] = useState<UrgeEntry[]>([]);
@@ -742,4 +743,9 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontWeight: "800" },
   emptyHint: { fontSize: 13, lineHeight: 18, textAlign: "center", maxWidth: 300 },
+});
+
+export default withPremiumGate(UrgeLogModule, {
+  title: "Dürtü Defteri",
+  subtitle: "Her dürtüyü kaydet, patern çıkar",
 });

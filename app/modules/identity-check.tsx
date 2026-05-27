@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -52,7 +53,7 @@ const VALUES: Value[] = [
   { id: "wealth", label: "Refah" },
 ];
 
-export default function IdentityCheckModule() {
+function IdentityCheckModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [step, setStep] = useState(0);
@@ -472,4 +473,9 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", gap: 10 },
   actionPrimary: { flex: 1 },
   nextBtn: { marginTop: 4 },
+});
+
+export default withPremiumGate(IdentityCheckModule, {
+  title: "Kimlik Sorgulama",
+  subtitle: "Bu kararı kim alıyor?",
 });

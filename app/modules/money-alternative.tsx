@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -132,7 +133,7 @@ function buildAlternativeLabel(amount: number, alt: Alternative): string {
   return `${rounded} ${alt.unitNoun}`;
 }
 
-export default function MoneyAlternativeModule() {
+function MoneyAlternativeModule() {
   const { colors } = useTheme();
   const [amountInput, setAmountInput] = useState("100000");
 
@@ -421,4 +422,9 @@ const styles = StyleSheet.create({
   reflectBody: { fontSize: 13, lineHeight: 19 },
 
   ctaBtn: { marginTop: 4 },
+});
+
+export default withPremiumGate(MoneyAlternativeModule, {
+  title: "Para Alternatifi",
+  subtitle: "Kumara ayıracağın para neler alabilir?",
 });

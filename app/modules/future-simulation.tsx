@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -45,7 +46,7 @@ function project(dailySpend: number, years: number) {
   };
 }
 
-export default function FutureSimulationModule() {
+function FutureSimulationModule() {
   const { colors } = useTheme();
   const [dailyInput, setDailyInput] = useState("250");
   const [horizon, setHorizon] = useState<Horizon>(5);
@@ -432,4 +433,9 @@ const styles = StyleSheet.create({
   disclaimerText: { fontSize: 11, lineHeight: 15, flex: 1 },
 
   ctaBtn: { marginTop: 4 },
+});
+
+export default withPremiumGate(FutureSimulationModule, {
+  title: "Gelecek Simülasyonu",
+  subtitle: "Devam edersen / Bugün durursan",
 });

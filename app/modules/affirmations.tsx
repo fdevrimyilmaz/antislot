@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -33,7 +34,7 @@ const ALL_CATEGORIES: AffirmationCategory[] = [
   "gelecek",
 ];
 
-export default function AffirmationsModule() {
+function AffirmationsModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const daily = useMemo(() => pickDailyAffirmation(), []);
@@ -348,4 +349,9 @@ const styles = StyleSheet.create({
   tipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   tipTitle: { fontSize: 15, fontWeight: "800" },
   tipBody: { fontSize: 13, lineHeight: 19 },
+});
+
+export default withPremiumGate(AffirmationsModule, {
+  title: "Olumlamalar",
+  subtitle: "30 farklı kart, günde 1 öne çıkıyor",
 });

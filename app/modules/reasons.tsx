@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   Alert,
   ScrollView,
@@ -39,7 +40,7 @@ const SUGGESTIONS = [
   { emoji: "💪", text: "Kendime tekrar saygı duymak için." },
 ];
 
-export default function ReasonsModule() {
+function ReasonsModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [reasons, setReasons] = useState<Reason[]>([]);
@@ -413,4 +414,9 @@ const styles = StyleSheet.create({
   tipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   tipTitle: { fontSize: 15, fontWeight: "800" },
   tipBody: { fontSize: 13, lineHeight: 19 },
+});
+
+export default withPremiumGate(ReasonsModule, {
+  title: "Sebepler Koleksiyonu",
+  subtitle: "Neden bırakıyorum?",
 });

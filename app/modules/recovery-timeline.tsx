@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -147,7 +148,7 @@ function daysToHours(days: number): number {
   return days * 24;
 }
 
-export default function RecoveryTimelineModule() {
+function RecoveryTimelineModule() {
   const { colors } = useTheme();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
@@ -487,4 +488,9 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   disclaimerText: { fontSize: 11, lineHeight: 15, flex: 1 },
+});
+
+export default withPremiumGate(RecoveryTimelineModule, {
+  title: "Toparlanma Zaman Çizelgesi",
+  subtitle: "İlk saat → 5 yıl",
 });

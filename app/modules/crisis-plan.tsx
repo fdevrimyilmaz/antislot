@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   Linking,
   ScrollView,
@@ -182,7 +183,7 @@ function ListEditor({ title, icon, subtitle, items, suggestions, onChange, color
   );
 }
 
-export default function CrisisPlanModule() {
+function CrisisPlanModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [plan, setPlan] = useState<CrisisPlan>({
@@ -511,4 +512,9 @@ const styles = StyleSheet.create({
   tipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   tipTitle: { fontSize: 15, fontWeight: "800" },
   tipBody: { fontSize: 13, lineHeight: 19 },
+});
+
+export default withPremiumGate(CrisisPlanModule, {
+  title: "Kriz Planı",
+  subtitle: "Kararı önceden ver",
 });

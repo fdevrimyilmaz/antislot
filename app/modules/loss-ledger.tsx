@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   Alert,
   ScrollView,
@@ -38,7 +39,7 @@ const PERIOD_SUGGESTIONS = [
   "2 yıl önce",
 ];
 
-export default function LossLedgerModule() {
+function LossLedgerModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const [entries, setEntries] = useState<LossEntry[]>([]);
@@ -502,4 +503,9 @@ const styles = StyleSheet.create({
   reflectTitle: { fontSize: 15, fontWeight: "800" },
   reflectBody: { fontSize: 13, lineHeight: 19, marginBottom: 12 },
   transferBtn: { marginTop: 4 },
+});
+
+export default withPremiumGate(LossLedgerModule, {
+  title: "Kayıp Defteri",
+  subtitle: "Gerçek toplam — caydırıcı ayna",
 });

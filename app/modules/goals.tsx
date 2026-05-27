@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   Alert,
   ScrollView,
@@ -78,7 +79,7 @@ const PRESETS: { kind: GoalKind; title: string; target?: number }[] = [
   { kind: "freeform", title: "Borçları ödemeye başla" },
 ];
 
-export default function GoalsModule() {
+function GoalsModule() {
   const { colors } = useTheme();
   const toast = useToast();
   const gamblingFreeDays = useProgressStore((s) => s.gamblingFreeDays);
@@ -681,4 +682,9 @@ const styles = StyleSheet.create({
   completedText: { flex: 1 },
   completedTitle: { fontSize: 13, fontWeight: "800" },
   completedSub: { fontSize: 11, marginTop: 2 },
+});
+
+export default withPremiumGate(GoalsModule, {
+  title: "Hedefler",
+  subtitle: "Streak / birikim / alışkanlık",
 });

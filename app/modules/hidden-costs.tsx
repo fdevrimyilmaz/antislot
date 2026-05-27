@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo, useState } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -101,7 +102,7 @@ const DIM_META: Record<
   health: { label: "Sağlık", icon: "heart", color: "#5EE0C7" },
 };
 
-export default function HiddenCostsModule() {
+function HiddenCostsModule() {
   const { colors } = useTheme();
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [step, setStep] = useState(0);
@@ -443,4 +444,9 @@ const styles = StyleSheet.create({
 
   actionRow: { flexDirection: "row", gap: 10 },
   actionPrimary: { flex: 1 },
+});
+
+export default withPremiumGate(HiddenCostsModule, {
+  title: "Görünmez Maliyetler",
+  subtitle: "Zaman · İlişki · Odak · Uyku",
 });

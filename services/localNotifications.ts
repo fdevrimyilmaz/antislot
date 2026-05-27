@@ -186,7 +186,63 @@ export async function rescheduleDailyCheckin(
   }
 }
 
+export type ReverseDebtReminderResult =
+  | { status: "scheduled"; triggerAt: Date }
+  | { status: Exclude<LocalPermissionStatus, "granted"> };
+
+/**
+ * Schedule a one-off reminder used by the reverse-debt simulation module.
+ * Existing reverse-debt reminders are replaced so only one is active.
+ */
+export async function scheduleReverseDebtReminder(params: {
+  amount: number;
+  workHours: number;
+  currency?: string;
+}): Promise<ReverseDebtReminderResult> {
+  const permission = await ensureLocalPermission();
+  if (permission !== "granted") {
+    return { status: permission };
+  }
+
+  const Notifications = await getModule();
+  if (!Notifications) {
+    return { status: "unsupported" };
+  }
+
+  const currency = (params.currency ?? "TL").trim() || "TL";
+  const amount = Math.max(0, Math.round(params.amount));
+  const workHours = Math.max(0.1, params.workHours);
+  const seconds = Math.max(60, Math.round(workHours * 3600));
+  const triggerAt = new Date(Date.now() + seconds * 1000);
+  const hoursLabel = Number.isInteger(workHours)
+    ? String(workHours)
+    : workHours.toFixed(1).replace(".", ",");
+
+  await cancelByPrefix("reverse_debt");
+  await ensureAndroidChannel();
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      identifier: `reverse_debt_${Date.now()}`,
+      content: {
+        title: "Tersine borc alarmi",
+        body: `${amount} ${currency} icin ${hoursLabel} saatlik emek suresi doldu. Bu parayi calisarak kazandigin hissi hatirla.`,
+        sound: "default",
+      },
+      trigger: { seconds } as any,
+    });
+    return { status: "scheduled", triggerAt };
+  } catch (error) {
+    log("schedule reverse debt error:", error);
+    return { status: "unsupported" };
+  }
+}
+
 /** Convenience: clear everything we manage. */
 export async function clearAllLocalSchedules(): Promise<void> {
-  await Promise.all([cancelByPrefix("rw_"), cancelByPrefix("checkin")]);
+  await Promise.all([
+    cancelByPrefix("rw_"),
+    cancelByPrefix("checkin"),
+    cancelByPrefix("reverse_debt"),
+  ]);
 }

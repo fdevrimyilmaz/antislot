@@ -1,5 +1,6 @@
 import { router } from "expo-router";
 import React, { useMemo } from "react";
+import { withPremiumGate } from "@/components/ui/premium-gate";
 import {
   ScrollView,
   StyleSheet,
@@ -48,7 +49,7 @@ const TIER_COLORS: Record<Milestone["tier"], readonly [string, string]> = {
   legend:   ["#B580FF", "#7D40C7"],
 };
 
-export default function MilestonesModule() {
+function MilestonesModule() {
   const { colors } = useTheme();
   const gamblingFreeDays = useProgressStore((state) => state.gamblingFreeDays);
   const safeDays = Number.isFinite(gamblingFreeDays) ? gamblingFreeDays : 0;
@@ -424,4 +425,9 @@ const styles = StyleSheet.create({
   descText: { flex: 1 },
   descTitle: { fontSize: 13, fontWeight: "800", marginBottom: 2 },
   descBody: { fontSize: 12, lineHeight: 17 },
+});
+
+export default withPremiumGate(MilestonesModule, {
+  title: "Kilometre Taşları",
+  subtitle: "11 rozet, bronzdan efsaneye",
 });
